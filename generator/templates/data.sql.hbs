@@ -1,0 +1,28 @@
+-- Datos iniciales del diagrama «{{{project.name}}}».
+--
+-- Filas de ejemplo capturadas en la herramienta —a mano o leyendo una tabla
+-- fotografiada— y trasladadas aquí. No son datos de producción.
+--
+-- Flyway aplica esta migración una sola vez, después del esquema. Si vuelves a
+-- importar la tabla y regeneras el proyecto sobre una base de datos que ya la
+-- aplicó, Flyway se quejará de la checksum: borra el volumen de desarrollo
+-- (`docker compose down -v`) o añade una migración nueva.
+
+{{#each seed}}
+INSERT INTO {{{this.tableName}}} ({{{join this.columns ", "}}}) VALUES
+{{#each this.rows}}
+    ({{{join this ", "}}}){{#unless @last}},{{else}};{{/unless}}
+{{/each}}
+
+{{#if this.resetSequenceFor}}
+-- Las filas de arriba traen su clave primaria puesta, y un INSERT con id
+-- explícito no adelanta la secuencia. Sin esto, el primer POST contra la API
+-- intentaría insertar el id 1, que ya existe, y fallaría con violación de clave
+-- primaria; un fallo desconcertante, porque el arranque habría ido bien.
+SELECT setval(
+    pg_get_serial_sequence('{{{this.tableName}}}', '{{{this.resetSequenceFor}}}'),
+    COALESCE((SELECT MAX({{{this.resetSequenceFor}}}) FROM {{{this.tableName}}}), 1)
+);
+
+{{/if}}
+{{/each}}

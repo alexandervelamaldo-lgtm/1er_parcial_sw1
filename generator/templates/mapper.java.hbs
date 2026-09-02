@@ -1,0 +1,80 @@
+package {{{project.basePackage}}}.dto.mapper;
+
+import {{{project.basePackage}}}.domain.{{{entity.className}}};
+import {{{project.basePackage}}}.dto.{{{entity.className}}}Request;
+import {{{project.basePackage}}}.dto.{{{entity.className}}}Response;
+{{#if toOneAssociations}}
+import {{{project.basePackage}}}.exception.ResourceNotFoundException;
+{{/if}}
+{{#each repositoryDependencies}}
+import {{{../project.basePackage}}}.repository.{{{className}}}Repository;
+{{/each}}
+{{#each repositoryDependencies}}
+import {{{../project.basePackage}}}.domain.{{{className}}};
+{{/each}}
+import org.springframework.stereotype.Component;
+{{#each dtoImports}}
+import {{{this}}};
+{{/each}}
+
+/**
+ * Traducción entre {{{entity.className}}} y sus DTOs.
+ *
+ * Las asociaciones a-uno se resuelven contra su repositorio: el DTO transporta
+ * un identificador y el mapeador recupera la entidad, fallando con 404 si no
+ * existe. Se hace aquí y no en el servicio para que la capa 3 no dependa de los
+ * repositorios de otras entidades.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+@Component
+public class {{{entity.className}}}Mapper {
+{{#if repositoryDependencies}}
+
+{{#each repositoryDependencies}}
+    private final {{{className}}}Repository {{{varName}}}Repository;
+{{/each}}
+
+    public {{{entity.className}}}Mapper({{#each repositoryDependencies}}{{{className}}}Repository {{{varName}}}Repository{{#unless @last}},
+                                        {{/unless}}{{/each}}) {
+{{#each repositoryDependencies}}
+        this.{{{varName}}}Repository = {{{varName}}}Repository;
+{{/each}}
+    }
+{{else}}
+
+    public {{{entity.className}}}Mapper() {
+    }
+{{/if}}
+
+    public {{{entity.className}}}Response toResponse({{{entity.className}}} entity) {
+        return new {{{entity.className}}}Response(
+{{#each responseComponents}}
+                {{{accessor}}}{{#unless @last}},{{/unless}}
+{{/each}}
+        );
+    }
+
+    public {{{entity.className}}} toEntity({{{entity.className}}}Request request) {
+        {{{entity.className}}} entity = new {{{entity.className}}}();
+        update(entity, request);
+        return entity;
+    }
+
+    public void update({{{entity.className}}} entity, {{{entity.className}}}Request request) {
+{{#each allFields}}
+        entity.{{{setterName}}}(request.{{{name}}}());
+{{/each}}
+{{#each toOneAssociations}}
+{{#if nullable}}
+        entity.{{{setterName}}}(request.{{{idComponentName}}}() == null
+                ? null
+                : {{{targetVar}}}Repository.findById(request.{{{idComponentName}}}())
+                        .orElseThrow(() -> new ResourceNotFoundException("{{{targetClass}}}", request.{{{idComponentName}}}())));
+{{else}}
+        entity.{{{setterName}}}({{{targetVar}}}Repository.findById(request.{{{idComponentName}}}())
+                .orElseThrow(() -> new ResourceNotFoundException("{{{targetClass}}}", request.{{{idComponentName}}}())));
+{{/if}}
+{{/each}}
+    }
+}

@@ -1,0 +1,27 @@
+package {{{project.basePackage}}}.repository;
+
+import {{{project.basePackage}}}.domain.{{{entity.className}}};
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+{{#if hasUniqueFields}}
+import java.util.Optional;
+{{/if}}
+{{#each repositoryImports}}
+import {{{this}}};
+{{/each}}
+
+/**
+ * Capa 2 — Repositorio de {{{entity.className}}}.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+@Repository
+public interface {{{entity.className}}}Repository
+        extends JpaRepository<{{{entity.className}}}, {{{entity.identifier.javaType}}}> {
+{{#each uniqueFields}}
+
+    Optional<{{{../entity.className}}}> findBy{{{pascalName}}}({{{javaType}}} {{{name}}});
+
+    boolean existsBy{{{pascalName}}}({{{javaType}}} {{{name}}});
+{{/each}}
+}

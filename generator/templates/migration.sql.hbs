@@ -1,0 +1,25 @@
+-- Migración generada a partir del diagrama «{{{project.name}}}».
+-- {{{migration.description}}}
+--
+-- Flyway la aplica una sola vez. Para cambiar el esquema añade una migración
+-- nueva con versión superior en lugar de editar esta: reescribir una migración
+-- ya aplicada deja la checksum inconsistente y el arranque falla.
+
+{{#each migration.tables}}
+CREATE TABLE {{{this.name}}} (
+{{#each this.columns}}
+    {{{this.definition}}},
+{{/each}}
+    PRIMARY KEY ({{{join this.primaryKey ", "}}})
+);
+
+{{/each}}
+{{#each migration.tables}}
+{{#each this.foreignKeys}}
+ALTER TABLE {{{../this.name}}}
+    ADD CONSTRAINT {{{this.constraintName}}}
+    FOREIGN KEY ({{{this.column}}}) REFERENCES {{{this.referencesTable}}} ({{{this.referencesColumn}}})
+    ON DELETE {{{this.onDelete}}};
+
+{{/each}}
+{{/each}}

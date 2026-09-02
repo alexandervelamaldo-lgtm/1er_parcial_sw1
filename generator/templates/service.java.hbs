@@ -1,0 +1,42 @@
+package {{{project.basePackage}}}.service;
+
+{{#if serviceNeedsOwnEntity}}
+import {{{project.basePackage}}}.domain.{{{entity.className}}};
+{{/if}}
+import {{{project.basePackage}}}.dto.{{{entity.className}}}Request;
+import {{{project.basePackage}}}.dto.{{{entity.className}}}Response;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+{{#if identifierImport}}
+import {{{identifierImport}}};
+{{/if}}
+{{#each serviceImports}}
+import {{{this}}};
+{{/each}}
+
+/**
+ * Capa 3 — Contrato del servicio de {{{entity.className}}}.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+public interface {{{entity.className}}}Service {
+
+    Page<{{{entity.className}}}Response> findAll(Pageable pageable);
+
+    {{{entity.className}}}Response findById({{{entity.identifier.javaType}}} id);
+
+    {{{entity.className}}}Response create({{{entity.className}}}Request request);
+
+    {{{entity.className}}}Response update({{{entity.identifier.javaType}}} id, {{{entity.className}}}Request request);
+
+    void delete({{{entity.identifier.javaType}}} id);
+{{#if hasServiceMethods}}
+
+    // Operaciones declaradas en el diagrama. El diagrama dice la firma, no lo
+    // que hacen: implementarlas es trabajo tuyo, en una clase aparte que
+    // colabore con la implementación generada.
+{{#each serviceMethods}}
+    {{{this.signature}}};
+{{/each}}
+{{/if}}
+}

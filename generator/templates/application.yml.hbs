@@ -1,0 +1,31 @@
+# El nombre de la base se declara como propiedad propia y se referencia desde la
+# URL. Ponerlo en línea obligaría a anidar llaves de Spring dentro de la
+# plantilla, que es exactamente donde se rompe la generación.
+app:
+  database-name: {{{project.databaseName}}}
+
+spring:
+  application:
+    name: {{{project.artifactId}}}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:${app.database-name}}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    {{{project.basePackage}}}: INFO

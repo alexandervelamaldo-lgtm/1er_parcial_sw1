@@ -1,0 +1,1797 @@
+/*
+ * Estilos de la aplicación.
+ *
+ * Una hoja sola, sin framework. El repertorio visual es pequeño —barra, lienzo,
+ * panel, formularios— y las variables de color bastan para mantenerlo coherente;
+ * traer un sistema de diseño entero para esto añadiría más superficie que orden.
+ */
+
+:root {
+  --fondo: #0f1115;
+  --fondo-2: #151922;
+  --fondo-3: #1b2029;
+  --borde: #2a3040;
+  --texto: #e6e9ef;
+  --texto-2: #8a93a6;
+  --acento: #5b9cff;
+  --exito: #4ecb8f;
+  --aviso: #ffd24a;
+  --error: #ff5b7f;
+  --radio: 8px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#raiz {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------------------
+   Elementos comunes
+   -------------------------------------------------------------------------- */
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+.boton,
+button {
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.boton:hover:not(:disabled),
+button:hover:not(:disabled) {
+  background: #232a36;
+  border-color: #3a4356;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.boton--primario {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: #08111f;
+  font-weight: 600;
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: #7bb0ff;
+  border-color: #7bb0ff;
+}
+
+.boton--peligro {
+  border-color: #4a2530;
+  color: var(--error);
+  width: 100%;
+  margin-top: 16px;
+}
+
+.boton--discreto {
+  background: transparent;
+  border-color: transparent;
+  color: var(--texto-2);
+}
+
+.boton--enlace {
+  background: none;
+  border: none;
+  color: var(--acento);
+  text-decoration: underline;
+  padding: 4px;
+}
+
+.boton--activo {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: #08111f;
+}
+
+input,
+select {
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--acento);
+  outline-offset: -1px;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.campo > span {
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.fila-formulario {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.fila-formulario input {
+  flex: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Barra superior
+   -------------------------------------------------------------------------- */
+
+.barra {
+  display: flex;
+  align-items: center;
+  /* Sin «wrap» la barra desborda en horizontal y los botones de la derecha
+     («+ Clase», «🖼 Desde imagen») se salen de la ventana sin ninguna señal de
+     que existen: no aparece scroll, simplemente no se ven. Prefiero que la
+     barra crezca hacia abajo antes que esconder la única forma de crear una
+     clase a mano. */
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 14px;
+  background: var(--fondo-2);
+  border-bottom: 1px solid var(--borde);
+  flex-shrink: 0;
+}
+
+.barra__titulo {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* El mínimo automático de un ítem flex es el ancho de su contenido; sin
+     esto un título largo se niega a encogerse y es él quien empuja al resto
+     fuera de la pantalla. */
+  min-width: 0;
+}
+
+.barra__herramientas {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  /* El hueco entre grupos lo pone `.barra__grupo + .barra__grupo`; aquí solo el
+     mínimo para cuando la barra se parte en dos filas. */
+  gap: 6px 4px;
+  margin-left: auto;
+}
+
+/*
+  Los ocho controles pesaban lo mismo, así que había que leerlos todos para
+  encontrar el que se buscaba. Agrupados por lo que hacen —crear, traer y
+  llevarse, deshacer, generar— se localiza el bloque de un vistazo y solo se
+  leen dos o tres etiquetas.
+*/
+.barra__grupo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Una línea fina en vez de más separación: separar más rompería la barra en dos
+   filas antes de tiempo en pantallas estrechas. */
+.barra__grupo + .barra__grupo {
+  padding-left: 14px;
+  border-left: 1px solid var(--borde);
+}
+
+.barra__usuario {
+  color: var(--texto-2);
+  font-size: 13px;
+}
+
+.grupo-relacion {
+  display: flex;
+  gap: 2px;
+}
+
+/* El mando que despliega el resto de la barra en un teléfono. Se distingue de
+   los botones que ejecutan algo —no hace nada al diagrama, solo enseña lo que ya
+   había— sin llegar a parecer deshabilitado. */
+.barra__mas {
+  color: var(--texto-2);
+  white-space: nowrap;
+}
+
+.barra__mas[aria-expanded='true'] {
+  color: var(--texto);
+  border-color: var(--acento);
+}
+
+/* --------------------------------------------------------------------------
+   Indicador de sincronización
+   -------------------------------------------------------------------------- */
+
+.indicador-grupo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 8px;
+}
+
+.indicador {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--texto-2);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.indicador__punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.indicador--bien {
+  color: var(--exito);
+}
+.indicador--esperando {
+  color: var(--aviso);
+}
+.indicador--esperando .indicador__punto {
+  animation: latido 1.2s ease-in-out infinite;
+}
+.indicador--offline {
+  color: var(--texto-2);
+}
+.indicador--error {
+  color: var(--error);
+}
+
+@keyframes latido {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.presentes {
+  display: flex;
+}
+
+.presentes__ficha {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #08111f;
+  border: 2px solid var(--fondo-2);
+  margin-left: -6px;
+}
+
+/* --------------------------------------------------------------------------
+   Editor
+   -------------------------------------------------------------------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor__cuerpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.lienzo {
+  flex: 1;
+  background: var(--fondo);
+  touch-action: none;
+  cursor: default;
+  user-select: none;
+}
+
+.caja {
+  cursor: grab;
+}
+
+/*
+  El contorno del navegador se dibuja sobre la caja envolvente del grupo SVG y
+  queda pegado al borde; se sustituye por el mismo realce que usa la selección,
+  que además es coherente con lo que se ve al pinchar.
+*/
+.caja:focus {
+  outline: none;
+}
+
+.caja:focus-visible .caja__fondo {
+  stroke: var(--acento);
+  stroke-width: 2;
+}
+
+.caja__fondo {
+  fill: var(--fondo-2);
+}
+
+.caja__nombre {
+  fill: var(--texto);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.caja__nombre--abstracta {
+  font-style: italic;
+}
+
+.caja__estereotipo {
+  fill: var(--texto-2);
+  font-size: 10px;
+}
+
+.caja__linea {
+  stroke: var(--borde);
+  stroke-width: 1;
+}
+
+.caja__miembro {
+  fill: var(--texto-2);
+  font-size: 11px;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+.caja__miembro--metodo {
+  fill: #9fb4d8;
+}
+
+/*
+  Las etiquetas de las relaciones se pintan con un halo del color del fondo
+  (`paint-order: stroke` dibuja el borde por debajo del relleno). Van encima de
+  la rejilla y a veces encima de otra línea, y un «0..1» cruzado por un trazo
+  gris se lee mal justo cuando más importa distinguirlo de un «1».
+*/
+.relacion__etiqueta,
+.relacion__multiplicidad {
+  fill: var(--texto-2);
+  font-size: 10px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--fondo);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.relacion__multiplicidad {
+  fill: var(--texto);
+  font-weight: 600;
+}
+
+.etiqueta-cursor {
+  paint-order: stroke;
+  stroke: var(--fondo);
+  stroke-width: 3;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Panel de propiedades
+   -------------------------------------------------------------------------- */
+
+.panel {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--fondo-2);
+  border-left: 1px solid var(--borde);
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.panel__titulo {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-2);
+  margin: 0 0 14px;
+}
+
+.panel__seccion {
+  margin-top: 18px;
+}
+
+.panel__seccion h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-2);
+  margin: 0 0 8px;
+}
+
+.panel__vacio {
+  color: var(--texto-2);
+  font-size: 13px;
+}
+
+.panel__error {
+  background: #2a1620;
+  border: 1px solid #4a2530;
+  color: #ff8fa6;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  margin: 0 0 12px;
+}
+
+.panel__error--flotante {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lista__fila {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--fondo-3);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.lista__nombre {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lista__vacia {
+  color: var(--texto-2);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.mini {
+  padding: 2px 4px;
+  font-size: 12px;
+  max-width: 96px;
+}
+
+/* --------------------------------------------------------------------------
+   Editor de relaciones
+   -------------------------------------------------------------------------- */
+
+.relaciones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.relacion {
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.relacion__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.relacion__extremos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.relacion__extremos .mini {
+  max-width: 62px;
+}
+
+.relacion__clase {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La clase seleccionada se resalta: sin esto, en una relación reflexiva o entre
+   nombres parecidos no se sabe cuál de los dos extremos es el que se está
+   mirando, y la dirección de la flecha deja de significar nada. */
+.relacion__clase--actual {
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.relacion__flecha {
+  color: var(--texto-2);
+}
+
+.relacion__lectura {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+.relacion__lectura strong {
+  color: var(--texto);
+  font-weight: 600;
+}
+
+.relacion__mapeo {
+  margin: 4px 0 0;
+}
+
+.relacion__mapeo code {
+  color: var(--exito);
+  font-size: 11px;
+}
+
+.marca {
+  padding: 2px 6px;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.5;
+}
+
+.marca--activa {
+  opacity: 1;
+  background: #2b3446;
+}
+
+.marca--borrar:hover:not(:disabled) {
+  color: var(--error);
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------------------
+   Asistente
+   -------------------------------------------------------------------------- */
+
+.asistente {
+  border-top: 1px solid var(--borde);
+  background: var(--fondo-2);
+  padding: 10px 14px;
+  flex-shrink: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.asistente__entrada {
+  display: flex;
+  gap: 6px;
+}
+
+.asistente__entrada input {
+  flex: 1;
+}
+
+.boton-microfono--activo {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+  animation: latido 1s ease-in-out infinite;
+}
+
+.asistente__mensaje {
+  color: var(--texto-2);
+  font-size: 13px;
+  margin: 8px 0 0;
+  /*
+    Algunos mensajes vienen en varias líneas a propósito —qué ha pasado, qué
+    hacer ahora, qué hacer para que no se repita—, y colapsarlas los convierte
+    en un párrafo que nadie termina de leer. `pre-line` respeta los saltos sin
+    conservar la sangría del código que los escribe.
+  */
+  white-space: pre-line;
+}
+
+.asistente__propuesta {
+  margin-top: 10px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 10px 12px;
+}
+
+.asistente__origen {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 0 0 6px;
+}
+
+.asistente__propuesta ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.asistente__acciones {
+  display: flex;
+  gap: 6px;
+}
+
+/*
+ * Una propuesta que borra cosas se ve distinta antes de leerla. El borde rojo no
+ * decora: es lo único que llega al usuario cuando ya ha dejado de leer y solo
+ * busca el botón, que es exactamente el momento en el que conviene frenarle.
+ */
+.asistente__propuesta--destructiva {
+  border-color: #4a2530;
+  background: #1d1519;
+}
+
+.asistente__impacto {
+  border-top: 1px solid #4a2530;
+  margin: 0 0 10px;
+  padding-top: 8px;
+}
+
+.asistente__impacto p {
+  margin: 0 0 6px;
+}
+
+.asistente__impacto strong {
+  color: var(--error);
+}
+
+.asistente__impacto ul {
+  margin: 0 0 6px;
+  padding-left: 20px;
+}
+
+.asistente__impacto li {
+  color: var(--texto);
+  font-size: 13px;
+}
+
+.asistente__impacto-nota {
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+/*
+ * El botón de peligro nace pensado para un diálogo, donde ocupa el ancho entero.
+ * Aquí convive con «No, cancelar» en una fila, así que se le devuelve su tamaño
+ * natural y se rellena: en este punto ya es la acción confirmada, no la propuesta.
+ */
+.asistente__acciones .boton--peligro {
+  background: var(--error);
+  border-color: var(--error);
+  color: #1a0d12;
+  font-weight: 600;
+  margin-top: 0;
+  width: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Avisos
+   -------------------------------------------------------------------------- */
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1e2636;
+  border-bottom: 1px solid var(--borde);
+  color: var(--texto);
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.aviso__texto {
+  /* Se queda con el hueco que sobre para que los dos botones no bailen de sitio
+     según lo largo que sea el mensaje. */
+  flex: 1;
+  min-width: 0;
+}
+
+/* La acción del aviso —«Deshacer» tras una importación— no es un botón más de la
+   barra: aparece un momento y hay que encontrarlo sin buscarlo. Se le da el
+   color de acento sin el peso del botón primario, que compite con «Generar
+   Spring Boot». */
+.aviso__accion {
+  flex-shrink: 0;
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.aviso__cerrar {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--texto-2);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  /* 32 px de lado: por debajo de eso, en una pantalla táctil, se falla el toque
+     y se acaba pulsando lo que hay detrás. */
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.aviso__cerrar:hover {
+  color: var(--texto);
+}
+
+.aviso--lectura {
+  background: #2a2410;
+  color: var(--aviso);
+}
+
+/* Dentro de la tarjeta de acceso, no como banda a lo ancho de la ventana. */
+.aviso--sesion {
+  background: #2a2410;
+  border: 1px solid #4a3f14;
+  border-radius: 6px;
+  color: var(--aviso);
+  cursor: default;
+  line-height: 1.45;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Acceso y lista de proyectos
+   -------------------------------------------------------------------------- */
+
+.acceso {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 20px;
+}
+
+.acceso__tarjeta {
+  width: min(400px, 100%);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.acceso__tarjeta h1 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.acceso__lema {
+  color: var(--texto-2);
+  margin: 0 0 22px;
+  font-size: 13px;
+}
+
+.acceso__tarjeta .boton--primario {
+  width: 100%;
+  padding: 9px;
+}
+
+.acceso__tarjeta .boton--enlace {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.proyectos {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.proyectos__cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  max-width: 1000px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.rejilla {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.tarjeta {
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+
+.tarjeta--formulario {
+  padding: 16px;
+  margin-top: 14px;
+  max-width: 420px;
+}
+
+.tarjeta__principal {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 14px;
+}
+
+.tarjeta__principal h2 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.tarjeta__principal p {
+  color: var(--texto-2);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.tarjeta__acciones {
+  display: flex;
+  gap: 4px;
+  padding: 0 10px 10px;
+}
+
+.etiqueta {
+  display: inline-block;
+  font-size: 11px;
+  border-radius: 20px;
+  padding: 2px 9px;
+  background: var(--fondo-3);
+  color: var(--texto-2);
+}
+
+.etiqueta--owner {
+  background: #1e3352;
+  color: var(--acento);
+}
+.etiqueta--editor {
+  background: #163326;
+  color: var(--exito);
+}
+.etiqueta--viewer {
+  background: #33301a;
+  color: var(--aviso);
+}
+
+/* --------------------------------------------------------------------------
+   Modal
+   -------------------------------------------------------------------------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  z-index: 30;
+}
+
+.modal__caja {
+  width: min(440px, 100%);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.modal__caja h2 {
+  font-size: 16px;
+  margin: 0 0 14px;
+}
+
+.modal__nota {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 14px 0;
+}
+
+.cargando {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--texto-2);
+}
+
+/* --------------------------------------------------------------------------
+   Importar una tabla desde una foto
+   -------------------------------------------------------------------------- */
+
+/*
+ * Este cuadro es mucho más ancho que el resto de modales, y a propósito: la
+ * revisión consiste en tener la foto y la tabla leída delante a la vez. Si para
+ * comparar hubiera que hacer scroll de una a otra, nadie compararía.
+ */
+.importar {
+  width: min(1180px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.importar__cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.importar__cabecera h2 {
+  margin: 0 0 14px;
+}
+
+.importar__error {
+  background: #2a1620;
+  border: 1px solid #4a2530;
+  border-radius: var(--radio);
+  color: var(--error);
+  margin: 0 0 12px;
+  padding: 8px 10px;
+}
+
+.importar__inicio p {
+  margin: 0 0 12px;
+}
+
+.importar__nota {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.importar__cargando {
+  color: var(--texto-2);
+  padding: 30px 0;
+  text-align: center;
+}
+
+/*
+  La foto pesa más que antes en el reparto (era 2fr contra 3fr). El motivo es
+  que dejó de ser una miniatura de referencia: es donde se comprueba de verdad
+  una cardinalidad dudosa, y el zoom rinde mucho más si el marco de partida es
+  grande. La lista sigue teniendo sitio de sobra porque sus filas son cortas.
+*/
+.importar__revision {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) 1fr;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Por debajo de este ancho la comparación en paralelo ya no cabe y se apilan. */
+@media (max-width: 900px) {
+  .importar__revision {
+    grid-template-columns: 1fr;
+  }
+}
+
+.importar__foto {
+  position: sticky;
+  top: 0;
+  align-self: start;
+}
+
+/* --- la foto con zoom (FotoConLupa) --- */
+
+.lupa__marco {
+  /*
+    Altura fija a propósito. Si el marco creciera con la imagen, cada foto
+    colocaría los mandos del zoom a una altura distinta y una panorámica de
+    pizarra apuntada empujaría la lista fuera de la pantalla.
+  */
+  height: min(52vh, 460px);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: #000;
+  cursor: zoom-in;
+  touch-action: none;
+}
+
+.lupa__marco:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}
+
+.lupa__marco--ampliada {
+  cursor: grab;
+}
+
+.lupa__marco--ampliada:active {
+  cursor: grabbing;
+}
+
+.lupa__marco img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  user-select: none;
+  /* `image-rendering` lo decide el componente: depende de si se está ampliando
+     por encima del tamaño real de la foto o todavía reduciéndola. */
+}
+
+.lupa__mandos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.lupa__nivel {
+  color: var(--texto-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: center;
+}
+
+.lupa__pista {
+  color: var(--texto-2);
+  font-size: 11px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.importar__tabla {
+  min-width: 0;
+}
+
+.importar__avisos {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: var(--aviso);
+  font-size: 13px;
+}
+
+.importar__avisos--error {
+  color: var(--error);
+}
+
+.importar__acciones {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Importar desde un fichero XMI
+   -------------------------------------------------------------------------- */
+
+/*
+ * Más estrecho que la importación desde foto porque aquí no hay nada que
+ * comparar en paralelo: solo una lista de lo que va a entrar. Pero más alto,
+ * porque un XMI ajeno puede traer doscientas clases y hay que poder recorrerlas
+ * antes de decidir.
+ */
+.importar-xmi {
+  width: min(680px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.importar-xmi__revision {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.importar-xmi__fuente {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--texto-2);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * El recuento es lo primero que se mira y a menudo lo único: dice de un vistazo
+ * si el fichero trae lo que se esperaba o el triple.
+ */
+.importar-xmi__recuento {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--fondo-3);
+  border-radius: var(--radio);
+  font-size: 13px;
+  color: var(--texto-2);
+}
+
+.importar-xmi__recuento strong {
+  color: var(--texto);
+  font-size: 15px;
+  margin-right: 4px;
+}
+
+.importar-xmi__clases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+  /* Con doscientas clases esta lista sola llenaría la pantalla y empujaría los
+     avisos fuera de la vista, que es justo lo que hay que leer. */
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* Las clases que se amplían, no se crean. Van en una línea de texto y no en la
+   rejilla de etiquetas de arriba porque son otra cosa: tocan lo que ya está
+   dibujado, y conviene que se lean como una frase y no como un recuento más. */
+.importar-xmi__ampliadas {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--texto-2);
+}
+
+.importar-xmi__ampliadas .etiqueta {
+  margin-right: 4px;
+}
+
+.importar-xmi__detalle {
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.importar-xmi__detalle summary {
+  cursor: pointer;
+  color: var(--texto-2);
+}
+
+.importar-xmi__detalle ol,
+.importar-xmi__detalle ul {
+  margin: 10px 0 0;
+  padding-left: 22px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.importar-xmi__detalle li {
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Importar un diagrama de clases desde una imagen
+   -------------------------------------------------------------------------- */
+
+/*
+ * Reutiliza la caja de la importación por foto —imagen a la izquierda, lo leído
+ * a la derecha— y añade lo que un diagrama necesita y una tabla no: una lista de
+ * relaciones donde se vea de un golpe qué cardinalidad tiene cada extremo.
+ */
+
+.importar-diagrama__titulo {
+  font-size: 13px;
+  color: var(--texto-2);
+  margin: 16px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/*
+ * El aviso de cardinalidades sin leer.
+ *
+ * Va en rojo y arriba del todo, no en la lista de avisos amarilla de abajo, y la
+ * distinción es deliberada. Los demás avisos describen algo que ya se ha
+ * resuelto de una manera razonable —«se ha usado String», «se deja como está»—;
+ * este describe una suposición que nadie ha confirmado y que decide el esquema
+ * de la base de datos. Mezclarlo con los otros sería enseñar a ignorarlo.
+ */
+.importar-diagrama__alerta {
+  background: #2a1620;
+  border: 1px solid #4a2530;
+  border-radius: var(--radio);
+  color: var(--error);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 12px 0;
+  padding: 10px 12px;
+}
+
+.importar-diagrama__alerta code {
+  background: #3a1c28;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.importar-diagrama__clase,
+.importar-diagrama__atributo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.importar-diagrama__clase input,
+.importar-diagrama__atributo input[type='text'],
+.importar-diagrama__atributo > input:not([type]) {
+  flex: 1;
+  min-width: 0;
+}
+
+.importar-diagrama__atributo {
+  padding-left: 16px;
+  font-size: 13px;
+}
+
+.importar-diagrama__atributo label {
+  color: var(--texto-2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.importar-diagrama__relacion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+/* El borde rojo hace que la fila se encuentre de un vistazo al bajar la lista,
+   sin tener que leer cada cardinalidad una por una. */
+.importar-diagrama__relacion--dudosa {
+  border-color: #4a2530;
+  background: #21161c;
+}
+
+.importar-diagrama__extremo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* El desplegable del extremo concreto que no se pudo leer. Marcar la relación
+   entera no bastaría: hay que saber a cuál de los dos lados mirar en la foto. */
+.importar-diagrama__dudosa {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+/* --------------------------------------------------------------------------
+   Historial de cambios
+   -------------------------------------------------------------------------- */
+
+/*
+ * Más alto que ancho, al revés que la revisión de una foto. Lo que se hace aquí
+ * es recorrer una lista hacia atrás en el tiempo, no comparar dos cosas de
+ * izquierda a derecha, así que la altura es lo que importa: cuantas más entradas
+ * quepan de una vez, menos veces hay que desplazarse para reconstruir qué pasó.
+ */
+.historial {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.historial__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.historial__cabecera h2 {
+  margin: 0;
+}
+
+.historial__lista {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.historial__entrada {
+  padding: 9px 10px;
+  border-radius: 6px;
+  background: var(--fondo-3);
+  border: 1px solid transparent;
+}
+
+.historial__resumen {
+  margin: 0;
+  font-size: 13px;
+  /* Los nombres vienen de diagramas, de OCR y de ficheros ajenos: uno larguísimo
+     no debe empujar el resto del cuadro fuera de la pantalla. */
+  overflow-wrap: anywhere;
+}
+
+.historial__firma {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+.historial__autor {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.historial__origen {
+  font-style: italic;
+}
+
+.historial__propuesta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--texto-2);
+  border-left: 2px solid var(--acento);
+  padding-left: 7px;
+}
+
+/* La hora no cuadra con el orden. Se avisa en vez de reordenar por fecha, que
+   sería creerse un reloj que ya ha demostrado estar mal. */
+.historial__dudoso {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--error);
+}
+
+.historial__detalles {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+.historial__detalles summary {
+  cursor: pointer;
+}
+
+.historial__detalles ul {
+  margin: 5px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.historial__autoria {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Dentro del panel lateral hay 320 px de ancho y la lista es secundaria: se
+   limita su altura para que no empuje al botón de eliminar fuera de la vista. */
+.historial__lista--compacta {
+  max-height: 220px;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   La guía (Guia.tsx)
+   -------------------------------------------------------------------------- */
+
+/*
+  El botón flotante se queda en una esquina y no en la barra de herramientas.
+  La barra pertenece al editor y la pregunta «¿cómo empiezo?» se hace antes de
+  abrir ningún proyecto, cuando esa barra todavía no existe.
+*/
+.boton-ayuda {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 45%);
+  font-weight: 600;
+  /* En un móvil el pulgar necesita un objetivo de 44 px; el texto se esconde
+     pero el botón no encoge por debajo de eso. */
+  min-height: 44px;
+}
+
+.boton-ayuda:hover {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.guia {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 60%);
+}
+
+.guia__caja {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: min(720px, 100%);
+  /* No `height`: la caja crece con la respuesta y no deja un hueco vacío
+     mientras solo hay una pregunta escrita. El tope evita que se salga. */
+  max-height: min(86vh, 780px);
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 55%);
+}
+
+.guia__cabecera {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.guia__cabecera h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+/*
+  Dice con qué está respondiendo: el modelo local o la búsqueda del manual.
+  No es un detalle técnico de adorno. Las dos respuestas se parecen en la
+  pantalla y no se fían igual, y quien lee tiene derecho a saber cuál está
+  leyendo antes de actuar en consecuencia.
+*/
+.guia__estado {
+  grid-column: 1;
+  margin: 0;
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.guia__cerrar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.guia__entrada {
+  display: flex;
+  gap: 8px;
+}
+
+.guia__entrada input {
+  flex: 1;
+  min-width: 0;
+}
+
+.guia__ejemplos {
+  color: var(--texto-2);
+  font-size: 13px;
+}
+
+.guia__ejemplos p {
+  margin: 0 0 6px;
+}
+
+.guia__ejemplos ul {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.guia__ejemplo {
+  background: transparent;
+  border-color: var(--borde);
+  color: var(--acento);
+  font-size: 13px;
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+
+.guia__respuesta {
+  padding: 14px 16px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  border-radius: var(--radio);
+}
+
+.guia__respuesta p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.guia__leer {
+  margin-top: 10px;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+/*
+  Ocupa el sitio del botón «Escuchar» cuando no hay voz. Lleva dos clases a
+  propósito: `.guia__respuesta p`, justo arriba, pone `margin: 0`, y con un solo
+  nombre esta regla perdería el margen superior por especificidad —la clase de
+  fallo que solo se ve cuando ya está en pantalla.
+*/
+.guia__respuesta .guia__leer-nota {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--texto-2);
+}
+
+.guia__error {
+  margin: 0;
+  color: var(--aviso);
+  font-size: 13px;
+  /* Mismo motivo que en `.asistente__mensaje`: hay avisos de varias líneas. */
+  white-space: pre-line;
+}
+
+.guia__vacio {
+  margin: 0;
+  color: var(--texto-2);
+}
+
+.guia__fuentes h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--texto-2);
+}
+
+.guia__fuentes article {
+  padding: 10px 0;
+  border-top: 1px solid var(--borde);
+}
+
+/* El camino de encabezados, que es lo que dice de qué documento sale. */
+.guia__fuentes h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.guia__fuentes p {
+  margin: 0;
+  color: var(--texto-2);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+/* En pantalla estrecha la caja ocupa todo y el botón deja solo el interrogante:
+   la palabra «Ayuda» se come el sitio del pulgar sin añadir información. */
+@media (max-width: 620px) {
+  .guia {
+    padding: 0;
+  }
+
+  .guia__caja {
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+  }
+
+  .guia__entrada {
+    flex-wrap: wrap;
+  }
+
+  .boton-ayuda span {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Pantalla estrecha: el editor en un móvil
+   --------------------------------------------------------------------------
+
+   El editor está pensado como tres franjas horizontales —barra arriba, lienzo y
+   panel al lado, asistente abajo— y esa forma es la que no cabe en un teléfono.
+   El problema no es que quede apretado: es que el panel mide 320 px fijos, así
+   que en una pantalla de 390 px se quedaba con todo y al lienzo le sobraban
+   setenta píxeles. Dibujar era imposible, y no por poco.
+
+   La respuesta es cambiar el eje: en vez de lienzo y panel repartiéndose el
+   ancho, se reparten la altura, y el panel solo aparece cuando hay una clase
+   seleccionada —que es exactamente cuando tiene algo que decir—. Al tocar el
+   fondo del lienzo se deselecciona, el panel se va y el diagrama vuelve a tener
+   la pantalla entera. No hace falta ningún botón de cerrar ni ningún estado
+   nuevo: la selección ya significaba eso.
+
+   El corte está en 820 px y no en 480. Por debajo de 820 el panel deja menos de
+   500 px al lienzo, que ya es incómodo aunque sea un portátil con la ventana a
+   medias; y una tablet en vertical (768 px) tiene el mismo problema que un
+   móvil, no uno distinto.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 820px) {
+  .editor__cuerpo {
+    flex-direction: column;
+  }
+
+  .lienzo {
+    /* `flex: 1` a secas no basta en una columna: el mínimo automático de un ítem
+       flex impide que baje de su altura de contenido, y un SVG no tiene, así que
+       se queda en cero o no encoge según el navegador.
+
+       El `min-height` en porcentaje es un suelo, no un tamaño: si el reparto de
+       abajo fallara, el lienzo conserva de todas formas dos quintos de lo que
+       haya. Sin él, un panel que no encoge lo dejaría en nada. */
+    flex: 1 1 0;
+    min-height: 40%;
+    width: 100%;
+  }
+
+  .panel {
+    width: auto;
+    /*
+      La mitad de lo que queda, no la mitad de la pantalla.
+
+      Aquí había `55vh` y estaba mal, con un error que solo se ve echando la
+      cuenta: para cuando el panel entra en juego, la barra y el asistente ya se
+      han llevado casi un tercio de la ventana. En un móvil de 750 px al cuerpo
+      le sobran unos 468, y `55vh` son 412 de esos 468 —al lienzo le quedaban
+      cincuenta y seis píxeles—. El porcentaje se mide contra el hueco real, así
+      que reparte a medias lo que de verdad hay.
+    */
+    max-height: 50%;
+    border-left: none;
+    border-top: 1px solid var(--borde);
+    /* En un móvil con navegación por gestos, el borde inferior de la ventana lo
+       ocupa la barra del sistema y el último control queda debajo de ella. */
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  /* Sin clase seleccionada el panel solo dice «selecciona una clase». En una
+     columna eso cuesta la mitad de la altura del lienzo a cambio de nada. */
+  .panel--vacio {
+    display: none;
+  }
+
+  /*
+    La barra ocupa el ancho entero en su segunda fila en vez de alinearse a la
+    derecha: con `margin-left: auto` los once controles se empujaban contra el
+    borde y dejaban un hueco irregular a la izquierda que no cabía nada.
+  */
+  .barra {
+    padding: 6px 10px;
+    gap: 6px 8px;
+  }
+
+  .barra__herramientas {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  /*
+    Los botones se estrechan pero no se aplastan. Lo que ahorra filas es la
+    anchura —la letra más pequeña—, no la altura; bajar también el alto haría
+    que once objetivos de 26 px compitieran por el mismo pulgar. Se deja el
+    relleno vertical generoso a propósito: menos filas y dedos que aciertan.
+  */
+  .barra__herramientas button,
+  .barra__herramientas .boton,
+  .barra__herramientas select {
+    font-size: 12px;
+    padding: 8px 9px;
+    min-height: 38px;
+  }
+
+  .barra__grupo + .barra__grupo {
+    padding-left: 8px;
+  }
+
+  /* La franja del asistente compite con el lienzo por la misma altura, y en un
+     móvil el lienzo la necesita más. Sigue creciendo cuando hay una propuesta
+     que leer, solo que menos. */
+  .asistente {
+    max-height: 30vh;
+    padding: 8px 10px;
+  }
+
+  /*
+    El botón de ayuda flota en la esquina inferior derecha, que en el editor es
+    justo donde está el micrófono del asistente. En pantalla ancha sobra sitio y
+    no se tocan; aquí se sube por encima de esa franja.
+  */
+  .boton-ayuda {
+    right: 10px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  /* Los modales dejan de ser tarjetas centradas con aire alrededor: a este ancho
+     el margen es espacio que le falta al contenido. */
+  .modal {
+    padding: 0;
+  }
+
+  .modal__caja,
+  .importar,
+  .importar-xmi,
+  .historial {
+    max-height: 100%;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    overflow-y: auto;
+  }
+}

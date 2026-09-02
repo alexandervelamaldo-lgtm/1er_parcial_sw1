@@ -1,0 +1,458 @@
+import { isSafeRelativePath } from '@app/shared';
+import type {
+  AssociationIR,
+  EntityIR,
+  FieldIR,
+  GeneratedFile,
+  GenerationIR,
+  MethodIR,
+  ProjectIR,
+} from '../ir/types.js';
+import { render } from './engine.js';
+
+/**
+ * Construcción de los modelos de vista y del árbol de ficheros.
+ *
+ * La IR describe el *modelo*; esta capa describe la *proyección* de ese modelo
+ * sobre cada plantilla concreta. La separación importa: qué campos incluye el
+ * DTO de entrada, o cómo se accede al identificador de una asociación al
+ * serializar, son decisiones de la capa de presentación del código generado, no
+ * del modelo. Mantenerlas aquí evita que la IR crezca con campos que solo una
+ * plantilla usa.
+ *
+ * Todo lo que las plantillas necesitan se calcula aquí, una sola vez y con
+ * tipos. Una plantilla nunca deduce nada.
+ */
+
+export interface DtoComponent {
+  name: string;
+  javaType: string;
+  validations: string[];
+  /** Expresión Java que obtiene el valor desde la entidad. Solo en respuesta. */
+  accessor: string;
+}
+
+export interface ToOneView {
+  fieldName: string;
+  setterName: string;
+  targetClass: string;
+  targetVar: string;
+  idComponentName: string;
+  nullable: boolean;
+}
+
+export interface RepositoryDependency {
+  className: string;
+  varName: string;
+}
+
+export interface InterfaceMethodStub {
+  name: string;
+  signature: string;
+}
+
+export interface EntityView {
+  project: ProjectIR;
+  entity: EntityIR;
+  /** Imports de la entidad más los que arrastran las interfaces que realiza. */
+  imports: string[];
+  /** Métodos que la entidad debe implementar por realizar una interfaz. */
+  interfaceMethods: InterfaceMethodStub[];
+  /** Campos propios sin el identificador: la plantilla lo emite por separado. */
+  fields: FieldIR[];
+  /** Campos propios más heredados. Los DTOs sí exponen lo heredado. */
+  allFields: FieldIR[];
+  hasValidations: boolean;
+  hasInterfaces: boolean;
+  interfaceList: string;
+  hasUniqueFields: boolean;
+  uniqueFields: (FieldIR & { pascalName: string })[];
+  /**
+   * Solo lo que el repositorio nombra de verdad: el tipo del identificador y el
+   * de cada campo único. Volcar aquí todos los imports de la entidad dejaba
+   * `BigDecimal` y `Set` sin usar en cada repositorio generado; compila, pero es
+   * la clase de ruido que hace parecer descuidado al que lo escribió.
+   */
+  repositoryImports: string[];
+  identifierImport?: string;
+  dtoImports: string[];
+  requestComponents: DtoComponent[];
+  responseComponents: DtoComponent[];
+  toOneAssociations: ToOneView[];
+  repositoryDependencies: RepositoryDependency[];
+  /** Operaciones del diagrama, que se declaran en la capa 3. */
+  serviceMethods: MethodIR[];
+  hasServiceMethods: boolean;
+  /** Imports que esas firmas añaden al servicio y a su implementación. */
+  serviceImports: string[];
+  /** Solo la interfaz: la implementación ya importa la entidad para el CRUD. */
+  serviceNeedsOwnEntity: boolean;
+}
+
+// ---------------------------------------------------------------------------
+
+export function buildEntityView(ir: GenerationIR, entity: EntityIR): EntityView {
+  const byName = new Map(ir.entities.map((e) => [e.className, e]));
+
+  const fields = entity.fields.filter((f) => !f.isIdentifier);
+  const allFields = [...inheritedFields(entity, byName), ...fields];
+
+  // Solo el lado propietario: es el que lleva la clave ajena. Fijar el extremo
+  // inverso desde el DTO no escribiría nada en la base de datos.
+  const owningToOne = entity.associations.filter((a) => !a.collection && a.owning);
+  const toOneAssociations = owningToOne.map(toOneView);
+
+  const identifierComponent: DtoComponent = {
+    name: 'id',
+    javaType: entity.identifier.javaType,
+    validations: [],
+    accessor: `entity.${entity.identifier.getterName}()`,
+  };
+
+  const fieldComponents = allFields.map(
+    (field): DtoComponent => ({
+      name: field.name,
+      javaType: field.javaType,
+      validations: field.validations,
+      accessor: `entity.${field.getterName}()`,
+    }),
+  );
+
+  const associationComponents = owningToOne.map((association): DtoComponent => {
+    const targetId = byName.get(association.targetClass)?.identifier;
+    const idGetter = targetId?.getterName ?? 'getId';
+    return {
+      name: `${association.fieldName}Id`,
+      javaType: targetId?.javaType ?? 'Long',
+      validations: association.nullable ? [] : ['@NotNull'],
+      accessor:
+        `entity.${association.getterName}() == null ? null ` +
+        `: entity.${association.getterName}().${idGetter}()`,
+    };
+  });
+
+  const uniqueFields = fields
+    .filter((f) => f.unique)
+    .map((f) => ({ ...f, pascalName: f.name.charAt(0).toUpperCase() + f.name.slice(1) }));
+
+  const repositoryDependencies = dedupeByClassName(toOneAssociations);
+  const realized = realizedInterfaces(ir, entity);
+
+  return {
+    project: ir.project,
+    entity,
+    imports: [...new Set([...entity.imports, ...realized.imports])].sort(),
+    interfaceMethods: realized.methods,
+    fields,
+    allFields,
+    hasValidations: fields.some((f) => f.validations.length > 0),
+    hasInterfaces: entity.implementsInterfaces.length > 0,
+    interfaceList: entity.implementsInterfaces.join(', '),
+    hasUniqueFields: uniqueFields.length > 0,
+    uniqueFields,
+    repositoryImports: [
+      ...new Set(
+        [entity.identifier.javaImport, ...uniqueFields.map((f) => f.javaImport)].filter(
+          (i): i is string => i !== undefined,
+        ),
+      ),
+    ].sort(),
+    identifierImport: entity.identifier.javaImport,
+    dtoImports: dtoImportsFor(ir, allFields, associationComponents),
+    requestComponents: [...fieldComponents, ...associationComponents],
+    responseComponents: [identifierComponent, ...fieldComponents, ...associationComponents],
+    toOneAssociations,
+    repositoryDependencies,
+    serviceMethods: entity.methods,
+    hasServiceMethods: entity.methods.length > 0,
+    serviceImports: serviceImportsFor(ir, entity),
+    serviceNeedsOwnEntity: mentionsOwnEntity(entity),
+  };
+}
+
+/**
+ * Imports que las firmas del diagrama añaden al servicio.
+ *
+ * Dos fuentes. Las de biblioteca (`java.math.BigDecimal`) vienen ya resueltas
+ * en la IR. Las del propio diagrama no pueden venir de ahí: una firma que
+ * menciona `Producto` o `EstadoPedido` necesita importarlos de `…domain`, y el
+ * paquete base solo se conoce aquí. Es el mismo reparto que ya hace
+ * `dtoImportsFor`, por el mismo motivo.
+ *
+ * Se descarta el import del identificador porque la plantilla ya lo emite por
+ * su cuenta, y un `import` repetido no compila.
+ */
+function serviceImportsFor(ir: GenerationIR, entity: EntityIR): string[] {
+  const imports = new Set(entity.methodImports);
+  const delDominio = new Set([
+    ...ir.enums.map((e) => e.className),
+    ...ir.entities.map((e) => e.className),
+    ...ir.interfaces.map((i) => i.className),
+  ]);
+
+  for (const method of entity.methods) {
+    for (const tipo of [method.returnType, ...method.parameters.map((p) => p.javaType)]) {
+      // `List<Producto>` referencia a `Producto`: hay que mirar dentro.
+      const base = tipo.replace(/^List<(.+)>$/, '$1');
+      // La propia entidad va aparte: la implementación ya la importa para el
+      // CRUD y repetir el import no compila. Ver `serviceNeedsOwnEntity`.
+      if (base !== entity.className && delDominio.has(base)) {
+        imports.add(`${ir.project.basePackage}.domain.${base}`);
+      }
+    }
+  }
+
+  imports.delete(entity.identifier.javaImport ?? '');
+  return [...imports].sort();
+}
+
+/**
+ * ¿Alguna firma del diagrama menciona la propia entidad?
+ *
+ * Solo lo necesita la **interfaz** del servicio: la implementación ya importa
+ * la entidad para el CRUD, y declararlo dos veces es un error de compilación.
+ */
+function mentionsOwnEntity(entity: EntityIR): boolean {
+  return entity.methods.some((method) =>
+    [method.returnType, ...method.parameters.map((p) => p.javaType)]
+      .map((t) => t.replace(/^List<(.+)>$/, '$1'))
+      .includes(entity.className),
+  );
+}
+
+function toOneView(association: AssociationIR): ToOneView {
+  return {
+    fieldName: association.fieldName,
+    setterName: association.setterName,
+    targetClass: association.targetClass,
+    targetVar: association.targetVar,
+    idComponentName: `${association.fieldName}Id`,
+    nullable: association.nullable,
+  };
+}
+
+/**
+ * Campos que la entidad hereda por la cadena de superclases.
+ *
+ * La plantilla de entidad no los declara —los hereda de verdad en Java— pero el
+ * DTO sí debe transportarlos: un cliente de la API no sabe ni le importa que
+ * `nombre` esté declarado en la clase padre.
+ */
+function inheritedFields(entity: EntityIR, byName: Map<string, EntityIR>): FieldIR[] {
+  const result: FieldIR[] = [];
+  const visited = new Set<string>([entity.className]);
+
+  let current = entity.superclass ? byName.get(entity.superclass) : undefined;
+  while (current && !visited.has(current.className)) {
+    visited.add(current.className);
+    result.unshift(...current.fields.filter((f) => !f.isIdentifier));
+    current = current.superclass ? byName.get(current.superclass) : undefined;
+  }
+  return result;
+}
+
+/**
+ * Métodos que la entidad hereda por realizar una interfaz.
+ *
+ * Sin esto el código no compila: el diagrama declara la realización pero no el
+ * cuerpo del método. Se genera un esqueleto que lanza `UnsupportedOperationException`
+ * en lugar de devolver un valor por defecto —un `return null` silencioso
+ * convertiría una tarea pendiente en un fallo en tiempo de ejecución mucho más
+ * tarde y en otro sitio.
+ *
+ * Se omiten los métodos que coincidirían con un accesor ya generado: el campo ya
+ * los satisface y declararlos dos veces sí sería un error de compilación.
+ */
+function realizedInterfaces(
+  ir: GenerationIR,
+  entity: EntityIR,
+): { methods: InterfaceMethodStub[]; imports: string[] } {
+  const generatedMethods = new Set<string>([
+    entity.identifier.getterName,
+    entity.identifier.setterName,
+    ...entity.fields.flatMap((f) => [f.getterName, f.setterName]),
+    ...entity.associations.flatMap((a) => [a.getterName, a.setterName]),
+    'equals',
+    'hashCode',
+  ]);
+
+  const methods = new Map<string, InterfaceMethodStub>();
+  const imports = new Set<string>();
+
+  for (const name of entity.implementsInterfaces) {
+    const contract = ir.interfaces.find((i) => i.className === name);
+    if (!contract) continue;
+    for (const imported of contract.imports) imports.add(imported);
+    for (const method of contract.methods) {
+      if (generatedMethods.has(method.name)) continue;
+      if (methods.has(method.signature)) continue;
+      methods.set(method.signature, { name: method.name, signature: method.signature });
+    }
+  }
+
+  return { methods: [...methods.values()], imports: [...imports] };
+}
+
+function dedupeByClassName(associations: ToOneView[]): RepositoryDependency[] {
+  const seen = new Map<string, RepositoryDependency>();
+  for (const assoc of associations) {
+    if (seen.has(assoc.targetClass)) continue;
+    seen.set(assoc.targetClass, { className: assoc.targetClass, varName: assoc.targetVar });
+  }
+  return [...seen.values()];
+}
+
+/**
+ * Imports de los DTOs. Además de los tipos de biblioteca (`java.time`,
+ * `java.math`), incluye los enumerados del propio diagrama: viven en el paquete
+ * `domain` y los records están en `dto`, así que sin import no compilan.
+ */
+function dtoImportsFor(
+  ir: GenerationIR,
+  fields: FieldIR[],
+  associationComponents: DtoComponent[],
+): string[] {
+  const imports = new Set<string>();
+  const enumNames = new Set(ir.enums.map((e) => e.className));
+
+  for (const field of fields) {
+    if (field.javaImport) imports.add(field.javaImport);
+    if (enumNames.has(field.javaType)) {
+      imports.add(`${ir.project.basePackage}.domain.${field.javaType}`);
+    }
+  }
+  for (const component of associationComponents) {
+    if (component.javaType === 'UUID') imports.add('java.util.UUID');
+  }
+  return [...imports].sort();
+}
+
+// ---------------------------------------------------------------------------
+// Árbol de ficheros
+// ---------------------------------------------------------------------------
+
+export function generateProject(ir: GenerationIR): GeneratedFile[] {
+  const files: GeneratedFile[] = [];
+  const javaRoot = `src/main/java/${ir.project.basePackagePath}`;
+  const context = {
+    project: ir.project,
+    entities: ir.entities,
+    migration: ir.migration,
+    seed: ir.seed,
+  };
+
+  files.push({ path: 'pom.xml', content: render('pom.xml.hbs', context) });
+  files.push({ path: 'README.md', content: render('README.md.hbs', context) });
+  files.push({ path: '.gitignore', content: render('gitignore.hbs', context) });
+  files.push({ path: 'docker-compose.yml', content: render('docker-compose.yml.hbs', context) });
+  files.push({
+    path: 'src/main/resources/application.yml',
+    content: render('application.yml.hbs', context),
+  });
+  files.push({
+    path: `src/main/resources/db/migration/V${ir.migration.version}__esquema_inicial.sql`,
+    content: render('migration.sql.hbs', context),
+  });
+
+  // Solo si hay algo que insertar. Una migración vacía no rompe nada, pero deja
+  // en el proyecto un fichero que invita a preguntarse qué falta ahí.
+  if (ir.seed.length > 0) {
+    files.push({
+      path: 'src/main/resources/db/migration/V2__datos_iniciales.sql',
+      content: render('data.sql.hbs', context),
+    });
+  }
+
+  files.push({
+    path: `${javaRoot}/Application.java`,
+    content: render('Application.java.hbs', context),
+  });
+
+  for (const name of ['ResourceNotFoundException', 'GlobalExceptionHandler', 'ErrorResponse']) {
+    files.push({
+      path: `${javaRoot}/exception/${name}.java`,
+      content: render(`${name}.java.hbs`, context),
+    });
+  }
+
+  for (const enumeration of ir.enums) {
+    files.push({
+      path: `${javaRoot}/domain/${enumeration.className}.java`,
+      content: render('enum.java.hbs', { project: ir.project, enumeration }),
+    });
+  }
+
+  for (const contract of ir.interfaces) {
+    files.push({
+      path: `${javaRoot}/domain/${contract.className}.java`,
+      content: render('interface.java.hbs', { project: ir.project, contract }),
+    });
+  }
+
+  for (const entity of ir.entities) {
+    const view = buildEntityView(ir, entity);
+    const name = entity.className;
+
+    files.push({
+      path: `${javaRoot}/domain/${name}.java`,
+      content: render('entity.java.hbs', view),
+    });
+
+    // Una entidad abstracta no se instancia: no tiene sentido darle un CRUD.
+    // Sus subclases exponen el suyo y arrastran los campos heredados.
+    if (entity.isAbstract) continue;
+
+    files.push({
+      path: `${javaRoot}/repository/${name}Repository.java`,
+      content: render('repository.java.hbs', view),
+    });
+    files.push({
+      path: `${javaRoot}/dto/${name}Request.java`,
+      content: render('dto-request.java.hbs', view),
+    });
+    files.push({
+      path: `${javaRoot}/dto/${name}Response.java`,
+      content: render('dto-response.java.hbs', view),
+    });
+    files.push({
+      path: `${javaRoot}/dto/mapper/${name}Mapper.java`,
+      content: render('mapper.java.hbs', view),
+    });
+    files.push({
+      path: `${javaRoot}/service/${name}Service.java`,
+      content: render('service.java.hbs', view),
+    });
+    files.push({
+      path: `${javaRoot}/service/impl/${name}ServiceImpl.java`,
+      content: render('service-impl.java.hbs', view),
+    });
+    files.push({
+      path: `${javaRoot}/controller/${name}Controller.java`,
+      content: render('controller.java.hbs', view),
+    });
+  }
+
+  assertSafePaths(files);
+  return files;
+}
+
+/**
+ * Última línea de defensa de RNF-SEG-06.
+ *
+ * Los nombres ya se validaron contra lista blanca antes de llegar aquí, pero
+ * esta comprobación es barata y cubre el caso de que una ruta se componga mal
+ * en el futuro. Escribir fuera del directorio de salida convierte un generador
+ * de código en una escritura arbitraria de ficheros.
+ */
+function assertSafePaths(files: GeneratedFile[]): void {
+  const seen = new Set<string>();
+  for (const file of files) {
+    if (!isSafeRelativePath(file.path)) {
+      throw new Error(`Ruta de fichero generada no segura: ${file.path}`);
+    }
+    if (seen.has(file.path)) {
+      throw new Error(`Dos ficheros generados comparten la ruta ${file.path}`);
+    }
+    seen.add(file.path);
+  }
+}

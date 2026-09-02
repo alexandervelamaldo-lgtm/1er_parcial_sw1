@@ -1,0 +1,131 @@
+package {{{project.basePackage}}}.domain;
+
+import jakarta.persistence.*;
+{{#if hasValidations}}
+import jakarta.validation.constraints.*;
+{{/if}}
+{{#each imports}}
+import {{{this}}};
+{{/each}}
+import java.util.Objects;
+
+/**
+ * Entidad {{{entity.className}}}.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano:
+ * los cambios se pierden en la siguiente generación.
+ */
+@Entity
+{{#unless entity.superclass}}
+@Table(name = "{{{entity.tableName}}}")
+{{/unless}}
+{{#if entity.superclass}}
+@Table(name = "{{{entity.tableName}}}")
+@PrimaryKeyJoinColumn(name = "{{{entity.identifier.columnName}}}")
+{{/if}}
+{{#if entity.inheritanceStrategy}}
+@Inheritance(strategy = InheritanceType.{{{entity.inheritanceStrategy}}})
+{{/if}}
+public {{#if entity.isAbstract}}abstract {{/if}}class {{{entity.className}}}{{#if entity.superclass}} extends {{{entity.superclass}}}{{/if}}{{#if hasInterfaces}} implements {{{interfaceList}}}{{/if}} {
+
+{{#unless entity.superclass}}
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "{{{entity.identifier.columnName}}}", nullable = false, updatable = false)
+    private {{{entity.identifier.javaType}}} {{{entity.identifier.name}}};
+
+{{/unless}}
+{{#each fields}}
+{{#each validations}}
+    {{{this}}}
+{{/each}}
+{{#if isEnum}}
+    @Enumerated(EnumType.STRING)
+{{/if}}
+    @Column(name = "{{{columnName}}}"{{#unless nullable}}, nullable = false{{/unless}}{{#if unique}}, unique = true{{/if}})
+    private {{{javaType}}} {{{name}}};
+
+{{/each}}
+{{#each entity.associations}}
+{{#if owning}}
+    @{{{kind}}}(fetch = FetchType.{{{fetch}}}{{#if cascade}}, cascade = {{{cascade}}}{{/if}}{{#if orphanRemoval}}, orphanRemoval = true{{/if}})
+{{#if joinColumn}}
+    @JoinColumn(name = "{{{joinColumn}}}"{{#unless nullable}}, nullable = false{{/unless}})
+{{/if}}
+{{#if joinTable}}
+    @JoinTable(
+        name = "{{{joinTable.name}}}",
+        joinColumns = @JoinColumn(name = "{{{joinTable.joinColumn}}}"),
+        inverseJoinColumns = @JoinColumn(name = "{{{joinTable.inverseJoinColumn}}}")
+    )
+{{/if}}
+{{else}}
+    @{{{kind}}}(mappedBy = "{{{mappedBy}}}", fetch = FetchType.{{{fetch}}}{{#if cascade}}, cascade = {{{cascade}}}{{/if}}{{#if orphanRemoval}}, orphanRemoval = true{{/if}})
+{{/if}}
+    private {{{javaType}}} {{{fieldName}}}{{#if collection}} = new HashSet<>(){{/if}};
+
+{{/each}}
+    public {{{entity.className}}}() {
+        // Constructor sin argumentos requerido por JPA. Público, no protegido,
+        // porque el mapeador vive en otro paquete y lo invoca directamente.
+    }
+
+{{#unless entity.superclass}}
+    public {{{entity.identifier.javaType}}} {{{entity.identifier.getterName}}}() {
+        return {{{entity.identifier.name}}};
+    }
+
+    public void {{{entity.identifier.setterName}}}({{{entity.identifier.javaType}}} {{{entity.identifier.name}}}) {
+        this.{{{entity.identifier.name}}} = {{{entity.identifier.name}}};
+    }
+
+{{/unless}}
+{{#each fields}}
+    public {{{javaType}}} {{{getterName}}}() {
+        return {{{name}}};
+    }
+
+    public void {{{setterName}}}({{{javaType}}} {{{name}}}) {
+        this.{{{name}}} = {{{name}}};
+    }
+
+{{/each}}
+{{#each entity.associations}}
+    public {{{javaType}}} {{{getterName}}}() {
+        return {{{fieldName}}};
+    }
+
+    public void {{{setterName}}}({{{javaType}}} {{{fieldName}}}) {
+        this.{{{fieldName}}} = {{{fieldName}}};
+    }
+
+{{/each}}
+{{#each interfaceMethods}}
+    @Override
+    public {{{signature}}} {
+        throw new UnsupportedOperationException(
+                "Declarado en el diagrama y pendiente de implementar: {{{name}}}");
+    }
+
+{{/each}}
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (!(other instanceof {{{entity.className}}})) {
+            return false;
+        }
+        {{{entity.className}}} that = ({{{entity.className}}}) other;
+        return {{{entity.identifier.getterName}}}() != null
+            && Objects.equals({{{entity.identifier.getterName}}}(), that.{{{entity.identifier.getterName}}}());
+    }
+
+    @Override
+    public int hashCode() {
+        // Constante deliberada: el identificador es null antes de persistir y
+        // cambiar el hash tras el INSERT rompería cualquier HashSet que ya
+        // contenga la entidad.
+        return getClass().hashCode();
+    }
+}

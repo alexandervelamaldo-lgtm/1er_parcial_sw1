@@ -1,0 +1,42 @@
+# Lo que nunca debe entrar en la imagen.
+#
+# `.env` y `datos/` están aquí por seguridad, no por tamaño: una imagen con el
+# `.env` dentro lleva las claves del proveedor a cualquiera que la descargue, y
+# `datos/` contiene el secreto de sesión y los proyectos reales de desarrollo.
+
+.env
+.env.*
+datos/
+backend-tool/datos/
+
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+**/*.tsbuildinfo
+
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Ficheros de trabajo y salidas del generador durante pruebas manuales.
+tmp-*/
+tmp-*.mjs
+tmp-*.mts
+tmp-*.json
+generator/out/
+salida/
+*.zip
+
+# `docs/` sí entra en la imagen, aunque parezca documentación.
+#
+# Estuvo excluido con el comentario «la documentación no se ejecuta», y dejó de
+# ser cierto: la guía de la herramienta busca en esos ficheros para contestar, de
+# modo que sin ellos el servicio arranca con la ayuda desactivada. Es justo la
+# clase de fallo que no se ve en desarrollo —donde `docs/` está en el disco— y
+# solo aparece en el contenedor ya desplegado.
+*.md
+!README.md
+!docs/*.md

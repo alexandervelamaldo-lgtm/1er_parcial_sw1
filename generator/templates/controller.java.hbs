@@ -1,0 +1,66 @@
+package {{{project.basePackage}}}.controller;
+
+import {{{project.basePackage}}}.dto.{{{entity.className}}}Request;
+import {{{project.basePackage}}}.dto.{{{entity.className}}}Response;
+import {{{project.basePackage}}}.service.{{{entity.className}}}Service;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
+import java.net.URI;
+{{#if identifierImport}}
+import {{{identifierImport}}};
+{{/if}}
+
+/**
+ * Capa 4 — API REST de {{{entity.className}}}.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+@RestController
+@RequestMapping("/api/{{{entity.restPath}}}")
+public class {{{entity.className}}}Controller {
+
+    private final {{{entity.className}}}Service service;
+
+    public {{{entity.className}}}Controller({{{entity.className}}}Service service) {
+        this.service = service;
+    }
+
+    @GetMapping
+    public Page<{{{entity.className}}}Response> findAll(Pageable pageable) {
+        return service.findAll(pageable);
+    }
+
+    @GetMapping("/{id}")
+    public {{{entity.className}}}Response findById(@PathVariable {{{entity.identifier.javaType}}} id) {
+        return service.findById(id);
+    }
+
+    @PostMapping
+    public ResponseEntity<{{{entity.className}}}Response> create(
+            @Valid @RequestBody {{{entity.className}}}Request request,
+            UriComponentsBuilder uriBuilder) {
+        {{{entity.className}}}Response created = service.create(request);
+        URI location = uriBuilder.path("/api/{{{entity.restPath}}}/{id}")
+                .buildAndExpand(created.id())
+                .toUri();
+        return ResponseEntity.created(location).body(created);
+    }
+
+    @PutMapping("/{id}")
+    public {{{entity.className}}}Response update(
+            @PathVariable {{{entity.identifier.javaType}}} id,
+            @Valid @RequestBody {{{entity.className}}}Request request) {
+        return service.update(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable {{{entity.identifier.javaType}}} id) {
+        service.delete(id);
+    }
+}

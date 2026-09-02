@@ -1,0 +1,10 @@
+package {{{project.basePackage}}}.domain;
+
+/**
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+public enum {{{enumeration.className}}} {
+{{#each enumeration.values}}
+    {{{this}}}{{#unless @last}},{{/unless}}
+{{/each}}
+}

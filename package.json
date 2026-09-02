@@ -1,0 +1,29 @@
+{
+  "name": "proyecto-herramienta-colaborativa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "generator",
+    "backend-tool",
+    "frontend"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "dev:frontend": "npm run dev --workspace @app/frontend",
+    "dev:frontend:lan": "npm run dev:lan --workspace @app/frontend",
+    "dev:backend": "npm run dev --workspace @app/backend-tool"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.7"
+  }
+}

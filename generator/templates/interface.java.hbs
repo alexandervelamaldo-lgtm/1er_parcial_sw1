@@ -1,0 +1,15 @@
+package {{{project.basePackage}}}.domain;
+
+{{#each contract.imports}}
+import {{{this}}};
+{{/each}}
+
+/**
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+public interface {{{contract.className}}} {
+{{#each contract.methods}}
+
+    {{{signature}}};
+{{/each}}
+}

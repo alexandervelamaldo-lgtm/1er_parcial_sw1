@@ -1,0 +1,73 @@
+# {{{project.artifactId}}}
+
+{{{project.description}}}
+
+Proyecto Spring Boot generado automáticamente a partir de un diagrama de clases UML.
+Arquitectura en cuatro capas: entidad, repositorio, servicio y controlador REST.
+
+## Requisitos
+
+- Java {{{project.javaVersion}}}
+- Maven 3.9 o superior
+- PostgreSQL 16 (o Docker)
+
+## Puesta en marcha
+
+Levantar la base de datos:
+
+```bash
+docker compose up -d
+```
+
+Arrancar la aplicación:
+
+```bash
+mvn spring-boot:run
+```
+
+El proyecto no incluye el wrapper de Maven (`mvnw`): añadirlo requiere un binario
+que el generador no puede producir. Si lo quieres, `mvn wrapper:wrapper` lo crea.
+
+La API queda expuesta en `http://localhost:8080`.
+
+## Esquema de base de datos
+
+El esquema lo gestiona Flyway a partir de las migraciones versionadas de
+`src/main/resources/db/migration`. Hibernate está configurado en modo
+`validate`: no crea ni modifica tablas, solo comprueba que el mapeo coincide
+con el esquema real. Si la validación falla al arrancar, el desajuste está
+entre la migración y las entidades, no en la configuración.
+
+## Endpoints generados
+
+{{#each entities}}
+{{#unless this.isAbstract}}
+### {{{this.className}}}
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/api/{{{this.restPath}}}` | Lista todos los registros |
+| GET | `/api/{{{this.restPath}}}/{id}` | Obtiene uno por identificador |
+| POST | `/api/{{{this.restPath}}}` | Crea un registro |
+| PUT | `/api/{{{this.restPath}}}/{id}` | Actualiza un registro existente |
+| DELETE | `/api/{{{this.restPath}}}/{id}` | Elimina un registro |
+
+{{/unless}}
+{{/each}}
+
+## Variables de entorno
+
+| Variable | Valor por defecto |
+| --- | --- |
+| `DB_HOST` | `localhost` |
+| `DB_PORT` | `5432` |
+| `DB_NAME` | `{{{project.databaseName}}}` |
+| `DB_USER` | `postgres` |
+| `DB_PASSWORD` | `postgres` |
+| `SERVER_PORT` | `8080` |
+
+## Regeneración
+
+Este código es un punto de partida, no un artefacto de solo lectura. Si vuelves
+a generar sobre el mismo directorio, se sobrescribirá. Mueve la lógica de
+negocio propia a clases que el generador no produzca antes de regenerar.

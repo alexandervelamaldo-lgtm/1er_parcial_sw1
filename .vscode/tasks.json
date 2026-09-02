@@ -1,0 +1,41 @@
+{
+  // Trae, como VS Code, lee este fichero. «Ejecutar tarea → App (backend +
+  // frontend)» levanta los dos servidores en paneles separados.
+  //
+  // Son dos procesos y no uno a propósito: el backend guarda los documentos
+  // colaborativos al apagarse, así que conviene poder pararlo por su cuenta
+  // (Ctrl+C en su panel) sin tirar abajo también el servidor de la interfaz.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backend (:3001)",
+      "type": "shell",
+      "command": "npm run dev:backend",
+      "isBackground": true,
+      "presentation": { "group": "app", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Frontend (:5173)",
+      "type": "shell",
+      "command": "npm run dev:frontend",
+      "isBackground": true,
+      "presentation": { "group": "app", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      "label": "App (backend + frontend)",
+      "dependsOn": ["Backend (:3001)", "Frontend (:5173)"],
+      "dependsOrder": "parallel",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Pruebas",
+      "type": "shell",
+      "command": "npm test",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    }
+  ]
+}

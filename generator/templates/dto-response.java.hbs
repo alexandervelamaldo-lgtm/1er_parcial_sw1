@@ -1,0 +1,20 @@
+package {{{project.basePackage}}}.dto;
+
+{{#each dtoImports}}
+import {{{this}}};
+{{/each}}
+
+/**
+ * DTO de salida para {{{entity.className}}}.
+ *
+ * Las asociaciones se exponen como identificadores, no como objetos anidados:
+ * evita ciclos de serialización y consultas perezosas inesperadas al serializar.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+public record {{{entity.className}}}Response(
+{{#each responseComponents}}
+        {{{javaType}}} {{{name}}}{{#unless @last}},{{/unless}}
+{{/each}}
+) {
+}

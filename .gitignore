@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+.vite/
+dev-dist/
+.DS_Store
+Thumbs.db
+
+# Salida del generador durante pruebas manuales
+generator/out/
+salida/
+tmp/
+*.zip
+
+# Ficheros de trabajo de una sesión: proyectos generados a mano para pasarles
+# javac, respuestas del proveedor guardadas para mirarlas, guiones de usar y
+# tirar. Ninguno es parte del proyecto. `tmp-pizarra.png` sí lo es —es la foto
+# de pizarra que sirve de fixture— y por eso se exceptúa.
+tmp-*/
+tmp-*.mjs
+tmp-*.mts
+tmp-*.json
+!tmp-pizarra.png
+
+# Datos del servidor: proyectos, usuarios, documentos colaborativos y el secreto
+# de sesión que se genera solo cuando SESSION_SECRET no viene del entorno.
+datos/
+backend-tool/datos/

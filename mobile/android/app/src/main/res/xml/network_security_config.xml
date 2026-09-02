@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Permiso de HTTP en claro, acotado.
+
+  Android 9 y posteriores cortan el tráfico sin cifrar aunque la conexión llegue
+  bien: es el fallo que parece de red y no lo es. El atajo que circula por todas
+  partes es `android:usesCleartextTraffic="true"` en el manifiesto, y el problema
+  de ese atajo no es que no funcione —funciona— sino que abre la app entera a
+  cualquier host sin cifrar y viaja tal cual a producción, donde el backend sí
+  estará en HTTPS.
+
+  Aquí se permite solo donde hace falta:
+
+  · localhost / 127.0.0.1 — la ruta de la defensa. Con
+    `adb reverse tcp:3001 tcp:3001` el teléfono pide su propio localhost y el
+    túnel USB lo lleva al portátil. Además `localhost` es un origen seguro para
+    el navegador, así que dentro del WebView siguen funcionando la cámara y el
+    micrófono, que sobre `http://192.168.x.x` estarían bloqueados.
+
+  · 10.0.2.2 — la dirección con la que el emulador de Android ve al anfitrión.
+
+  Nada más. Una IP de la red local no está aquí a propósito: si se necesita, se
+  añade a mano y se quita después, que es justo la fricción que hace que no se
+  olvide puesta.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+
+    <!-- Todo lo demás mantiene el comportamiento por defecto de Android 9+:
+         cifrado obligatorio. Es lo que querrá la app cuando apunte a AWS. -->
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

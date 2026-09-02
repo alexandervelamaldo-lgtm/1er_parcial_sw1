@@ -1,0 +1,25 @@
+package {{{project.basePackage}}}.dto;
+
+import jakarta.validation.constraints.*;
+{{#each dtoImports}}
+import {{{this}}};
+{{/each}}
+
+/**
+ * DTO de entrada para {{{entity.className}}}.
+ *
+ * Las entidades JPA no se exponen en la API (RF-GEN-09): hacerlo acopla el
+ * contrato REST al esquema de base de datos y arrastra las colecciones perezosas
+ * a la serialización.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+public record {{{entity.className}}}Request(
+{{#each requestComponents}}
+{{#each validations}}
+        {{{this}}}
+{{/each}}
+        {{{javaType}}} {{{name}}}{{#unless @last}},{{/unless}}
+{{/each}}
+) {
+}
