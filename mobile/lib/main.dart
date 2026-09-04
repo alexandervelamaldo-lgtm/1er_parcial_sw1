@@ -4,6 +4,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import 'asistente/pantalla_conexion.dart';
+import 'asistente/sesion.dart';
 import 'voz_nativa.dart';
 
 /// Cliente móvil de la herramienta colaborativa de diagramas UML.
@@ -90,7 +92,145 @@ class AppUml extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const PantallaWeb(),
+      home: const PantallaInicio(),
+    );
+  }
+}
+
+/// Las dos mitades del proyecto, en un solo APK.
+///
+/// Podrían haber sido dos aplicaciones, y no lo son por dos razones. La
+/// práctica: comparten el `network_security_config` que permite el HTTP en
+/// claro solo contra localhost, la concesión de permisos de micrófono y el
+/// puente de voz de `voz_nativa.dart`; duplicarlo sería duplicar justo lo que
+/// más cuesta dejar bien. La otra: dos iconos con el mismo `applicationId` no
+/// pueden convivir en el teléfono, y en la defensa hacen falta los dos seguidos
+/// —se edita el diagrama, se genera el backend, se le habla desde el mismo
+/// aparato—, que es precisamente el recorrido que hay que enseñar.
+class PantallaInicio extends StatefulWidget {
+  const PantallaInicio({super.key});
+
+  @override
+  State<PantallaInicio> createState() => _PantallaInicioState();
+}
+
+class _PantallaInicioState extends State<PantallaInicio> {
+  /// Vive aquí y no dentro de la pantalla de conexión para que volver atrás no
+  /// tire el manifiesto ya descargado.
+  final Sesion _sesion = Sesion();
+
+  @override
+  void dispose() {
+    _sesion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Diagramas UML',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Del diagrama al backend, y del backend a la voz.',
+                style: TextStyle(color: Color(0xFF8A93A6)),
+              ),
+              const SizedBox(height: 36),
+              _Tarjeta(
+                icono: Icons.account_tree_outlined,
+                titulo: 'Editor de diagramas',
+                detalle:
+                    'La herramienta colaborativa: clases, relaciones, foto de '
+                    'pizarra y generación del proyecto.',
+                alPulsar: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const PantallaWeb()),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _Tarjeta(
+                icono: Icons.mic_none,
+                titulo: 'Asistente',
+                detalle:
+                    'Se conecta a un backend ya generado y trabaja con sus '
+                    'datos. No lleva dentro ningún proyecto concreto.',
+                alPulsar: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PantallaConexion(sesion: _sesion),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Tarjeta extends StatelessWidget {
+  const _Tarjeta({
+    required this.icono,
+    required this.titulo,
+    required this.detalle,
+    required this.alPulsar,
+  });
+
+  final IconData icono;
+  final String titulo;
+  final String detalle;
+  final VoidCallback alPulsar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFF171A21),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: alPulsar,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icono, size: 30, color: const Color(0xFF5B9CFF)),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      detalle,
+                      style: const TextStyle(
+                        color: Color(0xFF8A93A6),
+                        height: 1.4,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -202,10 +342,21 @@ class _PantallaWebState extends State<PantallaWeb> {
       canPop: false,
       onPopInvokedWithResult: (yaSalio, _) async {
         if (yaSalio) return;
+        // Se resuelve el navegador antes del `await`: después, el contexto
+        // puede haber dejado de estar montado y usarlo sería mirar un árbol de
+        // widgets que ya no existe.
+        final navegador = Navigator.of(context);
         if (await _controlador.canGoBack()) {
           await _controlador.goBack();
+          return;
+        }
+        // Agotada la historia de la página, se vuelve al menú. Solo se sale de
+        // la app si el editor fuese la única pantalla de la pila, que es lo que
+        // pasaba antes de que existiera el asistente.
+        if (!mounted) return;
+        if (navegador.canPop()) {
+          navegador.pop();
         } else {
-          // Solo se sale si de verdad no hay a dónde volver.
           await SystemNavigator.pop();
         }
       },
