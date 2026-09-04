@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'manifiesto.dart';
+import 'pantalla_asistente.dart';
 import 'pantalla_lista.dart';
 import 'sesion.dart';
 
@@ -50,7 +51,21 @@ class PantallaEntidades extends StatelessWidget {
               ),
             ],
           ),
+          // El asistente va en un botón flotante y no escondido en un menú: es
+          // la forma principal de usar la app, y la lista de entidades queda
+          // como el camino manual para cuando lo dictado no se entienda.
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => PantallaAsistente(sesion: sesion),
+              ),
+            ),
+            icon: const Icon(Icons.auto_awesome),
+            label: const Text('Pedir'),
+          ),
           body: ListView.separated(
+            // Hueco para que el botón flotante no tape la última entidad.
+            padding: const EdgeInsets.only(bottom: 88),
             itemCount: visibles.length + 1,
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, indice) {

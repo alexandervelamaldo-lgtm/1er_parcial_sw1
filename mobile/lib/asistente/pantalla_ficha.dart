@@ -22,6 +22,8 @@ class PantallaFicha extends StatefulWidget {
     required this.sesion,
     required this.entidad,
     this.registro,
+    this.valoresIniciales,
+    this.claveDictada,
   });
 
   final Sesion sesion;
@@ -29,6 +31,23 @@ class PantallaFicha extends StatefulWidget {
 
   /// `null` para dar de alta; el registro existente para editar.
   final Map<String, dynamic>? registro;
+
+  /// Lo que ya se dictó, indexado por nombre de campo.
+  ///
+  /// Una orden a medias —«nuevo cliente Ana Pérez», sin correo— no se rechaza:
+  /// abre el formulario con lo entendido puesto y el cursor en lo que falta.
+  /// Obligar a repetirlo todo por un dato que no se dijo sería la manera más
+  /// rápida de que nadie volviera a usar el dictado.
+  final Map<String, String>? valoresIniciales;
+
+  /// La clave de idempotencia que se fijó al dictar.
+  ///
+  /// Viaja hasta aquí para que la orden siga siendo **la misma** orden: si la
+  /// ficha generase una nueva, el reintento de un dictado que quizá ya llegó
+  /// al servidor crearía un segundo registro. Si el usuario cambia algo en el
+  /// formulario, el cuerpo deja de coincidir y la clave se renueva sola: eso ya
+  /// es otra orden.
+  final String? claveDictada;
 
   @override
   State<PantallaFicha> createState() => _PantallaFichaState();
@@ -57,9 +76,20 @@ class _PantallaFichaState extends State<PantallaFicha> {
   void initState() {
     super.initState();
     for (final campo in _entidad.camposEditables) {
+      final dictado = widget.valoresIniciales?[campo.nombre];
       _controles[campo.nombre] = TextEditingController(
-        text: textoDesdeValor(campo, widget.registro?[campo.nombre]),
+        text: dictado ?? textoDesdeValor(campo, widget.registro?[campo.nombre]),
       );
+    }
+
+    // La clave dictada se adopta junto con el cuerpo que le corresponde. Las
+    // dos cosas van juntas o ninguna: guardar la clave sin su cuerpo haría que
+    // el primer guardado la diera por caducada y generase otra, que es
+    // exactamente lo que se quería evitar.
+    final clave = widget.claveDictada;
+    if (clave != null) {
+      _clave = clave;
+      _cuerpoDeLaClave = jsonEncode(cuerpoDesdeFormulario(_entidad, _textos));
     }
   }
 
