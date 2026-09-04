@@ -28,6 +28,15 @@ class _Servidor {
     _servidor.listen((peticion) async {
       final cuerpo = await utf8.decoder.bind(peticion).join();
       final respuesta = peticion.response;
+
+      if (sinCobertura) {
+        // Modo avión. Se corta el socket sin contestar, que es lo que ve el
+        // teléfono cuando se cae la red: no un código de error, sino nada. Y no
+        // se apunta en `peticiones`, porque desde fuera esta petición no llegó.
+        final enchufe = await respuesta.detachSocket();
+        enchufe.destroy();
+        return;
+      }
       // Ver la nota larga en `pantalla_ficha_test.dart`: sin esto, la reserva
       // de conexiones de `HttpClient` deja un temporizador vivo dentro del
       // reloj falso y la prueba muere por un motivo que no es el suyo.
@@ -99,6 +108,11 @@ class _Servidor {
   final Map<String, String> claves = <String, String>{};
 
   bool faltaElRegistro = false;
+
+  /// Con esto en `true` el servidor sigue escuchando pero no contesta a nadie.
+  /// Es la única forma honesta de probar el modo sin conexión: apagar el
+  /// servidor liberaría el puerto y la reconexión tendría que ir a otro sitio.
+  bool sinCobertura = false;
   List<Map<String, dynamic>> listado = [
     {'id': 1, 'nombre': 'Ana Pérez', 'email': 'ana@example.com'},
     {'id': 2, 'nombre': 'Beto Ruiz', 'email': 'beto@example.com'},
@@ -527,6 +541,129 @@ void main() {
         findsOneWidget,
       );
       expect(servidor.peticiones, contains('GET /api/clientes/4'));
+    });
+  });
+
+  group('sin cobertura', () {
+    testWidgets('un alta dictada queda apuntada y sale sola al volver la red',
+        (probador) async {
+      // El recorrido entero de la promesa: el barbero dicta en un sótano sin
+      // señal, la app le dice que queda apuntado, y al salir a la calle la orden
+      // se manda sola. Con la misma clave con la que se intentó la primera vez,
+      // que es lo que impide que se duplique si aquella sí llegó.
+      await abrir(probador);
+      servidor.sinCobertura = true;
+
+      await decir(probador, 'crea una categoria Herramientas');
+      await adelante(probador);
+
+      expect(servidor.creados, isEmpty);
+      expect(find.textContaining('queda apuntado'), findsOneWidget);
+      expect(find.textContaining('Hay 1 orden pendiente'), findsOneWidget);
+      expect(sesion.bandeja.esperando, hasLength(1));
+      final clave = sesion.bandeja.ordenes.single.clave;
+      expect(clave, startsWith('alta-'));
+
+      // Vuelve la cobertura.
+      servidor.sinCobertura = false;
+      await probador.runAsync(() => sesion.sincronizar());
+      await probador.pumpAndSettle();
+
+      expect(servidor.creados, hasLength(1));
+      expect(jsonDecode(servidor.creados.single), {'nombre': 'Herramientas'});
+      expect(servidor.claves['POST /api/categorias'], clave,
+          reason: 'el reenvío tiene que llevar la clave original, no una nueva');
+      expect(sesion.bandeja.vacia, isTrue);
+    });
+
+    testWidgets('la bandeja se ve desde la barra y se puede vaciar a mano',
+        (probador) async {
+      await abrir(probador);
+      servidor.sinCobertura = true;
+      await decir(probador, 'crea una categoria Herramientas');
+      await adelante(probador);
+
+      // El icono solo aparece cuando hay algo dentro.
+      expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);
+      await probador.tap(find.byIcon(Icons.cloud_upload_outlined));
+      await probador.pumpAndSettle();
+
+      expect(find.text('Pendiente de enviar'), findsOneWidget);
+      expect(find.textContaining('Herramientas'), findsWidgets);
+
+      servidor.sinCobertura = false;
+      await probador.tap(find.text('Enviar ahora'));
+      await dejarPasarLaRed(probador);
+
+      expect(servidor.creados, hasLength(1));
+      expect(find.text('No queda nada por enviar.'), findsOneWidget);
+    });
+
+    testWidgets('un borrado por número se apunta, pero avisando antes',
+        (probador) async {
+      // Que se haya caído la red no puede convertir un borrado en algo que se
+      // apunta sin preguntar: el aviso es lo mismo de irreversible que antes.
+      await abrir(probador);
+      servidor.sinCobertura = true;
+
+      await decir(probador, 'borra el pedido 7');
+      await adelante(probador);
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.textContaining('También desaparecerán'), findsOneWidget);
+      await probador.tap(find.text('Sí, adelante'));
+      await dejarPasarLaRed(probador);
+
+      expect(sesion.bandeja.esperando, hasLength(1));
+      expect(sesion.bandeja.ordenes.single.metodo, 'DELETE');
+      expect(sesion.bandeja.ordenes.single.registroId, 7);
+
+      servidor.sinCobertura = false;
+      await probador.runAsync(() => sesion.sincronizar());
+      await probador.pumpAndSettle();
+
+      expect(servidor.borrados, ['/api/pedidos/7']);
+    });
+
+    testWidgets('cancelar el aviso no deja nada apuntado', (probador) async {
+      await abrir(probador);
+      servidor.sinCobertura = true;
+
+      await decir(probador, 'borra el pedido 7');
+      await adelante(probador);
+      await probador.tap(find.text('Cancelar'));
+      await probador.pumpAndSettle();
+
+      expect(sesion.bandeja.vacia, isTrue);
+      expect(find.byIcon(Icons.cloud_upload_outlined), findsNothing);
+    });
+
+    testWidgets('lo que no se puede apuntar se dice, en vez de fingirlo',
+        (probador) async {
+      // Un cambio manda el registro entero, y de lo dictado solo salen los
+      // campos que se nombraron. Guardarlo sin poder leer antes cómo está
+      // ahora vaciaría el resto. Es preferible decir que no se puede.
+      await abrir(probador);
+      servidor.sinCobertura = true;
+
+      await decir(probador, 'cambia el email del cliente 4 a nuevo@ejemplo.com');
+      await adelante(probador);
+
+      expect(sesion.bandeja.vacia, isTrue);
+      expect(find.textContaining('borraría el resto de los datos'),
+          findsOneWidget);
+    });
+
+    testWidgets('un borrado por nombre no se apunta a ciegas', (probador) async {
+      await abrir(probador);
+      servidor.sinCobertura = true;
+
+      await decir(probador, 'borra el cliente Ana');
+      await adelante(probador);
+
+      expect(sesion.bandeja.vacia, isTrue);
+      expect(find.textContaining('hay que buscar de quién se trata'),
+          findsOneWidget);
     });
   });
 }

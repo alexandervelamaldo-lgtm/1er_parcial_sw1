@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import 'asistente/bandeja.dart';
 import 'asistente/pantalla_conexion.dart';
 import 'asistente/sesion.dart';
 import 'voz_nativa.dart';
@@ -116,8 +118,22 @@ class PantallaInicio extends StatefulWidget {
 
 class _PantallaInicioState extends State<PantallaInicio> {
   /// Vive aquí y no dentro de la pantalla de conexión para que volver atrás no
-  /// tire el manifiesto ya descargado.
-  final Sesion _sesion = Sesion();
+  /// tire el manifiesto ya descargado —ni, ahora, la bandeja de salida.
+  ///
+  /// La bandeja va al directorio de documentos de la app y no a la caché: el
+  /// sistema vacía la caché cuando le hace falta espacio, y ahí dentro hay
+  /// órdenes que el usuario dio y que todavía no han llegado a ningún sitio.
+  /// Perderlas en silencio sería peor que no tener bandeja.
+  final Sesion _sesion =
+      Sesion(almacen: AlmacenEnFichero(getApplicationDocumentsDirectory()));
+
+  @override
+  void initState() {
+    super.initState();
+    // Sin esto, lo apuntado en la sesión anterior seguiría en el fichero pero no
+    // en memoria, y el primer `enviar` lo pisaría con una lista vacía.
+    _sesion.bandeja.cargar();
+  }
 
   @override
   void dispose() {

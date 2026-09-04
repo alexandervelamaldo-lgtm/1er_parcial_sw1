@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'bandeja.dart';
 import 'cliente_rest.dart';
 import 'gramatica.dart';
+import 'hoja_bandeja.dart';
 import 'manifiesto.dart';
 import 'pantalla_ficha.dart';
 import 'pantalla_lista.dart';
@@ -51,6 +53,13 @@ class _PantallaAsistenteState extends State<PantallaAsistente> {
   /// abre una orden nueva. Es lo que permite terminar un borrado sin tocar la
   /// pantalla, que es la mitad de la promesa de este módulo.
   void Function(bool)? _esperandoRespuesta;
+
+  /// Si en esta orden ya se preguntó «¿seguro?» y se contestó que sí.
+  ///
+  /// Existe porque un corte de red puede darse antes de preguntar —al buscar el
+  /// registro— o después, al mandar el borrado. Sin esto, el segundo caso
+  /// volvería a abrir el mismo diálogo que el usuario acaba de contestar.
+  bool _yaConfirmado = false;
 
   Manifiesto get _manifiesto => widget.sesion.manifiesto!;
   ClienteRest get _cliente => widget.sesion.cliente!;
@@ -148,6 +157,7 @@ class _PantallaAsistenteState extends State<PantallaAsistente> {
     setState(() {
       _pendiente = null;
       _trabajando = true;
+      _yaConfirmado = false;
     });
     try {
       switch (orden.accion) {
@@ -182,11 +192,7 @@ class _PantallaAsistenteState extends State<PantallaAsistente> {
     } on ErrorHttp catch (e) {
       _decir(e.mensaje, ok: false);
     } on ErrorDeRed catch (e) {
-      _decir(
-        '${e.mensaje}\n\nLa orden conserva su clave: al reintentarla no se '
-        'duplicará aunque la primera hubiera llegado.',
-        ok: false,
-      );
+      await _apuntarParaLuego(orden, e);
     } finally {
       if (mounted) setState(() => _trabajando = false);
     }
@@ -232,6 +238,83 @@ class _PantallaAsistenteState extends State<PantallaAsistente> {
     );
     _decir('Borrado ${etiquetaDeRegistro(orden.entidad, registro)}.');
   }
+
+  /// No hubo red: se apunta la orden en vez de perderla.
+  ///
+  /// Es la pieza que hace cierto «funciona sin conexión» para las escrituras. La
+  /// orden se guarda **con la clave de idempotencia con la que se intentó**, de
+  /// modo que si aquella primera petición sí llegó y lo que se perdió fue la
+  /// respuesta, el reenvío no duplica nada: el backend reconoce la clave.
+  ///
+  /// No todo se puede apuntar, y decirlo es mejor que fingirlo:
+  ///
+  /// - Un **alta** sí: lleva dentro todo lo que hace falta para mandarla.
+  /// - Un **borrado por número** sí: el número lo dijo el usuario.
+  /// - Un borrado **por nombre** no, porque hace falta buscar quién es y sin red
+  ///   no se puede. Elegir a ciegas sería borrar al cliente equivocado.
+  /// - Un **cambio** tampoco: el `PUT` manda el registro entero, y de lo dictado
+  ///   solo salen los campos que se nombraron. Sin poder leer antes cómo está
+  ///   ahora, guardarlo vaciaría todo lo demás.
+  /// - **Leer** no se apunta: no se arregla reintentándolo, se arregla
+  ///   enseñando lo que haya.
+  Future<void> _apuntarParaLuego(Orden orden, ErrorDeRed fallo) async {
+    final String metodo;
+    final Object? id;
+    switch (orden.accion) {
+      case Accion.crear when orden.completa:
+        metodo = 'POST';
+        id = null;
+      case Accion.borrar when orden.identificador != null:
+        metodo = 'DELETE';
+        id = orden.identificador;
+      case _:
+        _decir(
+          '${fallo.mensaje}\n\n'
+          '${_porQueNoSeApunta(orden)} Inténtalo cuando vuelva la conexión.',
+          ok: false,
+        );
+        return;
+    }
+
+    // Si el corte fue al buscar el registro, todavía no se ha preguntado nada y
+    // esto sigue siendo un borrado. Apuntarlo sin avisar sería colar una orden
+    // irreversible aprovechando que falló la red.
+    if (!_yaConfirmado && orden.necesitaConfirmacion && !await _confirmar(orden)) {
+      return;
+    }
+
+    await widget.sesion.bandeja.encolar(OrdenPendiente(
+      metodo: metodo,
+      entidad: orden.entidad.nombre,
+      registroId: id,
+      cuerpo: metodo == 'POST' ? orden.cuerpo : null,
+      clave: orden.claveIdempotencia,
+      // Se redacta ahora, con el manifiesto delante. Al reenviarla puede que el
+      // modelo haya cambiado y ya no haya con qué escribir esta frase.
+      resumen: orden.explicacion,
+    ));
+
+    final quedan = widget.sesion.bandeja.esperando.length;
+    _decir(
+      'Sin conexión, así que queda apuntado: ${orden.explicacion} '
+      'Se enviará solo al reconectar. '
+      '${quedan == 1 ? 'Hay 1 orden pendiente.' : 'Hay $quedan órdenes pendientes.'}',
+    );
+  }
+
+  String _porQueNoSeApunta(Orden orden) => switch (orden.accion) {
+        Accion.listar || Accion.ver =>
+          'Consultar necesita conexión: no es algo que se pueda hacer más tarde.',
+        Accion.actualizar =>
+          'Un cambio necesita leer antes cómo está el registro, y eso pide '
+              'conexión. Guardarlo a medias borraría el resto de los datos.',
+        Accion.borrar =>
+          'Para borrar por nombre hay que buscar de quién se trata, y sin '
+              'conexión no se puede. Dilo con el número y sí queda apuntado.',
+        Accion.crear =>
+          'Falta algún dato obligatorio, y sin conexión no puedo abrir la ficha '
+              'para completarlo.',
+      };
 
   /// Encuentra el registro del que habla la orden.
   ///
@@ -339,6 +422,7 @@ class _PantallaAsistenteState extends State<PantallaAsistente> {
     await _voz.parar();
 
     if (si != true) _decir('Cancelado.', ok: false);
+    _yaConfirmado = si == true;
     return si == true;
   }
 
@@ -364,6 +448,30 @@ class _PantallaAsistenteState extends State<PantallaAsistente> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Asistente'),
+        actions: [
+          // Solo aparece cuando hay algo dentro. Un icono de bandeja siempre
+          // encendido se convierte en parte del decorado y deja de avisar.
+          ListenableBuilder(
+            listenable: widget.sesion.bandeja,
+            builder: (context, _) {
+              final bandeja = widget.sesion.bandeja;
+              if (bandeja.vacia) return const SizedBox.shrink();
+              final hayRechazos = bandeja.rechazadas.isNotEmpty;
+              return IconButton(
+                tooltip: 'Pendiente de enviar',
+                onPressed: () => mostrarBandeja(context, widget.sesion),
+                icon: Badge(
+                  label: Text('${bandeja.ordenes.length}'),
+                  backgroundColor:
+                      hayRechazos ? Theme.of(context).colorScheme.error : null,
+                  child: Icon(hayRechazos
+                      ? Icons.cloud_off_outlined
+                      : Icons.cloud_upload_outlined),
+                ),
+              );
+            },
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(20),
           child: Padding(

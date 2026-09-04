@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import 'bandeja.dart';
 import 'cliente_rest.dart';
 import 'manifiesto.dart';
 
@@ -23,7 +24,19 @@ const String backendPorDefecto = String.fromEnvironment(
 );
 
 class Sesion extends ChangeNotifier {
-  Sesion();
+  Sesion({AlmacenBandeja? almacen})
+      : bandeja = Bandeja(almacen ?? AlmacenEnMemoria());
+
+  /// Lo dictado sin cobertura, esperando a que haya.
+  ///
+  /// Cuelga de la sesión y no de una pantalla porque tiene que sobrevivir a
+  /// cerrar la pantalla del asistente, y de hecho a cerrar la app entera.
+  ///
+  /// Asume un backend a la vez, que es como se usa: si se cambia de servidor con
+  /// órdenes dentro, la guarda no es un candado sino el propio manifiesto —
+  /// `enviar` resuelve cada entidad contra el modelo actual y marca la que ya no
+  /// existe en vez de mandarla a una ruta adivinada.
+  final Bandeja bandeja;
 
   ClienteRest? _cliente;
   Manifiesto? _manifiesto;
@@ -55,6 +68,14 @@ class Sesion extends ChangeNotifier {
       _cliente = cliente;
       _manifiesto = respuesta.manifiesto;
       _etag = respuesta.etag;
+      _cargando = false;
+      notifyListeners();
+
+      // Acabamos de demostrar que hay red: es el momento exacto de soltar lo
+      // que se quedó apuntado. Va aquí y no en una pantalla porque volver a
+      // tener cobertura no es un gesto del usuario, y esperar a que abra la
+      // pantalla correcta para sincronizar sería dejarlo a la suerte.
+      await sincronizar();
       return true;
     } on ManifiestoInvalido catch (e) {
       _error = e.mensaje;
@@ -94,6 +115,18 @@ class Sesion extends ChangeNotifier {
       // sigue con el manifiesto anterior, que es viejo pero utilizable.
       return false;
     }
+  }
+
+  /// Intenta soltar la bandeja contra el backend al que estamos conectados.
+  ///
+  /// Devuelve `null` si no hay con qué intentarlo. Es distinto de un envío con
+  /// cero órdenes: uno significa «no había nada que mandar» y el otro «no se
+  /// pudo ni probar», y quien llama tiene que poder decir cuál de los dos.
+  Future<ResultadoEnvio?> sincronizar() async {
+    final cliente = _cliente;
+    final manifiesto = _manifiesto;
+    if (cliente == null || manifiesto == null || bandeja.vacia) return null;
+    return bandeja.enviar(cliente, manifiesto);
   }
 
   void desconectar() {
