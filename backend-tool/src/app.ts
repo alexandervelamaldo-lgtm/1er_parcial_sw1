@@ -13,11 +13,13 @@ import { GuiaDelManual } from './ai/guia.js';
 import { authRouter } from './api/auth.js';
 import { guiaRouter } from './api/guia.js';
 import { projectsRouter } from './api/projects.js';
+import { panelRouter } from './api/panel.js';
 import { diagramsRouter } from './api/diagrams.js';
 import { generationRouter } from './api/generation.js';
 import { assistantRouter } from './api/assistant.js';
 import { importRouter } from './api/import.js';
 import { errorHandler, notFound, requireAuth } from './api/http.js';
+import { cabecerasDeSeguridad, limiteDeTasa } from './api/proteccion.js';
 
 /**
  * Composición del servicio.
@@ -27,6 +29,19 @@ import { errorHandler, notFound, requireAuth } from './api/http.js';
  * tocar variables de entorno ni abrir puertos, y lo que hará que sustituir el
  * almacén de fichero por PostgreSQL sea un cambio de una línea.
  */
+
+/**
+ * Las cuotas, con sus números escritos donde se pueden discutir.
+ *
+ * Se eligen por encima de lo que hace una persona trabajando y muy por debajo de
+ * lo que hace un bucle: nadie dicta treinta órdenes en un minuto ni fotografía
+ * diez pizarras seguidas, pero un script las pide en dos segundos. La ventana es
+ * de un minuto porque es lo que dura la paciencia de quien se choca con el
+ * límite por accidente.
+ */
+const LIMITE_IA = { ventanaMs: 60_000, maximo: 30, nombre: 'al asistente' };
+const LIMITE_IMAGEN = { ventanaMs: 60_000, maximo: 10, nombre: 'de lectura de imágenes' };
+const LIMITE_GENERACION = { ventanaMs: 60_000, maximo: 10, nombre: 'de generación de código' };
 
 export interface AppDependencies {
   config: Config;
@@ -134,6 +149,9 @@ export function createApp(deps: AppDependencies): BuiltApp {
   const app = express();
 
   app.disable('x-powered-by');
+  // Antes que nada, para que las cabeceras acompañen también a los errores y a
+  // las respuestas de los ficheros estáticos.
+  app.use(cabecerasDeSeguridad());
   app.use(
     cors({
       origin: config.corsOrigins.includes('*') ? true : config.corsOrigins,
@@ -168,18 +186,42 @@ export function createApp(deps: AppDependencies): BuiltApp {
   // la herramienta, y la pregunta «¿por dónde empiezo?» se hace justamente antes
   // de tener un proyecto abierto. Sí exige sesión, porque cada respuesta del
   // modelo se paga con una clave nuestra.
-  if (guia) app.use('/api/guia', requireAuth(identity), guiaRouter(guia));
+  if (guia) {
+    app.use('/api/guia', requireAuth(identity), limiteDeTasa(LIMITE_IA), guiaRouter(guia));
+  }
 
   // Todo lo que hay bajo /api/proyectos exige sesión. Ponerlo una vez aquí evita
   // que una ruta nueva quede accesible por olvidar el middleware.
   const protectedApi = express.Router();
   protectedApi.use(requireAuth(identity));
+  // Las rutas caras llevan límite de tasa y las demás no: generar un proyecto,
+  // preguntarle al asistente y leer una foto cuestan tiempo de CPU o dinero de
+  // una clave nuestra, mientras que listar proyectos cuesta una lectura. Poner
+  // el límite donde no hace falta solo consigue que un usuario legítimo se
+  // choque con él (RNF-SEG-08).
+  //
+  // Se montan por camino y no envolviendo el router: `use(mw, router)` ejecuta
+  // el middleware en *toda* petición que entre en `protectedApi`, así que abrir
+  // un diagrama gastaría cuota de generación.
+  const tasaDeImagen = limiteDeTasa(LIMITE_IMAGEN);
+  protectedApi.use('/:proyectoId/generacion', limiteDeTasa(LIMITE_GENERACION));
+  protectedApi.use('/:proyectoId/asistente', limiteDeTasa(LIMITE_IA));
+  // Las dos importaciones comparten contador: son la misma clave y el mismo
+  // gasto, y con contadores separados el máximo real sería el doble.
+  protectedApi.use('/:proyectoId/importar-tabla', tasaDeImagen);
+  protectedApi.use('/:proyectoId/importar-diagrama', tasaDeImagen);
   protectedApi.use(projectsRouter({ store, identity, rooms }));
   protectedApi.use(diagramsRouter({ store, rooms }));
   protectedApi.use(generationRouter({ store, rooms }));
   protectedApi.use(assistantRouter({ store, rooms, assistant }));
   protectedApi.use(importRouter({ store, rooms, vision, maxImageBytes: config.maxImageBytes }));
   app.use('/api/proyectos', protectedApi);
+
+  // El panel no cuelga de `/api/proyectos` porque no habla de un proyecto: habla
+  // de todos los de quien pregunta a la vez. Colgarlo de ahí lo habría dejado
+  // compitiendo con `/:proyectoId`, que casa con cualquier segmento y se habría
+  // tragado la ruta.
+  app.use('/api/panel', requireAuth(identity), panelRouter({ store, rooms }));
 
   // La API va antes que los ficheros estáticos: si el frontend se montase
   // primero, su comodín se tragaría `/api/...` y devolvería el `index.html` con

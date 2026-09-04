@@ -2,7 +2,10 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import {
   AuthError,
   SesionFirmada,
+  generarCodigoRecuperacion,
   hashPassword,
+  marcaDeCredencial,
+  normalizarCodigo,
   normalizarCorreo,
   safeEquals,
   toProfile,
@@ -182,16 +185,39 @@ interface FilaUsuario {
   nombre: string;
   sal: string;
   hash: string;
+  sal_recuperacion: string | null;
+  hash_recuperacion: string | null;
 }
 
+/** Las columnas del usuario, en un solo sitio para que las cuatro consultas no se separen. */
+const COLUMNAS_USUARIO = 'id, correo, nombre, sal, hash, sal_recuperacion, hash_recuperacion';
+
+/**
+ * Se comprueba antes de consultar porque la columna es `uuid`: PostgreSQL
+ * rechaza compararla con texto que no lo sea, y eso llega como error en lugar de
+ * como «no encontrado».
+ */
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function aUsuario(fila: FilaUsuario): StoredUser {
-  return {
+  const usuario: StoredUser = {
     id: fila.id,
     email: fila.correo,
     displayName: fila.nombre,
     salt: fila.sal,
     hash: fila.hash,
   };
+  // Las columnas vacías se omiten en vez de convertirse en `null`: así el objeto
+  // que sale de PostgreSQL es indistinguible del que sale del fichero, y el
+  // código que los usa no tiene que saber de cuál de los dos vino.
+  //
+  // La comprobación es por valor y no `!== null` a propósito: una fila que venga
+  // de un `select` sin estas columnas las trae como `undefined`, y `undefined
+  // !== null` es cierto, con lo que se asignaría un `recoverySalt` indefinido y
+  // el código de más abajo creería que hay recuperación pendiente.
+  if (fila.sal_recuperacion) usuario.recoverySalt = fila.sal_recuperacion;
+  if (fila.hash_recuperacion) usuario.recoveryHash = fila.hash_recuperacion;
+  return usuario;
 }
 
 /**
@@ -221,7 +247,7 @@ export class PostgresIdentityProvider implements IdentityProvider {
       const { rows } = await this.pool.query<FilaUsuario>(
         `insert into usuarios (id, correo, nombre, sal, hash)
          values ($1, $2, $3, $4, $5)
-         returning id, correo, nombre, sal, hash`,
+         returning ${COLUMNAS_USUARIO}`,
         [
           randomUUID(),
           normalized,
@@ -253,20 +279,81 @@ export class PostgresIdentityProvider implements IdentityProvider {
     const candidato = hashPassword(password, usuario?.salt ?? 'sal-inexistente');
     if (!usuario || !safeEquals(candidato, usuario.hash)) return null;
 
-    return this.sesiones.emitir(toProfile(usuario));
+    return this.sesiones.emitir(toProfile(usuario), marcaDeCredencial(usuario));
   }
 
   async verify(token: string): Promise<UserProfile | null> {
-    const userId = this.sesiones.leer(token);
+    const userId = await this.sesiones.leer(token, async (id) => {
+      // El identificador viene de un token todavía sin comprobar, así que se
+      // filtra igual que en `findById`: si no es un UUID, PostgreSQL responde
+      // con un error de tipo en lugar de con «no hay».
+      if (!ES_UUID.test(id)) return null;
+      const usuario = await this.buscar('id', id);
+      return usuario ? marcaDeCredencial(usuario) : null;
+    });
     if (!userId) return null;
     return this.findById(userId);
+  }
+
+  async emitirCodigoRecuperacion(userId: string): Promise<string> {
+    if (!ES_UUID.test(userId)) {
+      throw new AuthError('Ese usuario no existe', 404, 'USUARIO_DESCONOCIDO');
+    }
+
+    const codigo = generarCodigoRecuperacion();
+    const sal = randomBytes(16).toString('hex');
+    const { rows } = await this.pool.query<{ id: string }>(
+      `update usuarios set sal_recuperacion = $2, hash_recuperacion = $3
+       where id = $1
+       returning id`,
+      [userId, sal, hashPassword(normalizarCodigo(codigo), sal)],
+    );
+    if (rows.length === 0) {
+      throw new AuthError('Ese usuario no existe', 404, 'USUARIO_DESCONOCIDO');
+    }
+    return codigo;
+  }
+
+  async restablecerConCodigo(
+    email: string,
+    codigo: string,
+    passwordNueva: string,
+  ): Promise<Session | null> {
+    const normalizado = validarRegistro(email, passwordNueva);
+    const usuario = await this.buscar('correo', normalizado);
+
+    // Se deriva siempre, como en `authenticate`, para no delatar por el tiempo
+    // ni quién tiene cuenta ni quién tiene una recuperación pendiente.
+    const candidato = hashPassword(
+      normalizarCodigo(codigo),
+      usuario?.recoverySalt ?? 'sal-inexistente',
+    );
+    if (!usuario?.recoveryHash || !safeEquals(candidato, usuario.recoveryHash)) return null;
+
+    const sal = randomBytes(16).toString('hex');
+    // La condición sobre `hash_recuperacion` no es decorativa: dos peticiones
+    // simultáneas con el mismo código llegarían las dos hasta aquí, y sin ella
+    // las dos cambiarían la contraseña. Con ella, la segunda no actualiza nada y
+    // se va con las manos vacías, que es lo que significa «un solo uso».
+    const { rows } = await this.pool.query<FilaUsuario>(
+      `update usuarios
+          set sal = $2, hash = $3, sal_recuperacion = null, hash_recuperacion = null
+        where id = $1 and hash_recuperacion = $4
+       returning ${COLUMNAS_USUARIO}`,
+      [usuario.id, sal, hashPassword(passwordNueva, sal), usuario.recoveryHash],
+    );
+    const fila = rows[0];
+    if (!fila) return null;
+
+    const actualizado = aUsuario(fila);
+    return this.sesiones.emitir(toProfile(actualizado), marcaDeCredencial(actualizado));
   }
 
   async findById(id: string): Promise<UserProfile | null> {
     // El identificador llega de dentro del token ya verificado, pero sigue
     // siendo texto: si no es un UUID, PostgreSQL rechaza la comparación con un
     // error de tipo en lugar de devolver «no encontrado». Se distingue aquí.
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return null;
+    if (!ES_UUID.test(id)) return null;
     const usuario = await this.buscar('id', id);
     return usuario ? toProfile(usuario) : null;
   }
@@ -282,7 +369,7 @@ export class PostgresIdentityProvider implements IdentityProvider {
    */
   private async buscar(columna: 'id' | 'correo', valor: string): Promise<StoredUser | null> {
     const { rows } = await this.pool.query<FilaUsuario>(
-      `select id, correo, nombre, sal, hash from usuarios where ${columna} = $1`,
+      `select ${COLUMNAS_USUARIO} from usuarios where ${columna} = $1`,
       [valor],
     );
     const fila = rows[0];

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type Miembro, type Proyecto } from '../services/api';
+import { ApiError, api, type FilaPanel, type Miembro, type Proyecto } from '../services/api';
 import { useSesion } from '../services/sesion';
+import { CodigoRecuperacion } from './CodigoRecuperacion';
+import { TableroProyectos } from './TableroProyectos';
+import { haceCuanto } from './tablero-proyectos';
 
 /**
  * Lista de proyectos y gestión de sus miembros (RF-COL-02).
@@ -11,18 +14,48 @@ import { useSesion } from '../services/sesion';
  */
 export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => void }): JSX.Element {
   const { usuario, salir } = useSesion();
-  const [proyectos, setProyectos] = useState<Proyecto[]>([]);
+  /*
+   * Una sola petición para toda la pantalla.
+   *
+   * `api.panel()` trae la lista entera —cada `fila.proyecto` es un `Proyecto`
+   * completo, como el que traía `GET /api/proyectos`— y además las cifras. Montarlo
+   * desde aquí habría sido pedir diagrama, miembros y validación por tarjeta:
+   * tres peticiones por proyecto, y descargar el modelo entero de cada uno para
+   * contar sus clases. El razonamiento largo está en `backend-tool/src/api/panel.ts`.
+   */
+  const [filas, setFilas] = useState<FilaPanel[]>([]);
+  const [tope, setTope] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creando, setCreando] = useState(false);
   const [nuevo, setNuevo] = useState({ nombre: '', descripcion: '', paquete: '' });
   const [compartiendo, setCompartiendo] = useState<Proyecto | null>(null);
+  const [codigoNuevo, setCodigoNuevo] = useState<string | null>(null);
+
+  /*
+   * Pedir un código de recuperación desde dentro.
+   *
+   * Hace falta por dos motivos distintos. Uno, las cuentas creadas antes de que
+   * los códigos existieran no tienen ninguno, y sin esto seguirían sin poder
+   * recuperarse. Dos, quien sospeche que su código anduvo por donde no debía
+   * puede emitir otro: el nuevo anula al viejo, así que generar uno es también
+   * la forma de invalidar el anterior.
+   */
+  const pedirCodigo = async (): Promise<void> => {
+    try {
+      const { codigoRecuperacion } = await api.codigoRecuperacion();
+      setCodigoNuevo(codigoRecuperacion);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo emitir el código');
+    }
+  };
 
   const recargar = useCallback(async (): Promise<void> => {
     setCargando(true);
     try {
-      const { proyectos: lista } = await api.listarProyectos();
-      setProyectos(lista);
+      const { filas: lista, tope: maximo } = await api.panel();
+      setFilas(lista);
+      setTope(maximo);
       setError(null);
     } catch (e) {
       setError(
@@ -52,7 +85,10 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
       );
       setNuevo({ nombre: '', descripcion: '', paquete: '' });
       setCreando(false);
-      setProyectos((antes) => [proyecto, ...antes]);
+      // Sin resumen: acaba de nacer y no hay nada que contar. `null` no es
+      // «cero», es «el servidor no lo ha resumido», y aquí es lo cierto: la
+      // fila se recalculará al volver a esta pantalla.
+      setFilas((antes) => [{ proyecto, resumen: null }, ...antes]);
       onAbrir(proyecto);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear el proyecto');
@@ -62,9 +98,17 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
   return (
     <div className="proyectos">
       <header className="barra">
-        <h1 className="barra__titulo">Tus proyectos</h1>
+        <h1 className="barra__titulo">Proyectos</h1>
         <div className="barra__herramientas">
           <span className="barra__usuario">{usuario?.displayName || usuario?.email}</span>
+          <button
+            type="button"
+            className="boton boton--discreto"
+            title="Emitir un código para recuperar la cuenta en caso de olvidar la contraseña"
+            onClick={() => void pedirCodigo()}
+          >
+            Código de recuperación
+          </button>
           <button type="button" className="boton boton--discreto" onClick={salir}>
             Salir
           </button>
@@ -114,13 +158,20 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
           </form>
         )}
 
+        {!cargando && <TableroProyectos filas={filas} tope={tope} onAbrir={onAbrir} />}
+
         {cargando ? (
           <p className="panel__vacio">Cargando…</p>
-        ) : proyectos.length === 0 ? (
-          <p className="panel__vacio">Todavía no tienes ningún proyecto.</p>
+        ) : filas.length === 0 ? (
+          /*
+           * Sin conexión esta rama también es la que se pinta, y no dice
+           * «Cargando…» eternamente: el mensaje de red ya está arriba, y aquí
+           * se afirma lo único que se sabe con certeza, que no hay lista.
+           */
+          <p className="panel__vacio">Sin proyectos.</p>
         ) : (
           <ul className="rejilla">
-            {proyectos.map((proyecto) => (
+            {filas.map(({ proyecto, resumen }) => (
               <li key={proyecto.id} className="tarjeta">
                 <button
                   type="button"
@@ -129,6 +180,30 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
                 >
                   <h2>{proyecto.name}</h2>
                   <p>{proyecto.description || 'Sin descripción'}</p>
+                  {/*
+                    La fecha en palabras y no en ISO: la pregunta que se le hace
+                    a esta línea es «¿esto es de esta semana?», y una marca de
+                    tiempo obliga a restar mentalmente para contestarla.
+                  */}
+                  <p className="tarjeta__cifras">
+                    <span>{haceCuanto(proyecto.updatedAt, new Date())}</span>
+                    {resumen && (
+                      <>
+                        <span>
+                          {resumen.clases} {resumen.clases === 1 ? 'clase' : 'clases'}
+                        </span>
+                        <span>
+                          {resumen.miembros} {resumen.miembros === 1 ? 'miembro' : 'miembros'}
+                        </span>
+                        {resumen.problemas > 0 && (
+                          <span className="tarjeta__problemas">
+                            {resumen.problemas}{' '}
+                            {resumen.problemas === 1 ? 'error' : 'errores'}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
                   <span className={`etiqueta etiqueta--${proyecto.role}`}>
                     {proyecto.role === 'owner'
                       ? 'Propietario'
@@ -172,6 +247,22 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
 
       {compartiendo && (
         <DialogoCompartir proyecto={compartiendo} onCerrar={() => setCompartiendo(null)} />
+      )}
+
+      {codigoNuevo !== null && (
+        // Sin cierre al pulsar fuera, al revés que el de compartir: aquí un clic
+        // despistado en el fondo cerraría lo único que da acceso a la cuenta, y
+        // el código ya no se puede volver a pedir. Solo se sale por el botón.
+        <div className="modal" role="presentation">
+          <div className="modal__caja" role="dialog">
+            <h2>Código de recuperación</h2>
+            <CodigoRecuperacion
+              codigo={codigoNuevo}
+              alConfirmar={() => setCodigoNuevo(null)}
+              textoConfirmar="Cerrar"
+            />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -262,8 +353,8 @@ function DialogoCompartir({
         </form>
 
         <p className="modal__nota">
-          Solo puedes invitar a personas que ya tengan cuenta. Quien pierde el acceso deja de ver el
-          diagrama al instante, aunque lo tenga abierto.
+          Solo se puede invitar a personas con cuenta ya creada. Quien pierde el acceso deja de ver
+          el diagrama al instante, aunque lo tenga abierto.
         </p>
 
         <button type="button" className="boton" onClick={onCerrar}>

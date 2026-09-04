@@ -195,7 +195,14 @@ describe('identidad', () => {
   const SECRETO = 'secreto-de-prueba-suficientemente-largo';
   const ID = '33333333-3333-4333-8333-333333333333';
 
-  /** Pool que se comporta como una tabla `usuarios` de una sola fila. */
+  /**
+   * Pool que se comporta como una tabla `usuarios` de una sola fila.
+   *
+   * Entiende también los dos `update` de la recuperación, incluida la condición
+   * `and hash_recuperacion = $4` que hace que el código valga una sola vez: sin
+   * imitarla, la prueba del segundo uso pasaría con una implementación que no la
+   * tuviera.
+   */
   function poolConUsuario(): PoolFalso {
     let guardado: Record<string, unknown> | null = null;
     return new PoolFalso((texto, valores) => {
@@ -206,8 +213,25 @@ describe('identidad', () => {
           nombre: valores[2],
           sal: valores[3],
           hash: valores[4],
+          sal_recuperacion: null,
+          hash_recuperacion: null,
         };
         return [guardado];
+      }
+      if (texto.includes('set sal_recuperacion')) {
+        if (!guardado || guardado.id !== valores[0]) return [];
+        guardado.sal_recuperacion = valores[1];
+        guardado.hash_recuperacion = valores[2];
+        return [{ id: guardado.id }];
+      }
+      if (texto.includes('set sal = $2')) {
+        if (!guardado || guardado.id !== valores[0]) return [];
+        if (guardado.hash_recuperacion !== valores[3]) return [];
+        guardado.sal = valores[1];
+        guardado.hash = valores[2];
+        guardado.sal_recuperacion = null;
+        guardado.hash_recuperacion = null;
+        return [{ ...guardado }];
       }
       if (texto.includes('from usuarios')) return guardado ? [guardado] : [];
       return [];
@@ -310,6 +334,99 @@ describe('identidad', () => {
 
     await identity.findById(ID);
     expect(pool.llamadas).toHaveLength(1);
+  });
+
+  /*
+   * La recuperación contra PostgreSQL.
+   *
+   * Se repiten a propósito comprobaciones que ya existen para la implementación
+   * de fichero. Los dos proveedores tienen que comportarse igual, y el fichero
+   * `auth/identity.ts` avisa de que divergir aquí acaba en «que sí puede entrar
+   * alguien que no debería»; una prueba por almacén es lo que hace que la
+   * advertencia sea algo más que un comentario.
+   */
+  describe('recuperación', () => {
+    async function conCuenta(): Promise<{ pool: PoolFalso; identity: PostgresIdentityProvider }> {
+      const pool = poolConUsuario();
+      const identity = new PostgresIdentityProvider(pool, SECRETO, 3600);
+      await identity.register('ana@ejemplo.com', 'contraseña-larguísima', 'Ana');
+      return { pool, identity };
+    }
+
+    it('el código no llega nunca en claro a la base de datos', async () => {
+      const { pool, identity } = await conCuenta();
+      const usuario = await identity.findByEmail('ana@ejemplo.com');
+
+      const codigo = await identity.emitirCodigoRecuperacion(usuario!.id);
+
+      // La misma regla que con la contraseña: quien pueda leer la tabla —una
+      // copia de seguridad, un registro de consultas— no puede recuperar cuentas
+      // con lo que ve.
+      expect(pool.valoresEnviados).not.toContain(codigo);
+      expect(pool.textoCompleto).not.toContain(codigo);
+    });
+
+    it('el código cambia la contraseña y solo funciona una vez', async () => {
+      const { identity } = await conCuenta();
+      const usuario = await identity.findByEmail('ana@ejemplo.com');
+      const codigo = await identity.emitirCodigoRecuperacion(usuario!.id);
+
+      const sesion = await identity.restablecerConCodigo(
+        'ana@ejemplo.com',
+        codigo,
+        'contraseña-nueva-larga',
+      );
+      expect(sesion?.user.email).toBe('ana@ejemplo.com');
+      expect(await identity.authenticate('ana@ejemplo.com', 'contraseña-nueva-larga')).not.toBeNull();
+      expect(await identity.authenticate('ana@ejemplo.com', 'contraseña-larguísima')).toBeNull();
+
+      expect(
+        await identity.restablecerConCodigo('ana@ejemplo.com', codigo, 'otra-contraseña-larga'),
+      ).toBeNull();
+    });
+
+    it('restablecer invalida los tokens anteriores', async () => {
+      const { identity } = await conCuenta();
+      const antes = await identity.authenticate('ana@ejemplo.com', 'contraseña-larguísima');
+      expect(await identity.verify(antes!.token)).not.toBeNull();
+
+      const usuario = await identity.findByEmail('ana@ejemplo.com');
+      const codigo = await identity.emitirCodigoRecuperacion(usuario!.id);
+      await identity.restablecerConCodigo('ana@ejemplo.com', codigo, 'contraseña-nueva-larga');
+
+      expect(await identity.verify(antes!.token)).toBeNull();
+    });
+
+    it('sin código pendiente no hay nada que restablecer', async () => {
+      const { identity } = await conCuenta();
+      expect(
+        await identity.restablecerConCodigo(
+          'ana@ejemplo.com',
+          'ABCDE-FGHJK-MNPQR-STVWX',
+          'contraseña-nueva-larga',
+        ),
+      ).toBeNull();
+    });
+
+    it('un identificador que no es un UUID no llega a la base de datos', async () => {
+      const pool = new PoolFalso();
+      const identity = new PostgresIdentityProvider(pool, SECRETO, 3600);
+
+      await expect(identity.emitirCodigoRecuperacion("no-uuid'; drop table usuarios")).rejects.toThrow(
+        AuthError,
+      );
+      expect(pool.llamadas).toHaveLength(0);
+    });
+
+    it('la contraseña nueva se rechaza antes de tocar la base de datos', async () => {
+      const pool = new PoolFalso();
+      const identity = new PostgresIdentityProvider(pool, SECRETO, 3600);
+
+      await expect(
+        identity.restablecerConCodigo('ana@ejemplo.com', 'ABCDE-FGHJK-MNPQR-STVWX', 'corta'),
+      ).rejects.toThrow(AuthError);
+      expect(pool.llamadas).toHaveLength(0);
+    });
   });
 });
 

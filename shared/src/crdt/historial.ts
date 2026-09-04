@@ -342,3 +342,71 @@ export function autoriaDeClase(
     ultima: propias[propias.length - 1] ?? null,
   };
 }
+
+/**
+ * Cuántos cambios entró cada vía.
+ *
+ * El origen de cada entrada ya se enseña una por una en el panel de historial;
+ * esto es la pregunta que ninguna lista responde: de todo lo que hay en el
+ * modelo, qué proporción se dibujó a mano y qué proporción llegó dictada, leída
+ * de una foto de pizarra o importada de un XMI.
+ *
+ * `deshacer` y `rehacer` cuentan aparte y no se reparten entre los demás. Son
+ * actos sobre el historial, no formas de meter modelo: sumarlos a «a mano»
+ * inflaría esa vía con trabajo que en realidad se estaba retirando.
+ */
+export interface ResumenOrigenes {
+  /** Una entrada por vía, incluidas las que valen cero. */
+  porOrigen: Record<OrigenCambio, number>;
+  /** Total de entradas conservadas, incluidas deshacer y rehacer. */
+  total: number;
+  /**
+   * Cuántas traen una fecha que contradice el orden del CRDT.
+   *
+   * Se cuenta y se devuelve en vez de descartarse en silencio: quien pinte esto
+   * necesita poder decir «de 40 cambios, 3 traen la hora mal» en lugar de
+   * enseñar 37 como si fueran todos.
+   */
+  fechasDudosas: number;
+}
+
+export function resumirOrigenes(entradas: EntradaLeida[]): ResumenOrigenes {
+  // Se parte de todas las vías a cero en vez de acumular solo las que aparecen.
+  // Un `Record` con huecos obliga a cada consumidor a comprobar si falta la
+  // clave, y el primero que lo olvide pintará «undefined» en la interfaz.
+  const porOrigen = Object.fromEntries(
+    (Object.keys(ETIQUETA_ORIGEN) as OrigenCambio[]).map((clave) => [clave, 0]),
+  ) as Record<OrigenCambio, number>;
+
+  let fechasDudosas = 0;
+  for (const entrada of entradas) {
+    // Una entrada escrita por una versión anterior puede traer un origen que
+    // esta ya no conoce. Se ignora en el reparto pero cuenta en el total: es un
+    // cambio que existió, y esconderlo descuadraría la suma.
+    if (entrada.origen in porOrigen) porOrigen[entrada.origen] += 1;
+    if (entrada.relojDudoso) fechasDudosas += 1;
+  }
+
+  return { porOrigen, total: entradas.length, fechasDudosas };
+}
+
+/**
+ * Las vías por las que entró modelo, sin las de gestión del historial.
+ *
+ * Es lo que se reparte en la barra de procedencia. Deshacer y rehacer quedan
+ * fuera por lo dicho arriba, y las vías con cero también: una leyenda que
+ * enumera cuatro formas de importar que nadie usó ocupa sitio para decir nada.
+ */
+export function viasDeEntrada(
+  resumen: ResumenOrigenes,
+): { origen: OrigenCambio; etiqueta: string; cambios: number }[] {
+  const DE_GESTION: OrigenCambio[] = ['deshacer', 'rehacer'];
+  return (Object.keys(resumen.porOrigen) as OrigenCambio[])
+    .filter((origen) => !DE_GESTION.includes(origen) && resumen.porOrigen[origen] > 0)
+    .map((origen) => ({
+      origen,
+      etiqueta: ETIQUETA_ORIGEN[origen],
+      cambios: resumen.porOrigen[origen],
+    }))
+    .sort((a, b) => b.cambios - a.cambios);
+}

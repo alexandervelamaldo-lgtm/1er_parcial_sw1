@@ -229,6 +229,8 @@ Los RNF se expresan con umbrales medibles. Un RNF sin número no es verificable 
 | RNF-SEG-07 | Content Security Policy restrictiva, sin `unsafe-eval` salvo donde el runtime WASM lo exija, en cuyo caso se acota por origen. |
 | RNF-SEG-08 | Límite de tasa en los endpoints de generación e IA para evitar abuso de recursos. |
 | RNF-SEG-09 | Cifrado en reposo de los diagramas en el servidor y borrado efectivo a petición del propietario. |
+| RNF-SEG-10 | La recuperación de cuenta no depende de un canal de correo. Se hace con un código de un solo uso, entregado una vez y guardado solo como hash; la respuesta del endpoint es indistinguible entre correo desconocido, cuenta sin código y código erróneo. |
+| RNF-SEG-11 | Cambiar la contraseña invalida de inmediato todos los tokens emitidos antes, incluidos los que estén en manos de un tercero. |
 
 ### RNF-USA — Usabilidad y accesibilidad
 

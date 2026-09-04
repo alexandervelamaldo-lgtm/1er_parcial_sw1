@@ -19,6 +19,14 @@ export * from './xmi/import.js';
 // `comun.js` no se reexporta: su `AvisoXmi` ya sale por `import.js`, y dos
 // `export *` con el mismo nombre lo dejarían inaccesible para quien lo importe.
 export * from './xmi/comunicacion.js';
+// El análisis de casos de uso, su catálogo y su escritor para Enterprise
+// Architect. Van en `shared` y no en `backend-tool` porque el catálogo describe
+// el sistema entero —frontend incluido— y porque así el modelo y sus pruebas
+// viven en el mismo sitio.
+export * from './xmi/analisis.js';
+export * from './xmi/casos-de-uso.js';
+export * from './xmi/catalogo-md.js';
+export * from './xmi/ea-comunicacion.js';
 export * from './guia/corpus.js';
 export * from './guia/buscar.js';
 export * from './guia/prompt.js';

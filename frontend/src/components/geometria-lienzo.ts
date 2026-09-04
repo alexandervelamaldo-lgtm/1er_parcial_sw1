@@ -106,6 +106,99 @@ export function recortar(texto: string, ancho: number): string {
   return texto.length <= caben ? texto : `${texto.slice(0, Math.max(caben - 1, 1))}…`;
 }
 
+// ---------------------------------------------------------------------------
+// La vista: qué trozo del diagrama se está mirando
+// ---------------------------------------------------------------------------
+
+export interface Vista {
+  /** Esquina superior izquierda del diagrama que se ve, en coordenadas del modelo. */
+  x: number;
+  y: number;
+  escala: number;
+}
+
+/**
+ * Los topes del zoom.
+ *
+ * Por debajo de un cuarto las cajas son manchas sin texto y por encima del triple
+ * se ve una clase y media: fuera de esa horquilla el lienzo deja de servir para
+ * lo que se está usando.
+ */
+export const ESCALA_MINIMA = 0.25;
+export const ESCALA_MAXIMA = 3;
+
+/** Margen alrededor de lo encuadrado, en píxeles de pantalla. */
+const MARGEN_ENCUADRE = 48;
+
+export function limitarEscala(escala: number): number {
+  return Math.min(ESCALA_MAXIMA, Math.max(ESCALA_MINIMA, escala));
+}
+
+/**
+ * Amplía o reduce dejando quieto el centro de la ventana.
+ *
+ * Es lo que hacen los botones de la barra de estado. La rueda y el pellizco
+ * anclan en el puntero —ahí el usuario señala dónde quiere mirar—, pero un botón
+ * no señala nada, y anclarlo en la esquina haría que el diagrama se escapara
+ * hacia abajo a la derecha en cada pulsación.
+ */
+export function ampliar(vista: Vista, ventana: Medida, factor: number): Vista {
+  const escala = limitarEscala(vista.escala * factor);
+  const centro = {
+    x: vista.x + ventana.ancho / vista.escala / 2,
+    y: vista.y + ventana.alto / vista.escala / 2,
+  };
+  return {
+    escala,
+    x: centro.x - ventana.ancho / escala / 2,
+    y: centro.y - ventana.alto / escala / 2,
+  };
+}
+
+export interface Caja extends Medida {
+  x: number;
+  y: number;
+}
+
+export function cajaDe(cls: UmlClass): Caja {
+  const { ancho, alto } = medidasDe(cls);
+  return { x: cls.position.x, y: cls.position.y, ancho, alto };
+}
+
+/**
+ * Deja a la vista las cajas indicadas.
+ *
+ * Con `ajustar` la escala se recalcula para que quepan; sin él se conserva la
+ * que hubiera, salvo que no quepan, en cuyo caso se reduce lo justo. La
+ * diferencia importa: «Ajustar» de la barra de estado quiere ver el diagrama
+ * entero, y pulsar Enter sobre una clase del árbol quiere ir hasta ella sin
+ * cambiar el aumento con el que se estaba trabajando.
+ *
+ * Sin cajas devuelve el origen a escala 1: un diagrama vacío no tiene centro, y
+ * cualquier otra cosa —dividir entre cero, dejar la vista donde estaba— acaba en
+ * un lienzo en blanco del que no se sabe volver.
+ */
+export function encuadrar(cajas: Caja[], ventana: Medida, opciones: { ajustar: boolean; escala: number }): Vista {
+  if (cajas.length === 0) return { x: 0, y: 0, escala: 1 };
+
+  const izquierda = Math.min(...cajas.map((c) => c.x));
+  const arriba = Math.min(...cajas.map((c) => c.y));
+  const derecha = Math.max(...cajas.map((c) => c.x + c.ancho));
+  const abajo = Math.max(...cajas.map((c) => c.y + c.alto));
+
+  const cabe = Math.min(
+    (ventana.ancho - MARGEN_ENCUADRE * 2) / Math.max(derecha - izquierda, 1),
+    (ventana.alto - MARGEN_ENCUADRE * 2) / Math.max(abajo - arriba, 1),
+  );
+  const escala = limitarEscala(opciones.ajustar ? cabe : Math.min(opciones.escala, cabe));
+
+  return {
+    escala,
+    x: (izquierda + derecha) / 2 - ventana.ancho / escala / 2,
+    y: (arriba + abajo) / 2 - ventana.alto / escala / 2,
+  };
+}
+
 /** Punto de la caja más cercano a un objetivo, para que las líneas no la crucen. */
 export function anclaje(cls: UmlClass, medida: Medida, hacia: Punto): Punto {
   const cx = cls.position.x + medida.ancho / 2;

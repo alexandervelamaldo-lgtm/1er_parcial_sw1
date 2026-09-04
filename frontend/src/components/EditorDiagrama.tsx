@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   diagramaAXmi,
+  type ClassKind,
   type ContextoCambio,
   type Operation,
   type RelationKind,
@@ -8,15 +9,24 @@ import {
 import { useDiagrama } from '../hooks/useDiagrama';
 import { usePresencia } from '../hooks/usePresencia';
 import { usePantallaEstrecha, useTecladoFisico } from '../hooks/useDispositivo';
+import { usePaneles } from '../hooks/usePaneles';
+import { useTema } from '../hooks/useTema';
 import { useSesion } from '../services/sesion';
 import { descargarProyecto, type Proyecto } from '../services/api';
-import { Lienzo } from './Lienzo';
+import { Lienzo, type OrdenVista } from './Lienzo';
 import { PanelPropiedades } from './PanelPropiedades';
-import { IndicadorSync } from './IndicadorSync';
 import { Asistente } from './Asistente';
 import { ImportarDiagrama } from './ImportarDiagrama';
 import { ImportarXmi } from './ImportarXmi';
 import { HistorialCambios } from './HistorialCambios';
+import { ColumnaAcoplada } from './PanelAcoplado';
+import type { Acoplado, EstadoColumna } from './paneles';
+import { ArbolProyecto } from './ArbolProyecto';
+import { Paleta } from './Paleta';
+import { BarraEstado } from './BarraEstado';
+import { BarraMenu } from './BarraMenu';
+import type { MenuDesplegable } from './barra-menu';
+import { Icono } from './iconos';
 
 /**
  * La pantalla de edición.
@@ -42,14 +52,25 @@ interface Aviso {
   deshacer?: boolean;
 }
 
-const TIPOS_RELACION: { valor: RelationKind; etiqueta: string }[] = [
-  { valor: 'association', etiqueta: 'Asociación' },
-  { valor: 'aggregation', etiqueta: 'Agregación' },
-  { valor: 'composition', etiqueta: 'Composición' },
-  { valor: 'inheritance', etiqueta: 'Herencia' },
-  { valor: 'realization', etiqueta: 'Realización' },
-  { valor: 'dependency', etiqueta: 'Dependencia' },
-];
+/**
+ * Cómo se llama lo que se acaba de crear.
+ *
+ * El nombre por defecto era «Clase{n}» para los cuatro tipos, y un diagrama con
+ * «Clase3» que resulta ser una enumeración se lee mal desde el primer minuto.
+ * Se numera con el total de clases del diagrama, no con las de su tipo: así dos
+ * elementos distintos nunca comparten número y no hay que buscar cuál es cuál.
+ */
+/** El ancho de una columna en la rejilla: lo que mide, o el riel si está plegada. */
+function anchoColumna(columna: EstadoColumna): string {
+  return columna.plegada ? 'var(--riel-ancho)' : `${String(columna.ancho)}px`;
+}
+
+const PREFIJO: Record<ClassKind, string> = {
+  class: 'Clase',
+  interface: 'Interfaz',
+  abstract: 'Abstracta',
+  enum: 'Enumeracion',
+};
 
 export function EditorDiagrama({
   proyecto,
@@ -80,29 +101,40 @@ export function EditorDiagrama({
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [importando, setImportando] = useState(false);
   const [importandoXmi, setImportandoXmi] = useState(false);
-  const [viendoHistorial, setViendoHistorial] = useState(false);
-  const [menuAbierto, setMenuAbierto] = useState(false);
   const ultimoCursor = useRef(0);
+
+  // El encuadre se pide como una acción numerada; el lienzo la atiende una vez y
+  // sigue siendo el dueño de su vista. Ver `OrdenVista`.
+  const [orden, setOrden] = useState<OrdenVista | null>(null);
+  const [escala, setEscala] = useState(1);
+  const serie = useRef(0);
 
   const estrecha = usePantallaEstrecha();
   const hayTeclado = useTecladoFisico();
+  const paneles = usePaneles(proyecto.id);
+  const { tema, alternar: alternarTema } = useTema();
+
+  const pedirZoom = useCallback((tipo: 'acercar' | 'alejar' | 'ajustar') => {
+    serie.current += 1;
+    setOrden({ tipo, n: serie.current });
+  }, []);
+
+  const centrar = useCallback((ids: string[]) => {
+    serie.current += 1;
+    setOrden({ tipo: 'centrar', ids, n: serie.current });
+  }, []);
 
   /*
-    La barra ocupaba tres filas en un teléfono, siempre, y solo una de las tres
-    se usa mientras se dibuja. Las otras dos —traer y llevarse ficheros, ver el
+    La barra ocupaba tres filas en un teléfono y solo una de las tres se usaba
+    mientras se dibuja: las otras dos —traer y llevarse ficheros, ver el
     historial, generar el proyecto— son acciones de una vez por sesión que
     estaban cobrando alquiler permanente en la parte de la pantalla donde debería
-    estar el diagrama.
+    estar el diagrama. Se resolvió con un botón «Más» que las plegaba.
 
-    Se pliegan en vez de esconderse en un menú aparte: al desplegar aparecen en
-    su sitio de siempre, con los mismos grupos y en el mismo orden, así que no
-    hay una segunda organización que aprender ni una lista donde buscarlas. Y
-    quedan a un toque, no a un gesto que haya que descubrir.
-
-    Deshacer y rehacer se quedan fuera del pliegue: se usan mientras se dibuja,
-    que es exactamente cuando la barra está plegada.
+    Con el menú ese apaño sobra. Esas órdenes viven ahora en Archivo y en Ver, en
+    el mismo sitio en el teléfono y en el escritorio, y la barra se queda con las
+    cuatro que se pulsan a cada rato. Una organización sola en vez de dos.
   */
-  const plegable = estrecha && !menuAbierto;
 
   // La mayoría de los avisos son una frase y ya está. Se le pone nombre para no
   // repetir el objeto en las nueve llamadas y para que las dos que sí llevan
@@ -116,7 +148,7 @@ export function EditorDiagrama({
 
   const aplicar = useCallback(
     (operaciones: Operation[], contexto?: ContextoCambio) => {
-      if (soloLectura) return { ok: false as const, error: 'Solo tienes permiso de lectura' };
+      if (soloLectura) return { ok: false as const, error: 'Permiso de solo lectura' };
       return estado.aplicar(operaciones, contexto);
     },
     [estado, soloLectura],
@@ -137,15 +169,39 @@ export function EditorDiagrama({
     [anunciar],
   );
 
-  const crearClase = useCallback(() => {
-    // No se manda posición: colocarla es cosa de `addClass`, que ya sabe dónde
-    // hay hueco. Había aquí una segunda rejilla, con otro paso y otro margen,
-    // que hacía lo mismo un poco distinto —y solo la de `shared` aprendió a no
-    // encimar las clases que dos personas crean a la vez sin conexión—.
-    const n = Object.keys(estado.diagrama.classes).length;
-    const resultado = aplicar([{ op: 'addClass', name: `Clase${n + 1}`, kind: 'class' }]);
-    if (!resultado.ok) avisar(resultado.error);
-  }, [aplicar, avisar, estado.diagrama.classes]);
+  const crearClase = useCallback(
+    (kind: ClassKind) => {
+      // No se manda posición: colocarla es cosa de `addClass`, que ya sabe dónde
+      // hay hueco. Había aquí una segunda rejilla, con otro paso y otro margen,
+      // que hacía lo mismo un poco distinto —y solo la de `shared` aprendió a no
+      // encimar las clases que dos personas crean a la vez sin conexión—.
+      const n = Object.keys(estado.diagrama.classes).length;
+      const resultado = aplicar([{ op: 'addClass', name: `${PREFIJO[kind]}${n + 1}`, kind }]);
+      if (!resultado.ok) avisar(resultado.error);
+    },
+    [aplicar, avisar, estado.diagrama.classes],
+  );
+
+  /**
+   * Arma la herramienta de relación, o la desarma si ya estaba con ese tipo.
+   *
+   * Volver a pulsar el botón que ya está hundido tiene que apagarlo: si no, la
+   * única forma de salir del modo relación sería la tecla Escape, que en un
+   * teléfono no existe.
+   */
+  const seleccionar = useCallback(() => setHerramienta('seleccion'), []);
+
+  const armarRelacion = useCallback(
+    (kind: RelationKind) => {
+      if (herramienta === 'relacion' && tipoRelacion === kind) {
+        setHerramienta('seleccion');
+        return;
+      }
+      setTipoRelacion(kind);
+      setHerramienta('relacion');
+    },
+    [herramienta, tipoRelacion],
+  );
 
   const relacionar = useCallback(
     (origenId: string, destinoId: string) => {
@@ -243,176 +299,281 @@ export function EditorDiagrama({
 
   const claseSeleccionada = seleccion ? (estado.diagrama.classes[seleccion] ?? null) : null;
 
+  /**
+   * El menú.
+   *
+   * Reúne en cinco listas todo lo que la aplicación sabe hacer, incluido lo que
+   * antes solo existía como botón en la barra o como atajo que había que saberse.
+   * Un menú no es decoración de escritorio: es el único sitio donde alguien que
+   * abre el programa por primera vez puede leer el repertorio completo sin que
+   * nadie se lo cuente, y donde se aprenden los atajos —van escritos al lado de
+   * su orden, y por eso hay una columna para ellos—.
+   *
+   * No hay ninguna orden inventada: cada una llama a una función que ya existía.
+   * Un menú con entradas que no hacen nada es peor que no tener menú.
+   */
+  const menus = useMemo(
+    (): MenuDesplegable[] => [
+      {
+        id: 'archivo',
+        etiqueta: 'Archivo',
+        comandos: [
+          {
+            id: 'importar-imagen',
+            etiqueta: 'Importar desde imagen…',
+            icono: 'imagen',
+            deshabilitado: soloLectura,
+          },
+          {
+            id: 'importar-xmi',
+            etiqueta: 'Importar XMI…',
+            icono: 'importar',
+            deshabilitado: soloLectura,
+          },
+          // Exportar no cambia nada, así que también lo puede hacer quien solo
+          // tiene permiso de lectura: se lleva una copia, no toca el original.
+          { id: 'exportar-xmi', etiqueta: 'Exportar XMI', icono: 'exportar' },
+          {
+            id: 'generar',
+            etiqueta: 'Generar proyecto Spring Boot',
+            separadorAntes: true,
+          },
+          { id: 'salir', etiqueta: 'Volver a proyectos', icono: 'atras', separadorAntes: true },
+        ],
+      },
+      {
+        id: 'edicion',
+        etiqueta: 'Edición',
+        comandos: [
+          {
+            id: 'deshacer',
+            etiqueta: 'Deshacer',
+            icono: 'deshacer',
+            // El atajo solo se anuncia si hay teclado físico. En un teléfono,
+            // «Ctrl+Z» es una instrucción que no se puede seguir.
+            atajo: hayTeclado ? 'Ctrl+Z' : undefined,
+          },
+          {
+            id: 'rehacer',
+            etiqueta: 'Rehacer',
+            icono: 'rehacer',
+            atajo: hayTeclado ? 'Ctrl+Mayús+Z' : undefined,
+          },
+          {
+            id: 'eliminar',
+            etiqueta: 'Eliminar la clase seleccionada',
+            atajo: hayTeclado ? 'Supr' : undefined,
+            separadorAntes: true,
+            deshabilitado: soloLectura || seleccion === null,
+          },
+        ],
+      },
+      {
+        id: 'ver',
+        etiqueta: 'Ver',
+        comandos: [
+          // Estos cuatro dicen un estado, no ejecutan algo: salen con casilla y
+          // se anuncian con `aria-checked`.
+          { id: 'ver:arbol', etiqueta: 'Explorador', marcado: paneles.disposicion.abiertos.arbol },
+          { id: 'ver:paleta', etiqueta: 'Paleta', marcado: paneles.disposicion.abiertos.paleta },
+          {
+            id: 'ver:propiedades',
+            etiqueta: 'Propiedades',
+            marcado: paneles.disposicion.abiertos.propiedades,
+          },
+          {
+            id: 'ver:historial',
+            etiqueta: 'Historial de cambios',
+            icono: 'historial',
+            marcado: paneles.disposicion.abiertos.historial,
+          },
+          { id: 'zoom:acercar', etiqueta: 'Acercar', separadorAntes: true },
+          { id: 'zoom:alejar', etiqueta: 'Alejar' },
+          { id: 'zoom:ajustar', etiqueta: 'Encuadrar el diagrama' },
+          {
+            id: 'tema',
+            etiqueta: 'Tema claro',
+            icono: tema === 'oscuro' ? 'tema-claro' : 'tema-oscuro',
+            separadorAntes: true,
+            marcado: tema === 'claro',
+          },
+        ],
+      },
+      {
+        id: 'modelo',
+        etiqueta: 'Modelo',
+        comandos: [
+          { id: 'nueva:class', etiqueta: 'Nueva clase', icono: 'clase', deshabilitado: soloLectura },
+          {
+            id: 'nueva:interface',
+            etiqueta: 'Nueva interfaz',
+            icono: 'interfaz',
+            deshabilitado: soloLectura,
+          },
+          {
+            id: 'nueva:abstract',
+            etiqueta: 'Nueva clase abstracta',
+            icono: 'abstracta',
+            deshabilitado: soloLectura,
+          },
+          {
+            id: 'nueva:enum',
+            etiqueta: 'Nueva enumeración',
+            icono: 'enumeracion',
+            deshabilitado: soloLectura,
+          },
+        ],
+      },
+    ],
+    [hayTeclado, paneles.disposicion.abiertos, seleccion, soloLectura, tema],
+  );
+
+  const ejecutar = useCallback(
+    (id: string) => {
+      if (id.startsWith('ver:')) {
+        paneles.alternar(id.slice(4) as Acoplado);
+        return;
+      }
+      if (id.startsWith('zoom:')) {
+        pedirZoom(id.slice(5) as 'acercar' | 'alejar' | 'ajustar');
+        return;
+      }
+      if (id.startsWith('nueva:')) {
+        crearClase(id.slice(6) as ClassKind);
+        return;
+      }
+      switch (id) {
+        case 'importar-imagen':
+          setImportando(true);
+          return;
+        case 'importar-xmi':
+          setImportandoXmi(true);
+          return;
+        case 'exportar-xmi':
+          exportarXmi();
+          return;
+        case 'generar':
+          void descargar();
+          return;
+        case 'salir':
+          onSalir();
+          return;
+        case 'deshacer':
+          estado.deshacer();
+          return;
+        case 'rehacer':
+          estado.rehacer();
+          return;
+        case 'eliminar': {
+          if (seleccion === null) return;
+          const resultado = aplicar([{ op: 'removeClass', ref: { id: seleccion } }]);
+          if (resultado.ok) setSeleccion(null);
+          else avisar(resultado.error);
+          return;
+        }
+        case 'tema':
+          alternarTema();
+          return;
+        default:
+          return;
+      }
+    },
+    // `descargar` y `exportarXmi` se redefinen en cada pintado y no se pueden
+    // memorizar sin arrastrar medio componente a sus dependencias; el menú se
+    // rehace igualmente cuando cambia lo que sí importa.
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+    [alternarTema, aplicar, avisar, crearClase, estado, onSalir, paneles, pedirZoom, seleccion],
+  );
+
   return (
     <div className="editor">
       <header className="barra">
-        <button type="button" className="boton boton--discreto" onClick={onSalir}>
-          ← Proyectos
-        </button>
+        <BarraMenu menus={menus} onComando={ejecutar} />
         <h1 className="barra__titulo">{proyecto.name}</h1>
 
         {/*
-          Cuatro grupos, no ocho botones: dibujar (crear clases y unirlas),
-          traer y llevarse (imagen y XMI), deshacer, y la acción que produce el
-          resultado del trabajo. Antes todos tenían el mismo peso visual y había
-          que leer las ocho etiquetas para encontrar una; ahora se busca primero
-          el bloque, que se distingue por su sitio, y dentro hay dos o tres.
+          La barra de herramientas, ahora que hay menú.
+
+          Deja de ser el catálogo de todo lo que se puede hacer —de eso se ocupa
+          el menú— y se queda con lo que se pulsa muchas veces en la misma sesión:
+          deshacer, rehacer y las dos columnas. Son órdenes de un solo icono, sin
+          rótulo, porque se reconocen por su sitio: el que las usa no las lee, las
+          señala. Lo que se hace una vez por sesión —importar una foto, generar el
+          proyecto— vive en el menú, donde se busca por su nombre.
+
+          Nada de lo que hay aquí es exclusivo de la barra: todo tiene su entrada
+          de menú y su atajo. Una barra de herramientas es un acceso rápido, no la
+          única puerta.
         */}
         <div className="barra__herramientas" role="group" aria-label="Herramientas del diagrama">
           <div className="barra__grupo">
-            <button type="button" className="boton" disabled={soloLectura} onClick={crearClase}>
-              + Clase
-            </button>
-
-            <div className="grupo-relacion">
-              <button
-                type="button"
-                className={`boton${herramienta === 'relacion' ? ' boton--activo' : ''}`}
-                disabled={soloLectura}
-                aria-pressed={herramienta === 'relacion'}
-                onClick={() =>
-                  setHerramienta(herramienta === 'relacion' ? 'seleccion' : 'relacion')
-                }
-                title="Arrastra de una clase a otra para relacionarlas"
-              >
-                ↗ Relación
-              </button>
-              <select
-                value={tipoRelacion}
-                disabled={soloLectura}
-                aria-label="Tipo de la relación que se va a trazar"
-                onChange={(e) => setTipoRelacion(e.target.value as RelationKind)}
-              >
-                {TIPOS_RELACION.map((t) => (
-                  <option key={t.valor} value={t.valor}>
-                    {t.etiqueta}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Se deja de renderizar en vez de esconderse con CSS: un botón con
-              `display:none` sigue en el árbol, y hay lectores de pantalla y
-              recorridos de tabulación que lo encuentran igualmente. Aquí lo que
-              se quiere decir es «esta acción no está ahora», no «no se ve». */}
-          {!plegable && (
-            <div className="barra__grupo">
-              <button
-                type="button"
-                className="boton"
-                disabled={soloLectura}
-                onClick={() => setImportando(true)}
-                title="Leer un diagrama de clases de una imagen y revisarlo antes de importarlo"
-              >
-                🖼 Desde imagen
-              </button>
-
-              <button
-                type="button"
-                className="boton"
-                disabled={soloLectura}
-                onClick={() => setImportandoXmi(true)}
-                title="Leer un fichero XMI y revisarlo antes de importarlo"
-              >
-                ⤒ Importar XMI
-              </button>
-
-              {/* Exportar no cambia nada, así que también lo puede hacer quien
-                  solo tiene permiso de lectura: se lleva una copia, no toca el
-                  original. Va después de importar porque las dos entradas de
-                  datos —la foto y el fichero— se buscan juntas. */}
-              <button
-                type="button"
-                className="boton"
-                onClick={exportarXmi}
-                title="Descargar el diagrama como fichero XMI 2.1 (UML 2.x)"
-              >
-                ⤓ Exportar XMI
-              </button>
-            </div>
-          )}
-
-          <div className="barra__grupo">
-            {/* Con `title` a secas, un lector de pantalla anuncia el carácter
-                «↶» y nada más. La etiqueta accesible dice el verbo. */}
+            {/* Con `title` a secas, un lector de pantalla anuncia el icono y nada
+                más. La etiqueta accesible dice el verbo. */}
             <button
               type="button"
-              className="boton"
+              className="boton boton--icono"
               onClick={estado.deshacer}
               aria-label="Deshacer"
               title={hayTeclado ? 'Deshacer (Ctrl+Z)' : 'Deshacer'}
             >
-              ↶
+              <Icono nombre="deshacer" />
             </button>
             <button
               type="button"
-              className="boton"
+              className="boton boton--icono"
               onClick={estado.rehacer}
               aria-label="Rehacer"
               title={hayTeclado ? 'Rehacer (Ctrl+Mayús+Z)' : 'Rehacer'}
             >
-              ↷
+              <Icono nombre="rehacer" />
             </button>
-
-            {/* Va con deshacer y rehacer porque los tres miran al pasado: los dos
-                primeros lo cambian, este solo lo cuenta. Pero al pasado se mira
-                de vez en cuando y se deshace a cada rato, así que en un móvil
-                este se pliega y los otros dos no. */}
-            {!plegable && (
-              <button
-                type="button"
-                className="boton"
-                onClick={() => setViendoHistorial(true)}
-                aria-label="Historial de cambios"
-                title="Ver quién ha cambiado qué"
-              >
-                🕘
-              </button>
-            )}
           </div>
 
-          {!plegable && (
+          {/*
+            Mostrar y ocultar las columnas.
+
+            Las canaletas ya pliegan con doble clic y los rieles vuelven a abrir,
+            pero las dos cosas hay que descubrirlas. Estos dos botones dicen que
+            los paneles se pueden quitar de en medio, que es lo primero que quiere
+            hacer quien viene a mirar un diagrama en una pantalla pequeña.
+
+            Se dejan de renderizar en vez de esconderse con CSS: un botón con
+            `display:none` sigue en el árbol, y hay lectores de pantalla y
+            recorridos de tabulación que lo encuentran igualmente. Aquí lo que se
+            quiere decir es «esta acción no está ahora», no «no se ve».
+          */}
+          {!estrecha && (
             <div className="barra__grupo">
               <button
                 type="button"
-                className="boton boton--primario"
-                onClick={() => void descargar()}
+                className={`boton boton--icono${paneles.disposicion.izquierda.plegada ? '' : ' boton--activo'}`}
+                aria-pressed={!paneles.disposicion.izquierda.plegada}
+                onClick={() => paneles.alternarLado('izquierda')}
+                aria-label="Mostrar u ocultar los paneles de la izquierda"
+                title="Explorador y paleta"
               >
-                Generar Spring Boot
+                <Icono nombre="columna-izquierda" />
+              </button>
+              <button
+                type="button"
+                className={`boton boton--icono${paneles.disposicion.derecha.plegada ? '' : ' boton--activo'}`}
+                aria-pressed={!paneles.disposicion.derecha.plegada}
+                onClick={() => paneles.alternarLado('derecha')}
+                aria-label="Mostrar u ocultar los paneles de la derecha"
+                title="Propiedades e historial"
+              >
+                <Icono nombre="columna-derecha" />
               </button>
             </div>
           )}
 
           {/*
-            Solo en pantalla estrecha. En un escritorio la barra cabe entera y un
-            botón que despliega lo que ya se ve sería un mando que no hace nada.
-
-            Lleva la palabra «Más» y no solo los tres puntos: el icono a secas
-            informa de que hay algo detrás, pero se lee como un menú de ajustes,
-            y lo que hay detrás son acciones de trabajo —traer una foto, generar
-            el proyecto—, no preferencias.
+            Aquí había un botón «Más» que desplegaba en el móvil los grupos que
+            no cabían. Sobra desde que hay menú: el menú ya es esa segunda capa, y
+            además es la misma en el teléfono y en el escritorio, así que no hay
+            dos organizaciones distintas que aprender según el aparato.
           */}
-          {estrecha && (
-            <div className="barra__grupo">
-              <button
-                type="button"
-                className="boton barra__mas"
-                aria-expanded={menuAbierto}
-                onClick={() => setMenuAbierto(!menuAbierto)}
-              >
-                {menuAbierto ? '✕ Menos' : '⋯ Más'}
-              </button>
-            </div>
-          )}
         </div>
-
-        <IndicadorSync
-          estado={estado.conexion}
-          detalle={estado.detalleConexion}
-          sincronizado={estado.sincronizado}
-          participantes={participantes}
-        />
       </header>
 
       {/*
@@ -444,18 +605,74 @@ export function EditorDiagrama({
             aria-label="Cerrar aviso"
             onClick={() => setAviso(null)}
           >
-            ×
+            <Icono nombre="cerrar" />
           </button>
         </div>
       )}
 
       {soloLectura && (
         <div className="aviso aviso--lectura">
-          Solo tienes permiso de lectura: puedes ver el diagrama y seguir los cambios de los demás.
+          Permiso de solo lectura. El diagrama se ve y se actualiza con los cambios de los demás,
+          pero no admite modificaciones.
         </div>
       )}
 
-      <main className="editor__cuerpo">
+      {/*
+        Tres columnas y no un flex de dos hijos. La diferencia práctica es que
+        los anchos son del contenedor y no de los paneles: el lienzo se queda con
+        `minmax(0, 1fr)` —el `minmax` importa, porque un `1fr` a secas no baja del
+        tamaño de su contenido y el SVG empujaría las columnas fuera de la
+        pantalla— y plegar una columna le devuelve su ancho entero sin que nadie
+        recalcule nada.
+
+        Lo que se pasa desde aquí son dos variables, no la rejilla entera: en
+        pantalla estrecha la hoja de estilos monta el mismo cuerpo de otra manera
+        —la columna abierta se superpone al lienzo en vez de quitarle ancho— y
+        con la plantilla escrita en el `style` no habría forma de que la
+        cambiara.
+      */}
+      <main
+        className="editor__cuerpo"
+        ref={paneles.cuerpo}
+        style={
+          {
+            '--ancho-izquierda': anchoColumna(paneles.disposicion.izquierda),
+            '--ancho-derecha': anchoColumna(paneles.disposicion.derecha),
+          } as CSSProperties
+        }
+      >
+        <ColumnaAcoplada
+          lado="izquierda"
+          control={paneles}
+          paneles={[
+            {
+              acoplado: 'arbol',
+              contenido: (
+                <ArbolProyecto
+                  diagrama={estado.diagrama}
+                  nombreProyecto={proyecto.name}
+                  seleccion={seleccion}
+                  onSeleccionar={setSeleccion}
+                  onCentrar={centrar}
+                />
+              ),
+            },
+            {
+              acoplado: 'paleta',
+              contenido: (
+                <Paleta
+                  soloLectura={soloLectura}
+                  herramienta={herramienta}
+                  tipoRelacion={tipoRelacion}
+                  onCrear={crearClase}
+                  onArmarRelacion={armarRelacion}
+                  onSeleccionar={seleccionar}
+                />
+              ),
+            },
+          ]}
+        />
+
         <Lienzo
           diagrama={estado.diagrama}
           seleccion={seleccion}
@@ -466,16 +683,47 @@ export function EditorDiagrama({
           onMover={(id, x, y) => aplicar([{ op: 'moveClass', ref: { id }, position: { x, y } }])}
           onCursor={alMoverCursor}
           onRelacionar={relacionar}
+          orden={orden}
+          onEscala={setEscala}
         />
 
-        <PanelPropiedades
-          diagrama={estado.diagrama}
-          clase={claseSeleccionada}
-          soloLectura={soloLectura}
-          historial={estado.historial}
-          aplicar={aplicar}
+        <ColumnaAcoplada
+          lado="derecha"
+          control={paneles}
+          paneles={[
+            {
+              acoplado: 'propiedades',
+              contenido: (
+                <PanelPropiedades
+                  diagrama={estado.diagrama}
+                  clase={claseSeleccionada}
+                  soloLectura={soloLectura}
+                  historial={estado.historial}
+                  aplicar={aplicar}
+                />
+              ),
+            },
+            {
+              acoplado: 'historial',
+              contenido: <HistorialCambios historial={estado.historial} />,
+            },
+          ]}
         />
       </main>
+
+      <BarraEstado
+        escala={escala}
+        onAcercar={() => pedirZoom('acercar')}
+        onAlejar={() => pedirZoom('alejar')}
+        onAjustar={() => pedirZoom('ajustar')}
+        estado={estado.conexion}
+        detalle={estado.detalleConexion}
+        sincronizado={estado.sincronizado}
+        participantes={participantes}
+        clase={claseSeleccionada}
+        clases={Object.keys(estado.diagrama.classes).length}
+        relaciones={Object.keys(estado.diagrama.relations).length}
+      />
 
       <Asistente
         proyectoId={proyecto.id}
@@ -483,13 +731,6 @@ export function EditorDiagrama({
         diagrama={estado.diagrama}
         aplicar={aplicar}
       />
-
-      {viendoHistorial && (
-        <HistorialCambios
-          historial={estado.historial}
-          onCerrar={() => setViendoHistorial(false)}
-        />
-      )}
 
       {importando && (
         <ImportarDiagrama

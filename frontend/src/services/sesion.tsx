@@ -22,8 +22,25 @@ interface Sesion {
   /** Por qué se ha vuelto a la pantalla de acceso, si no fue a propósito. */
   aviso: string | null;
   acceder: (email: string, password: string) => Promise<void>;
-  registrar: (email: string, password: string, nombre: string) => Promise<void>;
+  registrar: (email: string, password: string, nombre: string) => Promise<RegistroPendiente>;
+  /** Contraseña nueva con el código de recuperación; deja la sesión ya iniciada. */
+  recuperar: (email: string, codigo: string, password: string) => Promise<void>;
   salir: () => void;
+}
+
+/**
+ * Registro hecho, sesión todavía sin activar.
+ *
+ * Existe por un detalle de orden: en cuanto la sesión se activa, la aplicación
+ * cambia la pantalla de acceso por la lista de proyectos. Si el registro
+ * iniciara sesión de inmediato, el código de recuperación se iría con la
+ * pantalla, y ese código no se puede volver a pedir —el servidor solo guarda su
+ * hash—. Así que se devuelve junto con la llave para entrar, y entra quien haya
+ * dicho que ya lo tiene guardado.
+ */
+export interface RegistroPendiente {
+  codigoRecuperacion: string;
+  entrar: () => void;
 }
 
 const Contexto = createContext<Sesion | null>(null);
@@ -102,6 +119,17 @@ export function ProveedorSesion({ children }: { children: ReactNode }): JSX.Elem
   const registrar = useCallback(
     async (email: string, password: string, nombre: string) => {
       const r = await api.registro(email, password, nombre);
+      return {
+        codigoRecuperacion: r.codigoRecuperacion,
+        entrar: () => guardar(r.token, r.usuario),
+      };
+    },
+    [guardar],
+  );
+
+  const recuperar = useCallback(
+    async (email: string, codigo: string, password: string) => {
+      const r = await api.recuperar(email, codigo, password);
       guardar(r.token, r.usuario);
     },
     [guardar],
@@ -115,8 +143,8 @@ export function ProveedorSesion({ children }: { children: ReactNode }): JSX.Elem
   }, []);
 
   const valor = useMemo(
-    () => ({ usuario, cargando, aviso, acceder, registrar, salir }),
-    [usuario, cargando, aviso, acceder, registrar, salir],
+    () => ({ usuario, cargando, aviso, acceder, registrar, recuperar, salir }),
+    [usuario, cargando, aviso, acceder, registrar, recuperar, salir],
   );
 
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;

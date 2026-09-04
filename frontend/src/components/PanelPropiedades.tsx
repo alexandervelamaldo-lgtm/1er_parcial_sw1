@@ -16,6 +16,7 @@ import {
   type Visibility,
 } from '@app/shared';
 import { HistorialDeClase } from './HistorialCambios';
+import { ICONO_RELACION, Icono } from './iconos';
 
 /**
  * Edición de la clase seleccionada.
@@ -118,17 +119,11 @@ export function PanelPropiedades({
     setError(resultado.ok ? null : resultado.error);
   };
 
-  // `panel--vacio` no es decorativo: en pantalla estrecha el panel deja de ser
-  // una columna y pasa a robarle la mitad de la altura al lienzo, así que cuando
-  // lo único que tiene que decir es «selecciona una clase» se esconde entero. En
-  // pantalla ancha no cambia nada.
   if (!clase) {
     return (
-      <aside className="panel panel--vacio">
-        <p className="panel__vacio">
-          Selecciona una clase del lienzo para ver y editar sus propiedades.
-        </p>
-      </aside>
+      <div className="panel panel--vacio">
+        <p className="panel__vacio">Sin selección.</p>
+      </div>
     );
   }
 
@@ -161,8 +156,10 @@ export function PanelPropiedades({
   ): void => ejecutar([{ op: 'updateRelation', id, changes }]);
 
   return (
-    <aside className="panel">
-      <h2 className="panel__titulo">Propiedades</h2>
+    // El título ya lo pone la cabecera del panel acoplado. Repetirlo aquí dejaba
+    // dos «Propiedades» seguidos, y en un lector de pantalla dos encabezados de
+    // nivel 2 anidados que anuncian lo mismo.
+    <div className="panel">
       {error && <p className="panel__error">{error}</p>}
 
       <label className="campo">
@@ -307,7 +304,7 @@ export function PanelPropiedades({
                     ])
                   }
                 >
-                  🔑
+                  <Icono nombre="llave" />
                 </button>
 
                 <button
@@ -325,7 +322,7 @@ export function PanelPropiedades({
                     ])
                   }
                 >
-                  ×
+                  <Icono nombre="cerrar" />
                 </button>
               </li>
             ))}
@@ -416,7 +413,7 @@ export function PanelPropiedades({
                     title="Eliminar la relación"
                     onClick={() => ejecutar([{ op: 'removeRelation', id: relacion.id }])}
                   >
-                    ×
+                    <Icono nombre="cerrar" />
                   </button>
                 </div>
 
@@ -444,7 +441,10 @@ export function PanelPropiedades({
                           </option>
                         ))}
                       </select>
-                      <span className="relacion__flecha">──▶</span>
+                      {/* Entre las dos multiplicidades va el símbolo de la
+                          relación, el mismo que la dibuja en el lienzo y el
+                          mismo que tiene su botón en la paleta. */}
+                      <Icono nombre={ICONO_RELACION[relacion.kind]} className="relacion__flecha" />
                       <select
                         className="mini"
                         value={relacion.target.multiplicity}
@@ -460,7 +460,7 @@ export function PanelPropiedades({
                       </select>
                     </>
                   ) : (
-                    <span className="relacion__flecha">──▷</span>
+                    <Icono nombre={ICONO_RELACION[relacion.kind]} className="relacion__flecha" />
                   )}
 
                   <span
@@ -492,9 +492,7 @@ export function PanelPropiedades({
             );
           })}
           {relaciones.length === 0 && (
-            <li className="lista__vacia">
-              Sin relaciones. Usa «↗ Relación» en la barra y arrastra de esta clase a otra.
-            </li>
+            <li className="lista__vacia">Sin relaciones</li>
           )}
         </ul>
       </section>
@@ -515,6 +513,6 @@ export function PanelPropiedades({
       >
         Eliminar clase
       </button>
-    </aside>
+    </div>
   );
 }

@@ -12,7 +12,12 @@ export default defineConfig({
     // El frontend entra aquí solo con sus módulos puros —la geometría del
     // lienzo—, que no tocan el DOM y corren en Node como los demás. Las pruebas
     // de componente necesitan jsdom y siguen pendientes de instalarlo.
-    include: ['{shared,generator,backend-tool,frontend}/src/**/*.{test,spec}.ts'],
+    //
+    // El `.tsx` no contradice lo anterior: un elemento de React es un objeto
+    // hasta que alguien lo pinta, así que `iconos.test.tsx` llama al componente
+    // como a una función y mira lo que devuelve, sin DOM por medio. Lo que sigue
+    // necesitando jsdom es renderizar de verdad y disparar eventos.
+    include: ['{shared,generator,backend-tool,frontend}/src/**/*.{test,spec}.{ts,tsx}'],
     environment: 'node',
     coverage: {
       provider: 'v8',

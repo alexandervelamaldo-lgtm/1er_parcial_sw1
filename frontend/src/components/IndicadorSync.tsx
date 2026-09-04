@@ -14,12 +14,12 @@ import type { Participante } from '../hooks/usePresencia';
 const TEXTOS: Record<EstadoConexion, { etiqueta: string; explicacion: string; clase: string }> = {
   conectando: {
     etiqueta: 'Conectando…',
-    explicacion: 'Buscando el servidor. Puedes seguir editando.',
+    explicacion: 'Buscando el servidor. La edición sigue disponible.',
     clase: 'indicador--esperando',
   },
   conectado: {
     etiqueta: 'En directo',
-    explicacion: 'Tus cambios se ven al momento y se guardan en el servidor.',
+    explicacion: 'Los cambios se propagan al momento y se guardan en el servidor.',
     clase: 'indicador--bien',
   },
   desconectado: {
@@ -30,7 +30,7 @@ const TEXTOS: Record<EstadoConexion, { etiqueta: string; explicacion: string; cl
   },
   'sin-permiso': {
     etiqueta: 'Sin acceso',
-    explicacion: 'Ya no tienes permiso sobre este proyecto.',
+    explicacion: 'La sesión ya no tiene permiso sobre este proyecto.',
     clase: 'indicador--error',
   },
 };

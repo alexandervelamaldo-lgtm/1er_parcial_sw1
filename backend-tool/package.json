@@ -12,6 +12,8 @@
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts",
     "migrar": "tsx src/migrar.ts",
+    "recuperar": "tsx src/recuperar.ts",
+    "diagramas": "tsx src/diagramas.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

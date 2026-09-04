@@ -7,6 +7,7 @@ import {
   type ClassDiagram,
   type Operation,
 } from '@app/shared';
+import { Icono } from './iconos';
 
 /**
  * Importar un diagrama desde un fichero XMI (RF-DIAG-12).
@@ -99,8 +100,13 @@ export function ImportarXmi({
       <div className="modal__caja importar-xmi">
         <header className="importar__cabecera">
           <h2>Importar desde XMI</h2>
-          <button type="button" className="boton boton--discreto" onClick={onCerrar}>
-            ✕
+          <button
+            type="button"
+            className="boton boton--icono"
+            aria-label="Cerrar"
+            onClick={onCerrar}
+          >
+            <Icono nombre="cerrar" />
           </button>
         </header>
 
@@ -109,9 +115,10 @@ export function ImportarXmi({
         {revision === null && (
           <div className="importar__inicio">
             <p>
-              Abre un <code>.xmi</code> exportado de Enterprise Architect, Papyrus, StarUML o de
-              esta misma herramienta. Se leerán las clases, sus atributos y métodos, y las
-              relaciones con su cardinalidad. <strong>No se importa nada hasta que lo confirmes.</strong>
+              Admite un <code>.xmi</code> exportado de Enterprise Architect, Papyrus, StarUML o de
+              esta misma herramienta. Se leen las clases, sus atributos y métodos, y las relaciones
+              con su cardinalidad.{' '}
+              <strong>Nada se aplica al diagrama hasta la confirmación.</strong>
             </p>
             <p className="importar__nota">
               Si el fichero trae un diagrama de comunicación (o de secuencia), también se aprovecha:

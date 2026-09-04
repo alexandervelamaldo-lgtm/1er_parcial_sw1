@@ -3,6 +3,7 @@ import type {
   ClassDiagram,
   DiagramaExtraido,
   Operation,
+  OrigenCambio,
   RelationKind,
   TablaExtraida,
 } from '@app/shared';
@@ -54,6 +55,31 @@ export interface Miembro {
   rol: Rol;
   email: string | null;
   nombre: string | null;
+}
+
+/**
+ * Las cifras de un proyecto, contadas por el servidor.
+ *
+ * Se declaran aquí y no en el componente que las pinta porque son la forma del
+ * cable: quien las recibe es este cliente, y `components/panel.ts` las
+ * reexporta para que las pruebas no tengan que subir hasta los servicios.
+ */
+export interface ResumenProyecto {
+  clases: number;
+  relaciones: number;
+  miembros: number;
+  /** Errores de validación: mientras haya uno, el backend no se puede generar. */
+  problemas: number;
+  avisos: number;
+  cambios: number;
+  porOrigen: Record<OrigenCambio, number>;
+  fechasDudosas: number;
+}
+
+export interface FilaPanel {
+  proyecto: Proyecto;
+  /** `null` cuando el proyecto quedó fuera del tope que resume el servidor. */
+  resumen: ResumenProyecto | null;
 }
 
 let tokenActual: string | null = null;
@@ -139,9 +165,20 @@ interface RespuestaSesion {
   expira: string;
 }
 
+interface RespuestaRegistro extends RespuestaSesion {
+  /**
+   * El código de recuperación, en claro y por única vez.
+   *
+   * El servidor solo guarda su hash, así que este valor no se puede volver a
+   * pedir: o se enseña ahora o se pierde. De ahí que la pantalla de registro lo
+   * muestre con un paso de confirmación en lugar de pasar de largo.
+   */
+  codigoRecuperacion: string;
+}
+
 export const api = {
   registro: (email: string, password: string, nombre: string) =>
-    pedir<RespuestaSesion>('/auth/registro', {
+    pedir<RespuestaRegistro>('/auth/registro', {
       method: 'POST',
       body: JSON.stringify({ email, password, nombre }),
     }),
@@ -152,13 +189,39 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
 
+  /** Contraseña nueva a cambio del código de recuperación (ver `auth/identity.ts`). */
+  recuperar: (email: string, codigo: string, password: string) =>
+    pedir<RespuestaSesion>('/auth/recuperar', {
+      method: 'POST',
+      body: JSON.stringify({ email, codigo, password }),
+    }),
+
+  /** Emite un código nuevo para quien ya tiene sesión, e invalida el anterior. */
+  codigoRecuperacion: () =>
+    pedir<{ codigoRecuperacion: string }>('/auth/codigo-recuperacion', { method: 'POST' }),
+
   yo: () => pedir<{ usuario: Usuario }>('/auth/yo'),
 
   // -------------------------------------------------------------------------
   // Proyectos
   // -------------------------------------------------------------------------
 
-  listarProyectos: () => pedir<{ proyectos: Proyecto[] }>('/proyectos'),
+  /**
+   * La lista de proyectos y sus cifras, en una sola petición.
+   *
+   * Es la única forma de pedir la lista desde el cliente. Había un
+   * `listarProyectos` contra `GET /api/proyectos` y se ha retirado al quedarse
+   * sin llamadas: dos caminos para lo mismo se separan solos, y el que nadie usa
+   * es el que nadie arregla. La ruta de servidor sigue existiendo —es la que
+   * documenta el catálogo de casos de uso y la que prueba `api.test.ts`—, pero
+   * la pantalla de entrada pide por aquí.
+   *
+   * Trae un `Proyecto` completo en cada `fila.proyecto`, más el recuento que de
+   * otro modo costaría tres peticiones por tarjeta. No cuelga de `/proyectos`
+   * porque no habla de un proyecto sino de todos a la vez, y ahí `/:proyectoId`
+   * se habría tragado la ruta.
+   */
+  panel: () => pedir<{ filas: FilaPanel[]; tope: number }>('/panel'),
 
   crearProyecto: (nombre: string, descripcion: string, paqueteBase?: string) =>
     pedir<{ proyecto: Proyecto }>('/proyectos', {

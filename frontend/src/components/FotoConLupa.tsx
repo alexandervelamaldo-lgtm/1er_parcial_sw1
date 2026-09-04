@@ -274,7 +274,7 @@ export function FotoConLupa({ src, alt }: FotoConLupaProps): JSX.Element {
           Encajar
         </button>
         <span className="lupa__pista">
-          {ampliada ? 'Arrastra para moverte por la foto' : 'Rueda o doble clic para acercar'}
+          {ampliada ? 'Arrastrar para desplazar la foto' : 'Rueda o doble clic para acercar'}
         </span>
       </div>
     </div>

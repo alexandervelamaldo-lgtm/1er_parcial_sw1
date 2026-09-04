@@ -10,6 +10,7 @@ import {
 import { ApiError, api } from '../services/api';
 import { dictadoDisponible, dictar, motivoSinVoz, type SesionDictado } from '../services/voz';
 import { nombreDeshacer, useTecladoFisico } from '../hooks/useDispositivo';
+import { Icono } from './iconos';
 
 /**
  * Asistente por voz y texto (RF-IA-01, RF-IA-04).
@@ -76,7 +77,7 @@ export function Asistente({
         setPropuestas(respuesta.propuesta);
         setMensaje(respuesta.aclaracion ?? respuesta.explicacion ?? null);
         if (respuesta.propuesta.length === 0 && !respuesta.aclaracion) {
-          setMensaje('No he entendido la orden. Prueba a decirlo de otra forma.');
+          setMensaje('Orden no reconocida. Cabe reformularla con otras palabras.');
         }
       } catch (error) {
         // Sin servidor se usa la gramática que viaja en el propio paquete. No es
@@ -201,9 +202,15 @@ export function Asistente({
           className={`boton-microfono${escuchando ? ' boton-microfono--activo' : ''}`}
           disabled={soloLectura || !hayDictado}
           title={hayDictado ? 'Dictar una orden' : motivoSinVoz()}
+          aria-label={escuchando ? 'Detener el dictado' : 'Dictar una orden'}
+          aria-pressed={escuchando}
           onClick={alternarMicrofono}
         >
-          {escuchando ? '● grabando' : '🎤'}
+          {/* El icono no cambia al grabar: cambia el rótulo. Un micrófono que se
+              convierte en otro dibujo obliga a recordar cuál de los dos significa
+              «grabando»; la palabra no hay que recordarla. */}
+          <Icono nombre="microfono" />
+          {escuchando && <span className="boton-microfono__estado">Grabando</span>}
         </button>
         <button type="submit" disabled={soloLectura || pensando || !texto.trim()}>
           {pensando ? '…' : 'Interpretar'}
@@ -228,7 +235,7 @@ export function Asistente({
           {impacto.destructiva && (
             <div className="asistente__impacto">
               <p>
-                <strong>Se va a borrar</strong>, y el diagrama no lo recuerda por ti:
+                <strong>Se va a borrar</strong>, y el diagrama no conserva copia:
               </p>
               <ul>
                 {impacto.perdidas.map((perdida, indice) => (

@@ -143,6 +143,29 @@ describe('XMI de un diagrama de comunicación de Enterprise Architect', () => {
     expect(leerXmi(ficheroEa(), vacio()).comunicacion).toBe(true);
   });
 
+  it('no avisa de asociaciones descartadas que en realidad sí se importaron', () => {
+    /*
+     * Este fichero importa perfectamente —tres clases, tres relaciones, cero
+     * errores— y aun así soltaba cinco avisos de «se descarta» que no
+     * correspondían a nada.
+     *
+     * El culpable es el bloque de extensión de EA: dentro de cada elemento,
+     * `<links>` repite las líneas que le tocan con la forma
+     * `<Association xmi:id="…" start="…" end="…"/>`. El lector busca las
+     * asociaciones también por nombre de etiqueta, así que las recogía todas,
+     * no les encontraba extremos —no los tienen: los extremos van en atributos,
+     * no en hijos— y avisaba de cada una. Cinco veces, sobre relaciones que
+     * estaban importadas desde su `uml:Association` de verdad.
+     *
+     * Un aviso que el usuario no puede arreglar porque no hay nada roto es peor
+     * que no avisar: enseña a saltárselos, y el día que salte uno de verdad
+     * también se lo saltará.
+     */
+    const resultado = leerXmi(ficheroEa(), vacio());
+
+    expect(resultado.avisos).toEqual([]);
+  });
+
   it('sobre un diagrama que ya tiene una de las clases, la amplía en vez de duplicarla', () => {
     const diagrama = withClass(vacio(), createClass({ id: 'CA', name: 'ComponentA' }));
     const resultado = leerXmi(ficheroEa(), diagrama);

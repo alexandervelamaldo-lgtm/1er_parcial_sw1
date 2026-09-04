@@ -12,6 +12,7 @@ import {
   sintesisDisponible,
   type SesionDictado,
 } from '../services/voz';
+import { Icono } from './iconos';
 
 /**
  * La guía: preguntar cómo se hace algo y que el manual conteste.
@@ -226,7 +227,7 @@ export function Guia({ onCerrar }: { onCerrar: () => void }): JSX.Element {
           <p className="guia__estado">
             {modelo === null
               ? 'Buscando en el manual, aquí mismo. Sin conexión también funciona.'
-              : `Respondiendo con ${modelo}, en tu máquina.`}
+              : `Respondiendo con ${modelo}, en este equipo.`}
           </p>
           <button type="button" className="boton guia__cerrar" onClick={onCerrar}>
             Cerrar
@@ -251,9 +252,12 @@ export function Guia({ onCerrar }: { onCerrar: () => void }): JSX.Element {
             className={`boton-microfono${escuchando ? ' boton-microfono--activo' : ''}`}
             disabled={!hayDictado}
             title={hayDictado ? 'Preguntar hablando' : motivoSinVoz()}
+            aria-label={escuchando ? 'Detener el dictado' : 'Preguntar hablando'}
+            aria-pressed={escuchando}
             onClick={alternarMicrofono}
           >
-            {escuchando ? '● grabando' : '🎤'}
+            <Icono nombre="microfono" />
+            {escuchando && <span className="boton-microfono__estado">Grabando</span>}
           </button>
           <button type="submit" className="boton boton--primario" disabled={!texto.trim()}>
             Preguntar
@@ -303,13 +307,17 @@ export function Guia({ onCerrar }: { onCerrar: () => void }): JSX.Element {
                   title="Leer la respuesta en voz alta"
                   onClick={() => hablar(estado.respuesta ?? '')}
                 >
-                  🔊 Escuchar
+                  <Icono nombre="altavoz" />
+                  Escuchar
                 </button>
               ) : (
                 // El motivo va escrito y no en un `title`: esto se lee sobre
                 // todo en el móvil, donde no hay puntero que pueda posarse
                 // encima y un botón gris no explica nada por sí solo.
-                <p className="guia__leer-nota">🔇 {motivoSinVoz()}</p>
+                <p className="guia__leer-nota">
+                  <Icono nombre="altavoz-mudo" />
+                  {motivoSinVoz()}
+                </p>
               ))}
           </div>
         )}
@@ -319,7 +327,7 @@ export function Guia({ onCerrar }: { onCerrar: () => void }): JSX.Element {
           // irrelevante presentado como respuesta es peor que un «no está»,
           // porque parece una respuesta.
           <p className="guia__vacio">
-            Eso no lo cubre el manual. Prueba con otras palabras, o mira los documentos de{' '}
+            Sin resultados en el manual. Cabe reformular la consulta o consultar los documentos de{' '}
             <code>docs/</code>.
           </p>
         )}

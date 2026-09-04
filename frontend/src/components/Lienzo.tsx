@@ -12,9 +12,13 @@ import {
   ALTO_FILA,
   ANCHO_MINIMO,
   PADDING,
+  ampliar,
   anclaje,
+  cajaDe,
   desviosPorPar,
+  encuadrar,
   etiquetaClase,
+  limitarEscala,
   medidasDe,
   puntoEnCurva,
   recortar,
@@ -44,6 +48,18 @@ import {
  * que no depende de React y sí tiene pruebas.
  */
 
+/**
+ * Una orden de encuadre venida de fuera del lienzo.
+ *
+ * Lleva un número de serie porque lo que se pide es una acción, no un estado:
+ * pulsar «Ajustar» dos veces seguidas tiene que encuadrar dos veces, y con un
+ * objeto que dijera solo `{ tipo: 'ajustar' }` la segunda pulsación sería un
+ * valor idéntico al anterior y no dispararía nada.
+ */
+export type OrdenVista =
+  | { n: number; tipo: 'acercar' | 'alejar' | 'ajustar' }
+  | { n: number; tipo: 'centrar'; ids: string[] };
+
 export interface LienzoProps {
   diagrama: ClassDiagram;
   seleccion: string | null;
@@ -56,6 +72,10 @@ export interface LienzoProps {
   onRelacionar: (origenId: string, destinoId: string) => void;
   /** Herramienta activa: mover clases o trazar relaciones. */
   herramienta: 'seleccion' | 'relacion';
+  /** Encuadres pedidos desde la barra de estado o el árbol del proyecto. */
+  orden?: OrdenVista | null;
+  /** Avisa del aumento actual para que la barra de estado lo muestre. */
+  onEscala?: (escala: number) => void;
 }
 
 export function Lienzo({
@@ -68,6 +88,8 @@ export function Lienzo({
   onCursor,
   onRelacionar,
   herramienta,
+  orden,
+  onEscala,
 }: LienzoProps): JSX.Element {
   const svgRef = useRef<SVGSVGElement>(null);
   const [vista, setVista] = useState({ x: 0, y: 0, escala: 1 });
@@ -180,7 +202,7 @@ export function Lienzo({
         y: (evento.clientY - caja.top) / vista.escala + vista.y,
       };
       const factor = evento.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const escala = Math.min(3, Math.max(0.25, vista.escala * factor));
+      const escala = limitarEscala(vista.escala * factor);
       // Se recoloca la vista para que el punto bajo el cursor no se mueva: si no,
       // acercarse desplaza el diagrama y hay que recolocarlo a mano cada vez.
       setVista({
@@ -245,7 +267,7 @@ export function Lienzo({
       if (!dos || dos.distancia === 0) return;
       evento.preventDefault();
 
-      const escala = Math.min(3, Math.max(0.25, (inicio.escala * dos.distancia) / inicio.distancia));
+      const escala = limitarEscala((inicio.escala * dos.distancia) / inicio.distancia);
       const caja = svg.getBoundingClientRect();
       // El mismo ajuste que en la rueda: el punto que está entre los dedos se
       // queda entre los dedos, así que se amplía lo que se está mirando.
@@ -276,6 +298,39 @@ export function Lienzo({
       svg.removeEventListener('pointercancel', alLevantar, opciones);
     };
   }, [vista]);
+
+  /*
+    Encuadres pedidos desde fuera.
+
+    El número de serie se compara con el último atendido en vez de dejar que las
+    dependencias del efecto decidan: `clases` es un array nuevo en cada
+    repintado, así que el efecto se vuelve a ejecutar constantemente y sin esta
+    guarda cada movimiento de un cursor ajeno reencuadraría el lienzo.
+  */
+  const ultimaOrden = useRef(0);
+  useEffect(() => {
+    if (!orden || orden.n === ultimaOrden.current) return;
+    ultimaOrden.current = orden.n;
+
+    const ventana = { ancho: medidaLienzo.ancho, alto: medidaLienzo.alto };
+    setVista((actual) => {
+      if (orden.tipo === 'acercar') return ampliar(actual, ventana, 1.25);
+      if (orden.tipo === 'alejar') return ampliar(actual, ventana, 1 / 1.25);
+      const objetivo =
+        orden.tipo === 'centrar' ? clases.filter((c) => orden.ids.includes(c.id)) : clases;
+      return encuadrar(objetivo.map(cajaDe), ventana, {
+        ajustar: orden.tipo === 'ajustar',
+        escala: actual.escala,
+      });
+    });
+  }, [orden, medidaLienzo, clases]);
+
+  // La barra de estado enseña el aumento, y el aumento lo cambian cuatro cosas
+  // —la rueda, el pellizco, los botones y el encuadre—. Se avisa desde el único
+  // sitio por el que pasan las cuatro.
+  useEffect(() => {
+    onEscala?.(vista.escala);
+  }, [vista.escala, onEscala]);
 
   // El tamaño real del elemento, observado. Ver el comentario de `medidaLienzo`.
   useEffect(() => {

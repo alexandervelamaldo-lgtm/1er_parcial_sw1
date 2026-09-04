@@ -3,9 +3,15 @@ import { UmlClassSchema, UmlRelationSchema, type UmlClass, type UmlRelation } fr
 import {
   ANCHO_MAXIMO,
   ANCHO_MINIMO,
+  ESCALA_MAXIMA,
+  ESCALA_MINIMA,
+  ampliar,
   anclaje,
+  cajaDe,
   desviosPorPar,
+  encuadrar,
   etiquetaClase,
+  limitarEscala,
   medidasDe,
   puntoEnCurva,
   recortar,
@@ -238,5 +244,109 @@ describe('etiquetas del texto de una caja', () => {
     expect(etiquetaClase(clase({ id: 'c2', name: 'A', kind: 'enum' }))).toBe('«enumeration»');
     expect(etiquetaClase(clase({ id: 'c3', name: 'A', kind: 'abstract' }))).toBe('«abstract»');
     expect(etiquetaClase(clase({ id: 'c4', name: 'A', kind: 'class' }))).toBeNull();
+  });
+});
+
+/*
+  La vista: lo que mueven los botones de la barra de estado y el árbol.
+
+  Son cuentas de dos líneas y por eso mismo se prueban. Un signo cambiado no
+  rompe nada visible al arrancar: se nota tres pulsaciones después, cuando el
+  diagrama ya se ha escapado de la pantalla y no hay forma de volver.
+*/
+
+const VENTANA = { ancho: 1000, alto: 600 };
+
+/** El centro del área visible, en coordenadas del diagrama. */
+const centroDe = (vista: { x: number; y: number; escala: number }): { x: number; y: number } => ({
+  x: vista.x + VENTANA.ancho / vista.escala / 2,
+  y: vista.y + VENTANA.alto / vista.escala / 2,
+});
+
+describe('limitarEscala', () => {
+  it('no deja pasar de los topes por ninguno de los dos lados', () => {
+    expect(limitarEscala(100)).toBe(ESCALA_MAXIMA);
+    expect(limitarEscala(0.001)).toBe(ESCALA_MINIMA);
+    expect(limitarEscala(1)).toBe(1);
+  });
+});
+
+describe('ampliar', () => {
+  it('deja quieto el centro de la ventana', () => {
+    // Es la propiedad entera del botón de zoom. Si el centro se moviera, cada
+    // pulsación arrastraría el diagrama hacia una esquina.
+    const antes = { x: 120, y: -40, escala: 1 };
+    const despues = ampliar(antes, VENTANA, 1.25);
+    expect(centroDe(despues).x).toBeCloseTo(centroDe(antes).x, 6);
+    expect(centroDe(despues).y).toBeCloseTo(centroDe(antes).y, 6);
+  });
+
+  it('acercar y alejar con el mismo factor devuelve la vista de partida', () => {
+    const antes = { x: 120, y: -40, escala: 1 };
+    const vuelta = ampliar(ampliar(antes, VENTANA, 1.25), VENTANA, 1 / 1.25);
+    expect(vuelta.escala).toBeCloseTo(antes.escala, 6);
+    expect(vuelta.x).toBeCloseTo(antes.x, 6);
+    expect(vuelta.y).toBeCloseTo(antes.y, 6);
+  });
+
+  it('respeta los topes de escala', () => {
+    expect(ampliar({ x: 0, y: 0, escala: ESCALA_MAXIMA }, VENTANA, 2).escala).toBe(ESCALA_MAXIMA);
+    expect(ampliar({ x: 0, y: 0, escala: ESCALA_MINIMA }, VENTANA, 0.5).escala).toBe(ESCALA_MINIMA);
+  });
+
+  it('en el tope no mueve nada', () => {
+    // Si la escala no cambia, la vista tampoco puede cambiar: al llegar al 300 %,
+    // seguir pulsando «+» no debe ir desplazando el diagrama.
+    const tope = { x: 33, y: 77, escala: ESCALA_MAXIMA };
+    expect(ampliar(tope, VENTANA, 1.25)).toEqual(tope);
+  });
+});
+
+describe('encuadrar', () => {
+  const caja = (x: number, y: number): ReturnType<typeof cajaDe> =>
+    cajaDe(clase({ id: `c${String(x)}-${String(y)}`, name: 'Pago', position: { x, y } }));
+
+  it('un diagrama vacío vuelve al origen a escala 1', () => {
+    // Dividir entre cero o dejar la vista donde estaba acaban en un lienzo en
+    // blanco del que no se sabe volver. Pulsar «Ajustar» sin nada que ajustar
+    // tiene que dejar el lienzo en un sitio conocido.
+    expect(encuadrar([], VENTANA, { ajustar: true, escala: 2 })).toEqual({ x: 0, y: 0, escala: 1 });
+  });
+
+  it('centra lo que se le pide', () => {
+    const primera = caja(0, 0);
+    const segunda = caja(400, 200);
+    const centro = centroDe(encuadrar([primera, segunda], VENTANA, { ajustar: true, escala: 1 }));
+    expect(centro.x).toBeCloseTo((primera.x + segunda.x + segunda.ancho) / 2, 6);
+    expect(centro.y).toBeCloseTo((primera.y + segunda.y + segunda.alto) / 2, 6);
+  });
+
+  it('con «ajustar» recalcula la escala aunque hubiera sitio de sobra', () => {
+    // Una caja pequeña en una ventana grande: «Ajustar» quiere verla grande, no
+    // dejarla del tamaño con el que se estaba trabajando.
+    const vista = encuadrar([caja(0, 0)], VENTANA, { ajustar: true, escala: 0.5 });
+    expect(vista.escala).toBeGreaterThan(0.5);
+  });
+
+  it('sin «ajustar» conserva el aumento con el que se estaba trabajando', () => {
+    // Pulsar Entrar sobre una clase del árbol va hasta ella; cambiarle el zoom
+    // de paso obligaría a recolocarse después de cada salto.
+    const vista = encuadrar([caja(0, 0)], VENTANA, { ajustar: false, escala: 1.5 });
+    expect(vista.escala).toBe(1.5);
+  });
+
+  it('sin «ajustar» reduce lo justo si de verdad no cabe', () => {
+    const lejos = [caja(0, 0), caja(4000, 3000)];
+    expect(encuadrar(lejos, VENTANA, { ajustar: false, escala: 3 }).escala).toBeLessThan(3);
+  });
+
+  it('nunca se sale de los topes de escala', () => {
+    // Un diagrama de doscientas clases «cabría» al 4 % y sería ilegible; una
+    // sola caja «cabe» al 900 % y se saldría de la pantalla.
+    const enorme = [caja(0, 0), caja(40000, 30000)];
+    expect(encuadrar(enorme, VENTANA, { ajustar: true, escala: 1 }).escala).toBe(ESCALA_MINIMA);
+    expect(encuadrar([caja(0, 0)], VENTANA, { ajustar: true, escala: 1 }).escala).toBe(
+      ESCALA_MAXIMA,
+    );
   });
 });

@@ -13,6 +13,7 @@ import {
 } from '@app/shared';
 import { ApiError, api } from '../services/api';
 import { FotoConLupa } from './FotoConLupa';
+import { Icono } from './iconos';
 
 /**
  * Importar un diagrama de clases entero desde una foto (RF-VIS-01).
@@ -297,8 +298,13 @@ export function ImportarDiagrama({
       <div className="modal__caja importar">
         <header className="importar__cabecera">
           <h2>Importar un diagrama desde una imagen</h2>
-          <button type="button" className="boton boton--discreto" onClick={onCerrar}>
-            ✕
+          <button
+            type="button"
+            className="boton boton--icono"
+            aria-label="Cerrar"
+            onClick={onCerrar}
+          >
+            <Icono nombre="cerrar" />
           </button>
         </header>
 
@@ -332,8 +338,13 @@ export function ImportarDiagrama({
               }}
             />
             <p className="importar__nota">
-              Si el diagrama lo hiciste en otra herramienta y todavía tienes el fichero, usa
-              «⤒ Importar XMI» en vez de una foto: es exacto y no hay nada que revisar.
+              {/* El rótulo se cita tal cual aparece en el menú, y nombrando también el
+                  menú que lo contiene. Antes citaba un botón que llevaba un glifo delante
+                  y que ya no existe: una instrucción que nombra un control inexistente es
+                  peor que no darla. */}
+              Si el diagrama procede de otra herramienta y se conserva el fichero, conviene
+              usar «Importar XMI», en el menú Archivo, en lugar de una foto: la lectura es
+              exacta y no requiere revisión.
             </p>
           </div>
         )}
@@ -386,11 +397,12 @@ export function ImportarDiagrama({
               */}
               {dudosas > 0 && (
                 <p className="importar-diagrama__alerta">
-                  ⚠ {dudosas} extremo{dudosas === 1 ? '' : 's'} de relación sin cardinalidad
+                  <Icono nombre="alerta" className="alerta__simbolo" /> {dudosas} extremo
+                  {dudosas === 1 ? '' : 's'} de relación sin cardinalidad
                   legible. Están marcados abajo como «sin leer» y se propone{' '}
-                  <code>1 → *</code>. Acércate a ellos en la foto antes de importar —con la rueda,
-                  con un doble clic o con los botones de zoom—: de esto depende que el proyecto
-                  generado lleve una clave foránea o una tabla de unión.
+                  <code>1 → *</code>. Conviene ampliarlos en la foto antes de importar —con la
+                  rueda, con un doble clic o con los botones de zoom—: de esto depende que el
+                  proyecto generado lleve una clave foránea o una tabla de unión.
                 </p>
               )}
 
@@ -430,7 +442,7 @@ export function ImportarDiagrama({
                       title="Descartar esta clase y sus relaciones"
                       onClick={() => borrarClase(i)}
                     >
-                      ✕
+                      <Icono nombre="cerrar" />
                     </button>
                   </div>
 
@@ -470,7 +482,7 @@ export function ImportarDiagrama({
                         title="Quitar este atributo"
                         onClick={() => borrarAtributo(i, j)}
                       >
-                        ✕
+                        <Icono nombre="cerrar" />
                       </button>
                     </div>
                   ))}
@@ -528,7 +540,7 @@ export function ImportarDiagrama({
                           title="Descartar esta relación"
                           onClick={() => borrarRelacion(i)}
                         >
-                          ✕
+                          <Icono nombre="cerrar" />
                         </button>
                       </div>
                     );

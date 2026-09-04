@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ETIQUETA_ORIGEN,
   MAXIMO_ENTRADAS,
@@ -89,77 +89,45 @@ function Entrada({ entrada, ahora }: { entrada: EntradaLeida; ahora: number }): 
   );
 }
 
-/** El historial completo del diagrama, en un cajón lateral. */
-export function HistorialCambios({
-  historial,
-  onCerrar,
-}: {
-  historial: EntradaLeida[];
-  onCerrar: () => void;
-}): JSX.Element {
-  const cierre = useRef<HTMLButtonElement>(null);
-  // Se congela al abrir. Si se recalculara en cada repintado, los «hace 5 min»
-  // cambiarían mientras se lee, que es justo lo que no debe hacer un registro.
+/**
+ * El historial completo del diagrama, para su panel acoplado.
+ *
+ * Antes era un diálogo que tapaba el diagrama. Un diálogo obliga a elegir entre
+ * ver lo que pasó y ver sobre qué pasó, y la pregunta que se le hace al
+ * historial —«¿quién dejó esta clase así?»— necesita las dos cosas delante.
+ * Acoplado, se lee mirando el lienzo, y quien no lo quiera lo pliega.
+ */
+export function HistorialCambios({ historial }: { historial: EntradaLeida[] }): JSX.Element {
+  // Se congela al abrir el panel. Si se recalculara en cada repintado, los «hace
+  // 5 min» cambiarían mientras se lee, que es justo lo que no debe hacer un
+  // registro. Al plegar el panel el componente se desmonta, así que al volver a
+  // abrirlo las horas se recalculan solas.
   const [ahora] = useState(() => Date.now());
-
-  useEffect(() => {
-    cierre.current?.focus();
-    const alTeclear = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onCerrar();
-    };
-    window.addEventListener('keydown', alTeclear);
-    return () => window.removeEventListener('keydown', alTeclear);
-  }, [onCerrar]);
-
   const recientes = useMemo(() => [...historial].reverse(), [historial]);
 
   return (
-    <div className="modal" onClick={onCerrar} role="presentation">
-      <div
-        className="modal__caja historial"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Historial de cambios del diagrama"
-      >
-        <div className="historial__cabecera">
-          <h2>Historial de cambios</h2>
-          <button
-            type="button"
-            className="boton boton--discreto"
-            ref={cierre}
-            onClick={onCerrar}
-            aria-label="Cerrar el historial"
-          >
-            ✕
-          </button>
-        </div>
+    <div className="historial">
+      {recientes.length === 0 ? (
+        <p className="panel__vacio">Sin cambios registrados.</p>
+      ) : (
+        <ul className="historial__lista">
+          {recientes.map((entrada) => (
+            <Entrada key={entrada.id} entrada={entrada} ahora={ahora} />
+          ))}
+        </ul>
+      )}
 
-        {recientes.length === 0 ? (
-          <p className="panel__vacio">
-            Todavía no hay cambios registrados. Aparecerán aquí en cuanto alguien cree o modifique
-            una clase.
-          </p>
-        ) : (
-          <ul className="historial__lista">
-            {recientes.map((entrada) => (
-              <Entrada key={entrada.id} entrada={entrada} ahora={ahora} />
-            ))}
-          </ul>
-        )}
-
-        {/*
-          Se dice lo que el historial no es. Alguien que lo abra para resolver una
-          discusión tiene derecho a saber que esto reconstruye lo que pasó entre
-          gente que colabora, y que no está pensado para demostrar nada frente a
-          quien quiera falsearlo.
-        */}
-        <p className="modal__nota">
-          Se guardan los últimos {MAXIMO_ENTRADAS} cambios de estructura; mover cajas por el lienzo
-          no cuenta como cambio. El registro lo escribe cada participante en su propio navegador:
-          sirve para reconstruir qué pasó, no como prueba ante quien pudiera manipularlo.
-        </p>
-      </div>
+      {/*
+        Se dice lo que el historial no es. Alguien que lo abra para resolver una
+        discusión tiene derecho a saber que esto reconstruye lo que pasó entre
+        gente que colabora, y que no está pensado para demostrar nada frente a
+        quien quiera falsearlo.
+      */}
+      <p className="historial__nota">
+        Se guardan los últimos {MAXIMO_ENTRADAS} cambios de estructura; mover cajas por el lienzo no
+        cuenta como cambio. El registro lo escribe cada participante en su propio navegador: sirve
+        para reconstruir qué pasó, no como prueba ante quien pudiera manipularlo.
+      </p>
     </div>
   );
 }

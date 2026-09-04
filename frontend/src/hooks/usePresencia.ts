@@ -24,18 +24,31 @@ export interface Participante {
  * Colores de participante.
  *
  * Se eligen de una lista fija en vez de generarse al azar para que sean
- * distinguibles entre sí y legibles sobre el lienzo oscuro; un color aleatorio
- * acaba dando dos azules casi iguales o algo ilegible.
+ * distinguibles entre sí y legibles sobre el lienzo; un color aleatorio acaba
+ * dando dos azules casi iguales o algo ilegible.
+ *
+ * Los ocho son ocho tonos repartidos cada 45° con la misma saturación (44%) y
+ * la misma luminosidad (62%). Compartir S y L es lo que hace que se lean como
+ * un sistema y no como ocho rotuladores; que solo los separe el tono es lo que
+ * los mantiene distinguibles. Los anteriores —`#5b9cff`, `#ffd24a`,
+ * `#ff5b7f`…— eran la paleta saturada que se retiró del resto de la interfaz, y
+ * se habían quedado aquí porque viven en un `.ts` y ningún barrido del CSS los
+ * veía. Son, además, los colores más llamativos de la pantalla: se pintan como
+ * ficha de presencia y como contorno de selección sobre el diagrama.
+ *
+ * Las tres propiedades que hay que conservar al tocarlos están comprobadas en
+ * `estilos.test.ts`: rango de saturación ≤ 110, texto oscuro legible encima
+ * (≥ 4.5:1) y separación suficiente entre dos cualesquiera.
  */
 const COLORES = [
-  '#5b9cff',
-  '#ff8a5b',
-  '#4ecb8f',
-  '#e15bff',
-  '#ffd24a',
-  '#ff5b7f',
-  '#5bd8ff',
-  '#b28dff',
+  '#739ec9',
+  '#c99e73',
+  '#73c973',
+  '#c973c9',
+  '#73c9b3',
+  '#c9c973',
+  '#8973c9',
+  '#c97389',
 ];
 
 /** Color estable para un cliente: el mismo mientras dure su conexión. */

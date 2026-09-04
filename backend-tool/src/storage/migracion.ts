@@ -128,11 +128,22 @@ export async function migrar(
       // como el choque por `correo`, que son dos formas distintas de decir que
       // esa persona ya está.
       const { rows } = await cliente.query<{ id: string }>(
-        `insert into usuarios (id, correo, nombre, sal, hash)
-         values ($1, $2, $3, $4, $5)
+        `insert into usuarios (id, correo, nombre, sal, hash, sal_recuperacion, hash_recuperacion)
+         values ($1, $2, $3, $4, $5, $6, $7)
          on conflict do nothing
          returning id`,
-        [usuario.id, usuario.email, usuario.displayName, usuario.salt, usuario.hash],
+        [
+          usuario.id,
+          usuario.email,
+          usuario.displayName,
+          usuario.salt,
+          usuario.hash,
+          // El código de recuperación pendiente se lleva también. Dejarlo atrás
+          // haría que migrar a PostgreSQL invalidara en silencio el papel que
+          // alguien tiene guardado, y no lo descubriría hasta necesitarlo.
+          usuario.recoverySalt ?? null,
+          usuario.recoveryHash ?? null,
+        ],
       );
       usuarios += rows.length;
     }

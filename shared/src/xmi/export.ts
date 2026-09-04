@@ -12,7 +12,7 @@ import {
   type UmlRelation,
   type Visibility,
 } from '../model/uml.js';
-import { escaparXml } from './xml.js';
+import { Xml } from './escritor.js';
 
 /**
  * Exportación del diagrama a XMI 2.1 (RF-DIAG-12).
@@ -60,12 +60,20 @@ import { escaparXml } from './xml.js';
  * marca. El importador acepta las dos formas justamente por eso.
  *
  * LO QUE NO VIAJA A EA: la posición de las cajas. EA guarda la geometría de sus
- * diagramas en su propio `xmi:Extension extender="Enterprise Architect"`, y
- * escribir ese bloque a ciegas —sin poder abrirlo en EA para comprobarlo— es
- * más arriesgado que no escribirlo. Al importar, EA crea los elementos en el
- * navegador de proyecto y el diagrama se compone arrastrándolos. Nuestra propia
- * extensión sí lleva las coordenadas, así que entre esta herramienta y ella
- * misma no se pierde nada.
+ * diagramas en su propio `xmi:Extension extender="Enterprise Architect"`. Al
+ * importar esto, EA crea los elementos en el navegador de proyecto y el diagrama
+ * se compone arrastrándolos. Nuestra propia extensión sí lleva las coordenadas,
+ * así que entre esta herramienta y ella misma no se pierde nada.
+ *
+ * Se sabe cómo se escribe ese bloque —`ea-comunicacion.ts` lo escribe, con la
+ * plantilla sacada del mismo fichero de EA que corrigió las tres formas de
+ * arriba—, así que esto ya no es «no se puede» sino «no se ha hecho». La razón
+ * de que siga sin hacerse es que aquí no hay una posición que llevar: el lienzo
+ * de esta herramienta coloca las clases donde el usuario las arrastra, y su
+ * sistema de coordenadas no es el de EA. Trasladarlo es un trabajo aparte, con
+ * su propia forma de equivocarse, y el diagrama de clases se entiende igual con
+ * las cajas recolocadas. Un diagrama de comunicación no: ahí la posición *es*
+ * parte de lo que se lee, y por eso el otro módulo sí paga ese precio.
  */
 
 const CABECERA = '<?xml version="1.0" encoding="UTF-8"?>';
@@ -149,48 +157,6 @@ class Ids {
 
   private siguiente(prefijo: string): string {
     return `id_${prefijo}${++this.contador}`;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Constructor de líneas
-// ---------------------------------------------------------------------------
-
-class Xml {
-  private readonly lineas: string[] = [];
-  private nivel = 0;
-
-  abrir(etiqueta: string, atributos: Record<string, string | undefined> = {}): void {
-    this.lineas.push(`${this.sangria()}<${etiqueta}${this.atributos(atributos)}>`);
-    this.nivel++;
-  }
-
-  cerrar(etiqueta: string): void {
-    this.nivel--;
-    this.lineas.push(`${this.sangria()}</${etiqueta}>`);
-  }
-
-  vacio(etiqueta: string, atributos: Record<string, string | undefined> = {}): void {
-    this.lineas.push(`${this.sangria()}<${etiqueta}${this.atributos(atributos)}/>`);
-  }
-
-  crudo(linea: string): void {
-    this.lineas.push(linea);
-  }
-
-  texto(): string {
-    return this.lineas.join('\n') + '\n';
-  }
-
-  private sangria(): string {
-    return '  '.repeat(this.nivel);
-  }
-
-  private atributos(atributos: Record<string, string | undefined>): string {
-    return Object.entries(atributos)
-      .filter((par): par is [string, string] => par[1] !== undefined)
-      .map(([clave, valor]) => ` ${clave}="${escaparXml(valor)}"`)
-      .join('');
   }
 }
 

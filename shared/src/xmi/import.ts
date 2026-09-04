@@ -671,6 +671,22 @@ function leerRelaciones(
 
     if (tipo !== 'Association') continue;
 
+    /*
+     * Una asociación de UML declara sus extremos: o `ownedEnd`, o `memberEnd`
+     * apuntando a propiedades. Si no trae ninguno de los dos, esto no es una
+     * asociación mal importada — no es una asociación.
+     *
+     * Sin esta línea, el bloque de extensión de Enterprise Architect envenena la
+     * importación. EA lista dentro de cada elemento las líneas que le tocan, con
+     * la forma `<Association xmi:id="…" start="…" end="…"/>`, y este bucle busca
+     * también por nombre de etiqueta, así que las recogía todas. El resultado
+     * era que importar un fichero perfectamente sano de EA soltaba cinco avisos
+     * de «se descarta» refiriéndose a relaciones que sí se habían importado, por
+     * su otro nombre y desde su otro sitio. Un aviso que no corresponde a nada
+     * que el usuario pueda arreglar es peor que no avisar: enseña a no leerlos.
+     */
+    if (hijos(nodo, 'ownedEnd', 'AssociationEnd', 'memberEnd').length === 0) continue;
+
     const extremos = extremosDe(nodo, porId, claseDeId);
     if (extremos.length !== 2) {
       const nombre = attr(nodo, 'name') ?? idDe(nodo) ?? '(sin nombre)';

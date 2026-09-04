@@ -22,6 +22,18 @@ create table if not exists usuarios (
   creado_en   timestamptz not null default now()
 );
 
+-- Código de recuperación de un solo uso.
+--
+-- Va con `alter table` y no dentro del `create table` de arriba a propósito: ese
+-- `create` lleva `if not exists`, así que en una base que ya existía no habría
+-- añadido nada y estas dos columnas no aparecerían nunca. `add column if not
+-- exists` sí es idempotente de verdad y sirve para los dos casos.
+--
+-- Son `null` cuando no hay código pendiente. Se guarda el hash, igual que con la
+-- contraseña: quien lea la tabla no puede recuperar cuentas con lo que ve.
+alter table usuarios add column if not exists sal_recuperacion  text;
+alter table usuarios add column if not exists hash_recuperacion text;
+
 -- Proyectos -----------------------------------------------------------------
 
 create table if not exists proyectos (
