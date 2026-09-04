@@ -71,11 +71,20 @@ function Peticion {
     } catch {
         $respuesta = $_.Exception.Response
         if ($null -eq $respuesta) { throw }
-        $texto = ''
-        try {
-            $lector = New-Object System.IO.StreamReader($respuesta.GetResponseStream())
-            $texto = $lector.ReadToEnd()
-        } catch { }
+
+        # El cuerpo se saca de `ErrorDetails`, no del flujo de la respuesta.
+        # `Invoke-WebRequest` ya lo ha consumido para dejarlo ahí, así que
+        # `GetResponseStream()` devuelve cero bytes y toda afirmación sobre el
+        # cuerpo de un error falla dijera lo que dijera el servidor. Costó una
+        # comprobación en rojo que acusaba al backend de algo que no hacía.
+        # El flujo se deja como respaldo por si alguna versión lo llena.
+        $texto = $_.ErrorDetails.Message
+        if ([string]::IsNullOrEmpty($texto)) {
+            try {
+                $lector = New-Object System.IO.StreamReader($respuesta.GetResponseStream())
+                $texto = $lector.ReadToEnd()
+            } catch { $texto = '' }
+        }
         $mapa = @{}
         foreach ($nombre in $respuesta.Headers.AllKeys) { $mapa[$nombre] = $respuesta.Headers[$nombre] }
         return [pscustomobject]@{ Estado = [int]$respuesta.StatusCode; Cuerpo = $texto; Cabeceras = $mapa }
@@ -208,8 +217,20 @@ try {
 
     $malaClave = Peticion POST '/api/clientes' $cuerpo @{ 'Idempotency-Key' = 'corta' }
     Comprobar 'una clave con forma inválida da 400' ($malaClave.Estado -eq 400) "$($malaClave.Estado)"
+    # Un filtro corre antes de que exista el @RestControllerAdvice, así que este
+    # error lo escribe FiltroIdempotencia a mano. Que se le escape un campo es
+    # fácil, y el precio lo paga el móvil: dos formatos de error según dónde
+    # falle son dos ramas de análisis en Dart. Por eso se exige la forma entera.
+    $forma = $null
+    try { $forma = $malaClave.Cuerpo | ConvertFrom-Json } catch { }
     Comprobar 'y el error usa el formato de ErrorResponse' `
-        ($malaClave.Cuerpo -like '*"fieldErrors"*')
+        ($null -ne $forma -and
+         $forma.status -eq 400 -and
+         -not [string]::IsNullOrWhiteSpace($forma.error) -and
+         -not [string]::IsNullOrWhiteSpace($forma.message) -and
+         $null -ne $forma.timestamp -and
+         $null -ne $forma.PSObject.Properties['fieldErrors']) `
+        $malaClave.Cuerpo
 
     $sinClave = '{"nombre":"Sin Clave","email":"sin.' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '@example.com"}'
     $libre = Peticion POST '/api/clientes' $sinClave
