@@ -1,4 +1,4 @@
-# Comprobación de extremo a extremo del manifiesto y de la idempotencia.
+﻿# Comprobación de extremo a extremo del manifiesto y de la idempotencia.
 #
 # Qué verifica y por qué importa. El manifiesto es lo que permite que exista una
 # sola app móvil para todos los proyectos generados, y la idempotencia es lo que
@@ -18,6 +18,11 @@
 # contraseña debe ser distinta de la de desarrollo.
 
 $ErrorActionPreference = 'Stop'
+
+# La consola de Windows viene en una página de códigos heredada, y tanto npm como
+# el propio script escriben acentos. Sin esto, «Tienda» sale como «┬½Tienda┬╗» y
+# el informe se lee peor de lo que es.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 $Raiz     = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $Proyecto = Join-Path $Raiz 'generator\salida\tienda'
@@ -125,7 +130,11 @@ try {
 
 $jar = Join-Path $Proyecto 'target\tienda-0.0.1-SNAPSHOT.jar'
 $java = Join-Path $Jdk 'bin\java.exe'
-$proceso = Start-Process -FilePath $java -ArgumentList @('-jar', $jar) `
+
+# El argumento va entrecomillado a mano. `Start-Process` une la lista con espacios
+# y no entrecomilla nada, así que una ruta con un espacio —«1er parcial»— llega
+# partida en dos argumentos y java responde «Unable to access jarfile ...\1er».
+$proceso = Start-Process -FilePath $java -ArgumentList @('-jar', "`"$jar`"") `
     -WorkingDirectory $Proyecto -PassThru -NoNewWindow `
     -RedirectStandardOutput $Registro -RedirectStandardError "$Registro.err"
 
