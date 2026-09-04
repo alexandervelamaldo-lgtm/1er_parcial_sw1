@@ -1,4 +1,5 @@
 import { isSafeRelativePath } from '@app/shared';
+import { renderManifiesto } from '../asistente/manifiesto.js';
 import type {
   AssociationIR,
   EntityIR,
@@ -363,10 +364,39 @@ export function generateProject(ir: GenerationIR): GeneratedFile[] {
     });
   }
 
+  // Idempotencia de las escrituras que llegan del móvil sin conexión. Va en la
+  // versión 3 y no en la 1 porque la 1 puede estar ya aplicada en una base de
+  // datos existente y reescribirla rompería su checksum; la 2 la ocupan los
+  // datos iniciales cuando los hay.
+  files.push({
+    path: 'src/main/resources/db/migration/V3__idempotencia.sql',
+    content: render('idempotencia.sql.hbs', context),
+  });
+
+  // El manifiesto que lee la app móvil genérica. Se emite como recurso del
+  // classpath en vez de incrustarlo en una cadena Java: así se puede abrir y
+  // leer en el proyecto generado, y el controlador se queda sin lógica.
+  files.push({
+    path: 'src/main/resources/asistente/manifiesto.json',
+    content: renderManifiesto(ir),
+  });
+
   files.push({
     path: `${javaRoot}/Application.java`,
     content: render('Application.java.hbs', context),
   });
+
+  files.push({
+    path: `${javaRoot}/controller/ManifiestoController.java`,
+    content: render('ManifiestoController.java.hbs', context),
+  });
+
+  for (const name of ['AlmacenIdempotencia', 'FiltroIdempotencia']) {
+    files.push({
+      path: `${javaRoot}/infraestructura/${name}.java`,
+      content: render(`${name}.java.hbs`, context),
+    });
+  }
 
   for (const name of ['ResourceNotFoundException', 'GlobalExceptionHandler', 'ErrorResponse']) {
     files.push({

@@ -14,7 +14,7 @@ Cada fila lleva un estado, y los tres significan cosas distintas:
 | **Implementado** | El código está y funciona a mano, pero nada lo vigila. Si alguien lo rompe, se descubre usándolo. |
 | **Pendiente** | Está escrito en los requisitos y no está en el código. Aparece aquí para que no lo encuentre otro. |
 
-El estado del proyecto hoy, en un número: **630 pruebas en 28 ficheros**, todas en verde (`npm test`), y `npm run typecheck` limpio en los cuatro paquetes.
+El estado del proyecto hoy, en un número: **942 pruebas en 35 ficheros**, todas en verde (`npm test`), y `npm run typecheck` limpio en los cuatro paquetes. A eso se añade lo que no cuenta ese número y es lo que más costó: los tres proyectos Spring Boot del corpus compilan con Maven, y el de `tienda` arranca contra PostgreSQL 16 y responde.
 
 ---
 
@@ -62,8 +62,11 @@ Las dos últimas incorporaciones —cabeceras y límite de tasa— viven en `bac
 |---|---|---|
 | No hay `eslint.config.*` ni la dependencia instalada: `npm run lint` falla de entrada (RNF-MAN-05). | La integración continua no puede ejecutar el paso de lint que el documento 1 exige. | Un `npm install -D eslint typescript-eslint` y un fichero de configuración. |
 | No hay pruebas de componente del frontend: falta `jsdom` (tarea #15). | Lo que se prueba del frontend es la lógica extraída (`geometria-lienzo`, `useDispositivo`, `ollama`); los componentes no. | Una instalación de dependencias. |
-| El proyecto Spring Boot generado **nunca se ha compilado** (RNF-MAN-02: no hay Maven en la máquina). | Se genera código que se ve correcto y nadie ha visto arrancar. Es el hueco de calidad más serio del proyecto. | Instalar Maven y ejecutar `mvn test` sobre un proyecto generado. |
+| El proyecto generado no trae ninguna prueba propia: se compila y se arranca, pero no se ejecuta un `mvn test` con contenido. | Lo que se verifica del backend generado se verifica desde fuera, con peticiones. Un cambio en una plantilla que rompa un caso raro no lo detecta nadie hasta que se ejercita a mano. | Una plantilla de prueba de integración por entidad. Requiere Testcontainers o una base de datos de pruebas, y hoy no hay Docker. |
 | La imagen Docker nunca se ha construido. | El despliegue documentado no está probado. | Instalar Docker y `docker build`. |
+| El filtro de idempotencia se ejercita con un guion (`generator/scripts/probar-asistente.ps1`), no con una prueba automática. | Un fallo en la reserva o en la repetición se descubre lanzando el guion, no en `npm test`. | El mismo obstáculo que la fila anterior: hace falta una base de datos en la que arrancar el proyecto generado desde una prueba. |
+
+**Cerrado desde la última revisión.** La fila que decía «el proyecto Spring Boot generado nunca se ha compilado» era el hueco de calidad más serio del proyecto y ya no existe. Los tres diagramas del corpus —`tienda`, `rrhh`, `minimo`— compilan; `tienda` se empaqueta, aplica sus migraciones de Flyway contra PostgreSQL 16, arranca con `ddl-auto: validate` —es decir, con Hibernate comprobando que las entidades y el esquema de la migración coinciden columna a columna— y responde correctamente en las cinco capas. Maven no se instaló: el que trae NetBeans 25 (3.9.9) servía.
 
 ---
 
@@ -143,13 +146,43 @@ Dos consecuencias que se pueden enseñar:
 - **No pueden contradecirse.** Mantener a mano cuatro diagramas y un documento son cinco copias de una verdad, y la que se queda vieja es siempre el documento, porque los diagramas se miran en la defensa y el documento no.
 - **El fichero se abre en Enterprise Architect y aparece dibujado**, no como una lista de elementos en el árbol del proyecto. Eso exige escribir el bloque `<xmi:Extension>` que ninguna especificación documenta. De hecho el emisor escribe **las dos formas** —el `uml:Message` estándar y el conector de extensión de EA—, y EA no emite la primera: el fichero generado es más completo que el que exporta la propia herramienta.
 
-### 9.4.6 Lo que falta para poder presumir de esto
+### 9.4.6 El backend generado se describe a sí mismo para que la app móvil sea una sola
+
+La herramienta genera un backend distinto por diagrama. El asistente de voz que lo maneja —«agéndame la cita de mañana a las diez»— tiene que hablar con *cualquiera* de ellos, y ahí hay una decisión que decide el proyecto entero.
+
+El camino evidente es generar también la app: un proyecto Flutter por diagrama, con `Cita` y `Barbero` escritos dentro. Es el camino equivocado. Significa recompilar e instalar un APK cada vez que alguien mueve una caja en el lienzo, y eso convierte una herramienta colaborativa en un ciclo de despliegue de veinte minutos metido en medio de una clase de diseño. Nadie edita un diagrama en grupo si cada cambio cuesta una instalación.
+
+La salida es invertir la dependencia. El backend generado publica un documento que **se describe a sí mismo**:
+
+```
+GET /asistente/manifiesto
+```
+
+La app se compila una vez, no sabe nada del dominio, y al conectarse deriva de ese documento las pantallas, los formularios y la gramática de voz que reconoce. Un diagrama nuevo es una app nueva sin tocar la app.
+
+Lo que hace útil al manifiesto no es la lista de campos —eso lo da cualquier OpenAPI— sino lo que **solo sabe quien vio el diagrama**:
+
+- **Cómo se nombra cada entidad al hablar**, en singular y en plural. El plural sale de la misma ruta REST que la app va a pedir (`generator/src/asistente/manifiesto.ts`, `etiquetasHabladas`): pluralizar por separado en los dos sitios acabaría con la app pidiendo `/citas` y diciendo «citaes», sin manera de saber cuál de las dos está mal. Hay una prueba que lo fija.
+- **Qué se lleva por delante un borrado.** Un rombo relleno en el lienzo es una composición con cascada, y eso no se ve desde la API REST. El manifiesto lo trae en `borradoEnCascada`, así que el aviso hablado puede ser «borrar este pedido eliminará también sus líneas» en vez de un «¿seguro?» genérico. Es la diferencia entre una confirmación que informa y una que solo estorba.
+- **La lista cerrada de valores de cada enumerado**, para que dictar un estado inexistente se rechace en el móvil y no acabe en un 400 que el usuario no sabe explicar.
+
+Se sirve con `ETag`: la app pregunta en cada arranque y casi siempre recibe un 304 sin cuerpo.
+
+**Y el reenvío no duplica.** El asistente guarda cada orden dictada en una bandeja de salida y la reenvía al recuperar la red. Si el servidor escribe y la respuesta se pierde por el camino, el móvil no distingue «no llegó» de «llegó y no me enteré». Sin nada que lo impida, una cita dictada una vez acaba siendo tres. El backend generado acepta `Idempotency-Key` en toda escritura (`generator/templates/FiltroIdempotencia.java.hbs`), y tiene dos detalles que no son obvios:
+
+- **La clave la genera el móvil al dictar, no al enviar.** Si se generase al enviar, cada reintento traería una clave distinta y el mecanismo no serviría para nada. Es la única parte del diseño que la app no puede arreglar después.
+- **La exclusión mutua la da la clave primaria de PostgreSQL**, con un `INSERT … ON CONFLICT DO NOTHING` antes de ejecutar la petición, no un bloqueo en memoria. Por eso sigue siendo correcta con varias instancias detrás de un balanceador —que es la forma en que esto tiene que escalar en AWS— y no solo con una.
+
+Y una decisión de la que se puede hablar en la defensa: **solo se guardan las respuestas de éxito**. Un fallo no dejó nada escrito, así que repetirlo no duplica nada; guardar un `500` transitorio quemaría la clave y el móvil reintentaría durante días recibiendo siempre el mismo error de hace una semana.
+
+### 9.4.7 Lo que falta para poder presumir de esto
 
 | Hueco | Estado |
 |---|---|
 | Precisión del OCR sobre pizarra (RNF-IA-03: ≥ 85 %, RNF-IA-04: ≥ 90 %) no medida: falta el corpus de fotografías (pregunta abierta Q8). | Pendiente |
 | Dictado sin conexión verificado en un teléfono real, en modo avión (tarea #47). | Pendiente |
 | Emisores de los otros cuatro diagramas: bloqueados hasta tener cuatro `.xmi` de muestra exportados desde EA (tarea #55). | Bloqueado |
+| La app móvil que consume el manifiesto todavía no existe: hoy el manifiesto se emite y se sirve, pero quien lo lee son las pruebas. Sin ella, el bloque «asistente tipo Alexa sobre el backend generado» del enunciado sigue abierto. | Pendiente (fases 2 a 5) |
 
 ---
 

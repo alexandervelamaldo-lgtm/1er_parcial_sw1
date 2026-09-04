@@ -1,0 +1,106 @@
+package {{{project.basePackage}}}.infraestructura;
+
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+
+/**
+ * Acceso a la tabla `idempotencia`.
+ *
+ * Usa `JdbcTemplate` y no JPA a propósito. Quien lo llama es un filtro, que se
+ * ejecuta fuera de la transacción de la petición y antes de que exista un
+ * contexto de persistencia; meter una entidad JPA aquí obligaría a razonar sobre
+ * en qué transacción vive la reserva, y la respuesta correcta es que vive en la
+ * suya, confirmada de inmediato. Es justo lo que hace `JdbcTemplate` con la
+ * conexión en autoconfirmación.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+@Component
+public class AlmacenIdempotencia {
+
+    /**
+     * A partir de aquí, una reserva sin completar se da por abandonada.
+     *
+     * Sin este plazo, una aplicación que muere a mitad de una petición dejaría
+     * la clave bloqueada para siempre y el móvil reintentaría contra un 409
+     * eterno, que es exactamente el fallo que este mecanismo debía evitar. Dos
+     * minutos son de sobra para cualquier petición de este backend y lo bastante
+     * poco para que un reintento razonable la recupere.
+     */
+    private static final Duration PLAZO_ABANDONO = Duration.ofMinutes(2);
+
+    private final JdbcTemplate jdbc;
+
+    public AlmacenIdempotencia(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    /** Lo que se sabe de una clave ya vista. */
+    public record Registro(String huella, boolean completada, Integer estadoHttp,
+                           String cuerpo, String tipoContenido) {
+    }
+
+    /**
+     * Intenta reservar la clave.
+     *
+     * Devuelve `true` si esta petición es la primera y debe ejecutarse. El
+     * `ON CONFLICT DO NOTHING` es la exclusión mutua: dos peticiones simultáneas
+     * con la misma clave compiten por la misma clave primaria y solo una gana,
+     * la decida el motor y no el orden en que dos hilos leyeron una tabla.
+     */
+    public boolean reservar(String clave, String huella) {
+        return jdbc.update(
+                "INSERT INTO idempotencia (clave, huella, completada) VALUES (?, ?, FALSE) "
+                        + "ON CONFLICT (clave) DO NOTHING",
+                clave, huella) == 1;
+    }
+
+    public Optional<Registro> buscar(String clave) {
+        List<Registro> filas = jdbc.query(
+                "SELECT huella, completada, estado_http, cuerpo, tipo_contenido "
+                        + "FROM idempotencia WHERE clave = ?",
+                (rs, fila) -> new Registro(
+                        rs.getString("huella"),
+                        rs.getBoolean("completada"),
+                        (Integer) rs.getObject("estado_http"),
+                        rs.getString("cuerpo"),
+                        rs.getString("tipo_contenido")),
+                clave);
+        return filas.stream().findFirst();
+    }
+
+    /** Guarda la respuesta para poder repetirla ante un reenvío. */
+    public void completar(String clave, int estadoHttp, String cuerpo, String tipoContenido) {
+        jdbc.update(
+                "UPDATE idempotencia SET completada = TRUE, estado_http = ?, cuerpo = ?, "
+                        + "tipo_contenido = ? WHERE clave = ?",
+                estadoHttp, cuerpo, tipoContenido, clave);
+    }
+
+    /**
+     * Libera la reserva sin guardar respuesta.
+     *
+     * Se llama cuando la petición no terminó en 2xx. Es deliberado: si nada se
+     * escribió, repetir no duplica nada, y dejar la clave quemada convertiría un
+     * fallo transitorio del servidor en un error permanente para ese dictado.
+     */
+    public void liberar(String clave) {
+        jdbc.update("DELETE FROM idempotencia WHERE clave = ?", clave);
+    }
+
+    /**
+     * Retira una reserva abandonada para que quien pregunta pueda quedársela.
+     * Devuelve `true` si la retiró.
+     */
+    public boolean caducarSiAbandonada(String clave) {
+        Timestamp limite = Timestamp.from(Instant.now().minus(PLAZO_ABANDONO));
+        return jdbc.update(
+                "DELETE FROM idempotencia WHERE clave = ? AND completada = FALSE AND creada_en < ?",
+                clave, limite) == 1;
+    }
+}

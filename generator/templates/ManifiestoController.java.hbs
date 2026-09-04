@@ -1,0 +1,92 @@
+package {{{project.basePackage}}}.controller;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * Manifiesto del asistente.
+ *
+ * Este endpoint es lo que permite que exista **una sola** app móvil para todos
+ * los proyectos generados. La app no conoce {{#each entities}}{{#unless @first}}, {{/unless}}{{{this.className}}}{{/each}}
+ * ni ninguna otra clase de este diagrama: al conectarse pide este documento y de
+ * él deduce las pantallas, los formularios y las órdenes de voz que reconoce.
+ * Generar un proyecto Flutter distinto por diagrama obligaría a recompilar e
+ * instalar un APK cada vez que alguien mueve una caja en el lienzo.
+ *
+ * El contenido se lee del classpath una sola vez, al construir el bean. Es un
+ * fichero generado y no cambia mientras la aplicación vive; releerlo en cada
+ * petición sería un acceso a disco por arranque de móvil a cambio de nada.
+ *
+ * Se sirve con ETag. La app pregunta por el manifiesto cada vez que arranca, y
+ * casi siempre no ha cambiado: con `If-None-Match` esa comprobación cuesta un
+ * 304 sin cuerpo en lugar de volver a descargar el documento entero por una red
+ * que puede ser la del móvil de un barbero.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+@RestController
+@RequestMapping("/asistente")
+public class ManifiestoController {
+
+    private static final String RECURSO = "asistente/manifiesto.json";
+
+    private final String manifiesto;
+    private final String etag;
+
+    public ManifiestoController() {
+        this.manifiesto = leerRecurso();
+        this.etag = "\"" + huella(this.manifiesto) + "\"";
+    }
+
+    @GetMapping(value = "/manifiesto", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> manifiesto() {
+        return ResponseEntity.ok()
+                .eTag(etag)
+                // `mustRevalidate` y no una caducidad en segundos: un manifiesto
+                // viejo no da un resultado desactualizado, da un formulario al
+                // que le falta un campo obligatorio y un 400 que el usuario no
+                // sabe explicar. Preferimos la comprobación condicional.
+                .cacheControl(CacheControl.noCache().mustRevalidate())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(manifiesto);
+    }
+
+    /**
+     * Si falta el recurso, el arranque falla aquí y no en el móvil de alguien
+     * durante una demostración. Un manifiesto ausente no es un caso degradado
+     * que valga la pena tolerar: sin él la app no tiene nada que mostrar.
+     */
+    private static String leerRecurso() {
+        try (InputStream entrada = new ClassPathResource(RECURSO).getInputStream()) {
+            return new String(entrada.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "No se encontró " + RECURSO + " en el classpath. "
+                            + "Es un fichero generado: vuelve a generar el proyecto.", e);
+        }
+    }
+
+    private static String huella(String contenido) {
+        try {
+            byte[] resumen = MessageDigest.getInstance("SHA-256")
+                    .digest(contenido.getBytes(StandardCharsets.UTF_8));
+            // Dieciséis dígitos hexadecimales bastan para distinguir versiones de
+            // un fichero que cambia cuando cambia el diagrama; no es un control
+            // de integridad frente a un adversario.
+            return HexFormat.of().formatHex(resumen).substring(0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 no disponible en esta JVM", e);
+        }
+    }
+}

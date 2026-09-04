@@ -55,6 +55,72 @@ entre la migración y las entidades, no en la configuración.
 {{/unless}}
 {{/each}}
 
+## Manifiesto del asistente
+
+| Método | Ruta | Descripción |
+| --- | --- | --- |
+| GET | `/asistente/manifiesto` | Describe este backend para la app móvil |
+
+La app móvil del asistente de voz es **una sola aplicación para todos los
+proyectos generados**. No conoce {{#each entities}}{{#unless @first}}, {{/unless}}`{{{this.className}}}`{{/each}}
+ni ninguna otra clase de este
+diagrama: al conectarse pide este documento y de él deduce las pantallas, los
+formularios y las órdenes de voz que reconoce. La alternativa —generar un
+proyecto Flutter distinto por diagrama— obligaría a recompilar e instalar un APK
+cada vez que alguien mueve una caja en el lienzo.
+
+El documento se sirve con `ETag`. La app pregunta por él en cada arranque, así
+que conviene mandar `If-None-Match` y quedarse con el 304 cuando no ha cambiado:
+
+```bash
+curl -i http://localhost:8080/asistente/manifiesto
+curl -i -H 'If-None-Match: "<el etag que devolvió>"' http://localhost:8080/asistente/manifiesto
+```
+
+De cada entidad describe la ruta REST, cómo se nombra al hablar (singular y
+plural), los campos con su tipo, cuáles son obligatorios, la lista cerrada de
+valores de cada enumerado, qué acciones exigen confirmación en voz alta y qué
+otras entidades desaparecen si se borra —para que el aviso hablado pueda decir
+«esto también eliminará sus líneas» en vez de un «¿seguro?» genérico.
+
+El fichero está en `src/main/resources/asistente/manifiesto.json` y se puede
+abrir y leer. Se regenera con el proyecto: no lo edites a mano.
+
+## Reintentos sin conexión: `Idempotency-Key`
+
+El asistente móvil guarda cada orden dictada en una bandeja de salida y la
+reenvía al recuperar la red. Si el servidor escribe y la respuesta se pierde por
+el camino, el móvil no distingue «no llegó» de «llegó y no me enteré», así que
+reenvía; sin nada que lo impida, una cita dictada una vez acaba siendo tres.
+
+Cualquier `POST`, `PUT`, `PATCH` o `DELETE` acepta la cabecera:
+
+```bash
+curl -X POST http://localhost:8080/api/RUTA \
+     -H 'Content-Type: application/json' \
+     -H 'Idempotency-Key: dictado-2f8c1ab94e7d4c02' \
+     -d '{ ... }'
+```
+
+Reglas:
+
+- La clave debe generarla el cliente **en el momento de dictar**, no al enviar.
+  Si se generase al enviar, cada reintento traería una clave distinta y no
+  habría nada que comparar.
+- Entre 8 y 120 caracteres alfanuméricos, punto, dos puntos, guion o subrayado.
+- Repetir la petición devuelve la respuesta guardada, con el mismo cuerpo y el
+  mismo código, y añade `Idempotent-Replay: true`.
+- Reutilizar la clave con un cuerpo distinto devuelve `409`: una clave
+  identifica una orden concreta, no una sesión.
+- Sin la cabecera todo funciona como siempre. Es opcional: el cliente web no la
+  necesita porque tiene al usuario delante para ver qué ha pasado.
+
+Solo se guardan las respuestas de éxito, en la tabla `idempotencia`: un fallo no
+dejó nada escrito, así que repetirlo no duplica nada, y guardar un `500`
+transitorio quemaría la clave para siempre. Ningún proceso purga esa tabla
+automáticamente —es una decisión de operación—; la sentencia de limpieza está
+comentada en `V3__idempotencia.sql`.
+
 ## Variables de entorno
 
 | Variable | Valor por defecto |

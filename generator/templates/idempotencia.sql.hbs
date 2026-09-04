@@ -1,0 +1,42 @@
+-- Registro de peticiones idempotentes.
+--
+-- Existe por el modo sin conexión del asistente móvil (RF-OFF-*). El teléfono
+-- guarda las órdenes dictadas en una bandeja de salida y las reenvía al
+-- reconectar. Un reenvío que no llega a confirmarse —el móvil pierde cobertura
+-- justo después de que el servidor escriba— se repite, y sin este registro
+-- «agéndame la cita de mañana» acabaría creando tres citas.
+--
+-- La clave la genera el móvil **en el momento de dictar**, no al enviar: si se
+-- generase al enviar, cada reintento traería una clave distinta y el registro no
+-- serviría de nada.
+--
+-- Va en la versión 3 y no en la 1 a propósito. La 1 es el esquema del diagrama y
+-- puede haberse aplicado ya en una base de datos existente; editarla dejaría la
+-- checksum de Flyway inconsistente y el arranque fallaría. La 2 está reservada
+-- para los datos iniciales.
+--
+-- Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+
+CREATE TABLE idempotencia (
+    clave           VARCHAR(120) PRIMARY KEY,
+    -- Resumen de método + ruta + cuerpo. Reutilizar una clave con una petición
+    -- distinta es un error del cliente, no un reintento, y devolver la respuesta
+    -- guardada sería mentirle.
+    huella          VARCHAR(64)  NOT NULL,
+    estado_http     INTEGER,
+    cuerpo          TEXT,
+    tipo_contenido  VARCHAR(120),
+    -- Falso mientras la petición está en curso. La fila se inserta ANTES de
+    -- ejecutarla, y esa inserción es lo que excluye a un duplicado simultáneo:
+    -- la exclusión mutua la da la clave primaria, no un bloqueo en memoria, y
+    -- por eso sigue funcionando con varias instancias detrás de un balanceador.
+    completada      BOOLEAN      NOT NULL DEFAULT FALSE,
+    creada_en       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Para la limpieza periódica; la tabla crece con cada escritura del móvil.
+-- No hay proceso automático que la purgue: añadir un planificador al proyecto
+-- generado impondría una decisión de operación que no es nuestra. Cuando haga
+-- falta, la sentencia es
+--     DELETE FROM idempotencia WHERE creada_en < CURRENT_TIMESTAMP - INTERVAL '7 days';
+CREATE INDEX idx_idempotencia_creada_en ON idempotencia (creada_en);

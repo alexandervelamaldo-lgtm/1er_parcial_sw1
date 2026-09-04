@@ -1,0 +1,324 @@
+package {{{project.basePackage}}}.infraestructura;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ContentCachingResponseWrapper;
+
+/**
+ * Idempotencia de las escrituras que llegan desde el móvil sin conexión.
+ *
+ * El problema. El asistente guarda cada orden dictada en una bandeja de salida y
+ * la reenvía al recuperar la red. Si el servidor escribe y la respuesta se
+ * pierde por el camino, el móvil no distingue «no llegó» de «llegó y no me
+ * enteré», así que reenvía; sin nada que lo impida, «agéndame la cita de mañana»
+ * dictada una vez acaba siendo tres citas.
+ *
+ * La solución. El cliente manda una cabecera `Idempotency-Key` generada **al
+ * dictar**, no al enviar —si se generase al enviar, cada reintento traería una
+ * clave distinta y no habría nada que comparar—. La primera petición con esa
+ * clave se ejecuta y su respuesta se guarda; cualquier reenvío recibe la
+ * respuesta guardada sin volver a tocar la base de datos.
+ *
+ * Por qué un filtro y no un aspecto en el servicio: aquí la respuesta ya está
+ * serializada, y lo que hay que repetir ante un reenvío es exactamente los
+ * bytes que vio el cliente la primera vez, con su mismo código de estado.
+ * Reconstruirlos desde la capa de servicio sería adivinar.
+ *
+ * La cabecera es opcional. Una petición sin ella pasa de largo: el cliente web
+ * no la necesita, porque tiene al usuario delante para ver qué ha pasado.
+ *
+ * Generado a partir del diagrama «{{{project.name}}}». No editar a mano.
+ */
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+public class FiltroIdempotencia extends OncePerRequestFilter {
+
+    public static final String CABECERA = "Idempotency-Key";
+
+    /** Se marca la respuesta repetida para que el cliente pueda distinguirla. */
+    public static final String CABECERA_REPETIDA = "Idempotent-Replay";
+
+    private static final Set<String> METODOS_CON_EFECTO = Set.of("POST", "PUT", "PATCH", "DELETE");
+
+    /**
+     * Lista blanca de la clave (RNF-SEG-06). La clave la escribe un cliente y
+     * acaba en una consulta y en un registro; aunque la consulta va
+     * parametrizada, se acota la forma y la longitud para que una cabecera de
+     * diez megabytes no se convierta en una fila de diez megabytes.
+     */
+    private static final Pattern CLAVE_VALIDA = Pattern.compile("^[A-Za-z0-9_.:-]{8,120}$");
+
+    /**
+     * Tope del cuerpo que se retiene en memoria para calcular su huella.
+     *
+     * El filtro tiene que leer el cuerpo entero antes de que lo lea el
+     * controlador, y eso significa tenerlo en memoria. Un megabyte es
+     * holgadísimo para el JSON de un formulario dictado; por encima de eso la
+     * petición sigue su curso **sin** idempotencia en vez de reservar memoria
+     * sin límite, y se avisa por el registro.
+     */
+    private static final int MAXIMO_CUERPO = 1024 * 1024;
+
+    private final AlmacenIdempotencia almacen;
+
+    public FiltroIdempotencia(AlmacenIdempotencia almacen) {
+        this.almacen = almacen;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest peticion, HttpServletResponse respuesta,
+                                    FilterChain cadena) throws ServletException, IOException {
+
+        String clave = peticion.getHeader(CABECERA);
+        if (clave == null || !METODOS_CON_EFECTO.contains(peticion.getMethod())) {
+            cadena.doFilter(peticion, respuesta);
+            return;
+        }
+
+        if (!CLAVE_VALIDA.matcher(clave).matches()) {
+            error(respuesta, HttpStatus.BAD_REQUEST,
+                    "La cabecera " + CABECERA + " debe tener entre 8 y 120 caracteres "
+                            + "alfanuméricos, punto, dos puntos, guion o subrayado.");
+            return;
+        }
+
+        byte[] cuerpo = leerCuerpo(peticion);
+        if (cuerpo == null) {
+            logger.warn("Cuerpo demasiado grande para aplicar idempotencia; se deja pasar sin ella");
+            cadena.doFilter(peticion, respuesta);
+            return;
+        }
+
+        String huella = huella(peticion.getMethod(), peticion.getRequestURI(), cuerpo);
+        HttpServletRequest reproducible = new PeticionConCuerpoRetenido(peticion, cuerpo);
+
+        if (almacen.reservar(clave, huella)) {
+            ejecutarYGuardar(clave, reproducible, respuesta, cadena);
+            return;
+        }
+
+        // La clave ya existe. O es un reenvío legítimo, o es una petición
+        // simultánea, o es una reserva que quedó huérfana al morir el proceso.
+        Optional<AlmacenIdempotencia.Registro> registro = almacen.buscar(clave);
+        if (registro.isEmpty()) {
+            // Alguien la borró entre el INSERT y el SELECT. Se reintenta una vez;
+            // si vuelve a fallar, el 409 es la respuesta honesta.
+            if (almacen.reservar(clave, huella)) {
+                ejecutarYGuardar(clave, reproducible, respuesta, cadena);
+            } else {
+                error(respuesta, HttpStatus.CONFLICT, "Hay otra petición en curso con esa clave.");
+            }
+            return;
+        }
+
+        AlmacenIdempotencia.Registro previo = registro.get();
+
+        if (!previo.huella().equals(huella)) {
+            error(respuesta, HttpStatus.CONFLICT,
+                    "Esa " + CABECERA + " ya se usó con una petición distinta. "
+                            + "Una clave de idempotencia identifica una orden concreta, "
+                            + "no una sesión.");
+            return;
+        }
+
+        if (!previo.completada()) {
+            if (almacen.caducarSiAbandonada(clave) && almacen.reservar(clave, huella)) {
+                ejecutarYGuardar(clave, reproducible, respuesta, cadena);
+                return;
+            }
+            respuesta.setHeader("Retry-After", "2");
+            error(respuesta, HttpStatus.CONFLICT,
+                    "Hay otra petición en curso con esa clave. Inténtalo de nuevo en unos segundos.");
+            return;
+        }
+
+        repetir(respuesta, previo);
+    }
+
+    /**
+     * Ejecuta la petición y guarda su respuesta.
+     *
+     * Solo se guarda el 2xx. Un fallo no ha dejado nada escrito, así que
+     * repetirlo no duplica nada, y guardar un 500 transitorio quemaría la clave:
+     * el móvil reintentaría durante días recibiendo siempre el mismo error de
+     * hace una semana.
+     */
+    private void ejecutarYGuardar(String clave, HttpServletRequest peticion,
+                                  HttpServletResponse respuesta, FilterChain cadena)
+            throws ServletException, IOException {
+
+        ContentCachingResponseWrapper capturada = new ContentCachingResponseWrapper(respuesta);
+        boolean exito = false;
+        try {
+            cadena.doFilter(peticion, capturada);
+            int estado = capturada.getStatus();
+            exito = estado >= 200 && estado < 300;
+            if (exito) {
+                almacen.completar(clave, estado,
+                        new String(capturada.getContentAsByteArray(), StandardCharsets.UTF_8),
+                        capturada.getContentType());
+            }
+        } finally {
+            if (!exito) {
+                // También en el camino de la excepción: si el controlador ha
+                // lanzado, la reserva no debe sobrevivir al fallo.
+                almacen.liberar(clave);
+            }
+            // Sin esto el cliente recibe una respuesta vacía: el envoltorio
+            // retiene los bytes y hay que devolverlos a la respuesta real.
+            capturada.copyBodyToResponse();
+        }
+    }
+
+    private void repetir(HttpServletResponse respuesta, AlmacenIdempotencia.Registro previo)
+            throws IOException {
+        respuesta.setStatus(previo.estadoHttp() == null ? 200 : previo.estadoHttp());
+        respuesta.setHeader(CABECERA_REPETIDA, "true");
+        if (previo.tipoContenido() != null) {
+            respuesta.setContentType(previo.tipoContenido());
+        }
+        if (previo.cuerpo() != null) {
+            // Bytes UTF-8 y no `getWriter()`. El cuerpo se guardó decodificando
+            // como UTF-8, pero la codificación por defecto de una respuesta de
+            // servlet es ISO-8859-1: escribirlo como texto convertiría un
+            // «Martínez» en «MartÃ­nez» al repetir, y solo al repetir, que es
+            // el fallo más difícil de reproducir que se puede dejar aquí.
+            byte[] datos = previo.cuerpo().getBytes(StandardCharsets.UTF_8);
+            respuesta.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            respuesta.setContentLength(datos.length);
+            respuesta.getOutputStream().write(datos);
+        }
+        // No se restauran otras cabeceras de la respuesta original. En un 201
+        // eso significa que la repetición no lleva `Location`; el identificador
+        // viaja en el cuerpo, que es de donde lo lee la app. Guardarlas todas
+        // exigiría una columna más y una decisión sobre cuáles son seguras de
+        // repetir, y hoy nadie las necesita.
+    }
+
+    /** Devuelve `null` si el cuerpo excede el tope. */
+    private static byte[] leerCuerpo(HttpServletRequest peticion) throws IOException {
+        if (peticion.getContentLengthLong() > MAXIMO_CUERPO) {
+            return null;
+        }
+        byte[] datos = peticion.getInputStream().readNBytes(MAXIMO_CUERPO + 1);
+        return datos.length > MAXIMO_CUERPO ? null : datos;
+    }
+
+    private static String huella(String metodo, String ruta, byte[] cuerpo) {
+        try {
+            MessageDigest resumen = MessageDigest.getInstance("SHA-256");
+            resumen.update(metodo.getBytes(StandardCharsets.UTF_8));
+            resumen.update((byte) '\n');
+            resumen.update(ruta.getBytes(StandardCharsets.UTF_8));
+            resumen.update((byte) '\n');
+            resumen.update(cuerpo);
+            return HexFormat.of().formatHex(resumen.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 no disponible en esta JVM", e);
+        }
+    }
+
+    /**
+     * El mismo formato de error que `GlobalExceptionHandler`, escrito a mano.
+     *
+     * Un filtro se ejecuta antes de que exista el `@RestControllerAdvice`, así
+     * que lanzar una excepción aquí no produciría un `ErrorResponse` sino la
+     * página de error por defecto del contenedor. Que el cliente reciba dos
+     * formatos de error distintos según dónde falle es la clase de detalle que
+     * obliga a escribir dos ramas de análisis en el móvil.
+     */
+    private static void error(HttpServletResponse respuesta, HttpStatus estado, String mensaje)
+            throws IOException {
+        respuesta.setStatus(estado.value());
+        respuesta.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        respuesta.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        respuesta.getWriter().write(
+                "{\"timestamp\":\"" + java.time.Instant.now() + "\","
+                        + "\"status\":" + estado.value() + ","
+                        + "\"error\":\"" + estado.getReasonPhrase() + "\","
+                        + "\"message\":\"" + escapar(mensaje) + "\","
+                        + "\"fieldErrors\":{}}");
+    }
+
+    /**
+     * Los mensajes son constantes de esta clase, no texto del usuario, pero se
+     * escapan igualmente: el día que alguien añada un mensaje que interpole un
+     * valor recibido, el escape ya estará puesto.
+     */
+    private static String escapar(String texto) {
+        return texto.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    /**
+     * Reexpone el cuerpo ya leído para que el controlador pueda leerlo de nuevo.
+     *
+     * El flujo de entrada de una petición se consume una sola vez. Como el filtro
+     * necesita el cuerpo para calcular la huella, sin este envoltorio el
+     * controlador recibiría un flujo vacío y todo `@RequestBody` fallaría.
+     */
+    private static final class PeticionConCuerpoRetenido extends HttpServletRequestWrapper {
+
+        private final byte[] cuerpo;
+
+        private PeticionConCuerpoRetenido(HttpServletRequest original, byte[] cuerpo) {
+            super(original);
+            this.cuerpo = cuerpo;
+        }
+
+        @Override
+        public ServletInputStream getInputStream() {
+            ByteArrayInputStream origen = new ByteArrayInputStream(cuerpo);
+            return new ServletInputStream() {
+                @Override
+                public int read() {
+                    return origen.read();
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return origen.available() == 0;
+                }
+
+                @Override
+                public boolean isReady() {
+                    return true;
+                }
+
+                @Override
+                public void setReadListener(ReadListener listener) {
+                    // Solo se usa en lectura sincrónica: el cuerpo ya está en
+                    // memoria y nunca hay que esperar a que llegue más.
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
+
+        @Override
+        public BufferedReader getReader() {
+            return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
+        }
+    }
+}

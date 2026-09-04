@@ -10,6 +10,7 @@ export { normalize, type NormalizeOptions } from './ir/normalize.js';
 export { validateDiagram, type ValidationResult } from './validation/validate.js';
 export { buildEntityView, generateProject } from './render/generate.js';
 export { render, listTemplates } from './render/engine.js';
+export { buildManifiesto, renderManifiesto } from './asistente/manifiesto.js';
 export { toZipBuffer, writeToDisk, writeZipToDisk, zipSize } from './package/zip.js';
 export { CORPUS, tiendaDiagram, rrhhDiagram, minimoDiagram } from './fixtures/corpus.js';
 

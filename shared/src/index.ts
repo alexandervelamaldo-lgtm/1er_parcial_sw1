@@ -27,6 +27,10 @@ export * from './xmi/analisis.js';
 export * from './xmi/casos-de-uso.js';
 export * from './xmi/catalogo-md.js';
 export * from './xmi/ea-comunicacion.js';
+// Contrato del manifiesto del asistente móvil. Vive en `shared` porque lo
+// escribe el generador y lo lee la app: un contrato que solo conoce quien lo
+// emite no es un contrato.
+export * from './asistente/manifiesto.js';
 export * from './guia/corpus.js';
 export * from './guia/buscar.js';
 export * from './guia/prompt.js';
