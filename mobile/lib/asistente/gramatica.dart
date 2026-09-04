@@ -695,6 +695,52 @@ const Set<String> _negaciones = <String>{
   'no', 'false', 'falso', 'falsa', 'inactivo', 'inactiva', '0', 'ninguno',
 };
 
+/// Las palabras con las que se contesta a una propuesta, dichas en voz alta.
+///
+/// Son un repertorio aparte del de los campos booleanos —y no la misma
+/// constante— porque no significan lo mismo. «Adelante» confirma una acción
+/// pero no rellena un campo «activo»; juntarlas haría que dictar «producto
+/// adelante» encendiera el interruptor sin que nadie lo hubiera pedido.
+/// Sin acentos a propósito: lo dictado pasa por `plegar` antes de compararse,
+/// así que un «sí» con tilde aquí dentro no llegaría a coincidir nunca.
+const Set<String> _confirmacionesHabladas = <String>{
+  'si', 'claro', 'correcto', 'vale', 'dale', 'adelante', 'hazlo',
+  'confirmo', 'confirma', 'eso', 'exacto', 'perfecto', 'ok', 'okey',
+};
+
+const Set<String> _cancelacionesHabladas = <String>{
+  'no', 'cancela', 'cancelar', 'para', 'espera', 'olvidalo',
+  'deja', 'dejalo', 'mejor', 'nada', 'anula',
+};
+
+/// Si lo dicho es un «sí» a lo que se acaba de proponer, y nada más.
+///
+/// Va en la gramática y no en la pantalla porque es vocabulario del idioma,
+/// igual que los verbos: la pantalla sabe de botones, no de español.
+///
+/// **Todas** las palabras tienen que ser de confirmación. Es lo que separa un
+/// «sí, adelante» —que confirma— de un «sí, borra el cliente 4», que no es una
+/// respuesta sino una orden nueva y tiene que volver a interpretarse entera. Un
+/// «empieza por sí» habría ejecutado la propuesta anterior y descartado la
+/// frase que de verdad se dijo.
+bool confirmaHablando(String dicho) =>
+    _todasEstanEn(dicho, _confirmacionesHabladas);
+
+/// Si lo dicho descarta la propuesta. Mismas reglas que [confirmaHablando].
+bool cancelaHablando(String dicho) =>
+    _todasEstanEn(dicho, _cancelacionesHabladas);
+
+bool _todasEstanEn(String dicho, Set<String> repertorio) {
+  // La puntuación se cae: el reconocedor de Android devuelve «Sí.» con punto y
+  // sin esto la respuesta más común del mundo no se reconocería.
+  final palabras = plegar(dicho)
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((p) => p.isNotEmpty)
+      .toList(growable: false);
+  if (palabras.isEmpty) return false;
+  return palabras.every(repertorio.contains);
+}
+
 /// Muletillas y conectores. Que sobren estas no baja la confianza; que sobre
 /// cualquier otra cosa, sí.
 const Set<String> _vacias = <String>{

@@ -4,11 +4,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-      Cámara y micrófono los pide la página de dentro del WebView (importar un
-      diagrama desde una foto, y el asistente por voz). Android exige el permiso
-      dos veces y por vías distintas: aquí, al sistema, y en tiempo de ejecución
-      al WebView, que es lo que resuelve `setOnPlatformPermissionRequest` en
-      `main.dart`. Declarar solo uno de los dos da un fallo silencioso.
+      Cámara y micrófono los piden dos partes distintas de la app: la página de
+      dentro del WebView (importar un diagrama desde una foto, y la ayuda por
+      voz del editor) y la pantalla nativa del asistente, que dicta órdenes
+      contra el backend generado. Android exige el permiso dos veces y por vías
+      distintas: aquí, al sistema, y en tiempo de ejecución —al WebView, que lo
+      resuelve `setOnPlatformPermissionRequest` en `main.dart`, y al reconocedor
+      nativo, que lo pide `speech_to_text` dentro de su `initialize()`.
+      Declarar solo uno de los dos da un fallo silencioso.
 
       `required="false"` para que la app siga instalándose en un dispositivo sin
       cámara en vez de desaparecer de la tienda para él.

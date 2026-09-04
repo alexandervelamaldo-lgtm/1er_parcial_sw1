@@ -10,6 +10,7 @@ import 'package:uml_movil/asistente/pantalla_lista.dart';
 import 'package:uml_movil/asistente/sesion.dart';
 
 import 'fixture_tienda.dart';
+import 'motor_falso.dart';
 
 /// El asistente de punta a punta: frase escrita → HTTP de verdad.
 ///
@@ -128,9 +129,12 @@ void main() {
     await servidor.cerrar();
   });
 
+  late MotorFalso microfono;
+
   Future<void> abrir(WidgetTester probador) async {
+    microfono = MotorFalso();
     await probador.pumpWidget(MaterialApp(
-      home: PantallaAsistente(sesion: sesion),
+      home: PantallaAsistente(sesion: sesion, motor: microfono),
     ));
     await probador.pumpAndSettle();
   }
@@ -332,6 +336,178 @@ void main() {
       final clave = servidor.claves['POST /api/clientes'];
       expect(clave, isNotNull);
       expect(clave, startsWith('alta-'));
+    });
+  });
+
+  group('sin tocar la pantalla', () {
+    /// Enciende el micrófono y dicta una frase entera.
+    Future<void> dictar(WidgetTester probador, String frase) async {
+      await probador.tap(find.byTooltip('Hablar'));
+      await probador.pumpAndSettle();
+      microfono.oye(frase);
+      await dejarPasarLaRed(probador);
+    }
+
+    testWidgets('lo que se lleva oído se ve mientras se habla',
+        (probador) async {
+      await abrir(probador);
+      await probador.tap(find.byTooltip('Hablar'));
+      await probador.pumpAndSettle();
+
+      microfono.oyeAMedias('muéstrame los cli');
+      await probador.pumpAndSettle();
+
+      expect(find.text('muéstrame los cli'), findsOneWidget);
+      // Y el botón ya no ofrece hablar, sino parar.
+      expect(find.byTooltip('Parar'), findsOneWidget);
+    });
+
+    testWidgets('lo dictado se lee en voz alta y se pregunta si hacerlo',
+        (probador) async {
+      await abrir(probador);
+      await dictar(probador, 'muéstrame los clientes');
+
+      expect(microfono.dicho, hasLength(1));
+      expect(microfono.dicho.single, contains('Abro la lista de clientes.'));
+      expect(microfono.dicho.single, contains('¿Lo hago?'));
+    });
+
+    testWidgets('tras preguntar se vuelve a abrir el micrófono solo',
+        (probador) async {
+      // Es la única escucha automática de toda la app, y sin ella la demo se
+      // rompe justo en el momento que la justifica: hay una pregunta en el
+      // aire y habría que tocar la pantalla para contestarla.
+      await abrir(probador);
+      await dictar(probador, 'muéstrame los clientes');
+
+      expect(microfono.escuchas, 2);
+      expect(find.byTooltip('Parar'), findsOneWidget);
+    });
+
+    testWidgets('escribir no hace hablar al teléfono', (probador) async {
+      // A quien escribe no se le lee la respuesta: sería una sorpresa ruidosa,
+      // y en una defensa, encima del profesor.
+      await abrir(probador);
+      await decir(probador, 'muéstrame los clientes');
+
+      expect(microfono.dicho, isEmpty);
+      expect(microfono.escuchas, 0);
+    });
+
+    testWidgets('un «sí» dictado ejecuta la propuesta', (probador) async {
+      await abrir(probador);
+      await dictar(probador, 'muéstrame los clientes');
+      microfono.oye('sí');
+      await dejarPasarLaRed(probador);
+
+      expect(find.byType(PantallaLista), findsOneWidget);
+      expect(servidor.peticiones, contains('GET /api/clientes'));
+    });
+
+    testWidgets('un «no» dictado la descarta', (probador) async {
+      await abrir(probador);
+      await dictar(probador, 'muéstrame los clientes');
+      microfono.oye('déjalo');
+      await dejarPasarLaRed(probador);
+
+      expect(find.byType(PantallaLista), findsNothing);
+      expect(find.text('Adelante'), findsNothing);
+      expect(microfono.dicho.last, 'Vale, lo dejo.');
+    });
+
+    testWidgets('rectificar hablando sustituye la propuesta, no la ejecuta',
+        (probador) async {
+      // Quien se explica mal no dice «no»: vuelve a decirlo de otra manera.
+      await abrir(probador);
+      await dictar(probador, 'muéstrame los clientes');
+      microfono.oye('muéstrame los productos');
+      await dejarPasarLaRed(probador);
+
+      expect(find.text('Abro la lista de productos.'), findsWidgets);
+      expect(servidor.peticiones, isNot(contains('GET /api/clientes')));
+    });
+
+    testWidgets('un borrado entero sin tocar la pantalla', (probador) async {
+      // La prueba que sostiene «como si fuera Alexa»: cuatro frases y ningún
+      // toque más allá del primero para abrir el micrófono. Y aun así, el aviso
+      // de qué se lleva por delante se dice antes de tocar la base de datos.
+      await abrir(probador);
+      await dictar(probador, 'borra el pedido 7');
+
+      expect(microfono.dicho.last, contains('También desaparecerán sus linea pedidos.'));
+
+      microfono.oye('sí');
+      await dejarPasarLaRed(probador);
+
+      // La segunda pregunta va contra el registro ya traído, no contra el
+      // número que se dijo.
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(microfono.dicho.last, contains('¿Lo confirmas?'));
+      expect(servidor.borrados, isEmpty);
+
+      microfono.oye('adelante');
+      await dejarPasarLaRed(probador);
+
+      expect(servidor.borrados, ['/api/pedidos/7']);
+      expect(microfono.dicho.last, contains('Borrado'));
+    });
+
+    testWidgets('cancelar hablando en el segundo aviso no borra nada',
+        (probador) async {
+      await abrir(probador);
+      await dictar(probador, 'borra el pedido 7');
+      microfono.oye('sí');
+      await dejarPasarLaRed(probador);
+
+      microfono.oye('mejor no');
+      await dejarPasarLaRed(probador);
+
+      expect(servidor.borrados, isEmpty);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(microfono.dicho.last, 'Cancelado.');
+    });
+
+    testWidgets('lo que no es ni sí ni no se vuelve a preguntar',
+        (probador) async {
+      await abrir(probador);
+      await dictar(probador, 'borra el pedido 7');
+      microfono.oye('sí');
+      await dejarPasarLaRed(probador);
+
+      microfono.oye('pues no sé');
+      await dejarPasarLaRed(probador);
+
+      // Ni se borra ni se cierra el diálogo: se insiste.
+      expect(servidor.borrados, isEmpty);
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(microfono.dicho.last, 'Dime sí o no.');
+    });
+
+    testWidgets('la orden del barbero, dictada y confirmada de viva voz',
+        (probador) async {
+      await abrir(probador);
+      await dictar(probador, 'crea una categoria Herramientas');
+      microfono.oye('vale');
+      await dejarPasarLaRed(probador);
+
+      expect(jsonDecode(servidor.creados.single), {'nombre': 'Herramientas'});
+      expect(microfono.dicho.last, 'Hecho: Herramientas.');
+    });
+
+    testWidgets('un fallo del micrófono se cuenta con lo que hay que hacer',
+        (probador) async {
+      await abrir(probador);
+      await probador.tap(find.byTooltip('Hablar'));
+      await probador.pumpAndSettle();
+
+      microfono.falla('error_language_unavailable');
+      await probador.pumpAndSettle();
+
+      // Las tres cosas: qué pasó, cómo seguir ahora, y cómo arreglarlo.
+      expect(find.textContaining('no tiene el español descargado'),
+          findsOneWidget);
+      expect(find.textContaining('saldrá a internet'), findsOneWidget);
+      expect(find.textContaining('Ajustes'), findsOneWidget);
     });
   });
 
