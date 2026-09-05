@@ -121,11 +121,23 @@ export interface EntityIR {
   methods: MethodIR[];
   /** Imports que solo necesita el servicio, por los tipos de esos métodos. */
   methodImports: string[];
+  /**
+   * Paquete del que cuelgan las capas de esta clase.
+   *
+   * Sin módulos es el paquete base y todo queda como estaba. Con módulos es
+   * `base.ventas`, y de aquí salen tanto el `package …;` de cada fichero como
+   * la carpeta en la que se escribe. Está en la IR y no se calcula en la
+   * plantilla porque una clase de un módulo puede referirse a otra de un módulo
+   * distinto, y entonces hace falta el paquete *del destino*, que la plantilla
+   * no tiene forma de averiguar.
+   */
+  packageName: string;
 }
 
 export interface EnumIR {
   className: string;
   values: string[];
+  packageName: string;
 }
 
 /**
@@ -148,6 +160,7 @@ export interface InterfaceIR {
   className: string;
   methods: MethodIR[];
   imports: string[];
+  packageName: string;
 }
 
 export interface ColumnDDL {

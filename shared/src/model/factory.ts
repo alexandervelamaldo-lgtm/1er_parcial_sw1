@@ -23,6 +23,7 @@ export function createClass(init: Partial<UmlClass> & { name: string }): UmlClas
     size: init.size ?? { w: 220, h: 120 },
     transient: init.transient ?? false,
     seedRows: init.seedRows ?? [],
+    moduleId: init.moduleId ?? null,
   };
 }
 
@@ -96,6 +97,7 @@ export function createDiagram(init: Partial<ClassDiagram> & { name: string }): C
     name: init.name,
     classes: init.classes ?? {},
     relations: init.relations ?? {},
+    modules: init.modules ?? {},
     meta: {
       basePackage: init.meta?.basePackage ?? 'com.ejemplo.proyecto',
       artifactId: init.meta?.artifactId ?? 'proyecto',

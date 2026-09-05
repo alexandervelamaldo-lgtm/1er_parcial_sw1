@@ -2,7 +2,13 @@ import * as Y from 'yjs';
 import { ulid } from '../model/id.js';
 import type { Operation } from '../ops/operations.js';
 import { describeOperation } from '../ops/operations.js';
-import { getClassesMap, getRelationsMap, writeClass, writeSeedRow } from './document.js';
+import {
+  getClassesMap,
+  getModulesMap,
+  getRelationsMap,
+  writeClass,
+  writeSeedRow,
+} from './document.js';
 import { createClass } from '../model/factory.js';
 import type { RelationKind } from '../model/uml.js';
 
@@ -25,7 +31,7 @@ export interface ApplyContext {
 }
 
 export type ApplyResult =
-  | { ok: true; description: string; classId?: string; relationId?: string }
+  | { ok: true; description: string; classId?: string; relationId?: string; moduleId?: string }
   | { ok: false; error: string };
 
 /**
@@ -123,9 +129,14 @@ export function applyOperations(
   let error = '';
   let failedAt = -1;
 
-  const undoable = new Y.UndoManager([getClassesMap(doc), getRelationsMap(doc)], {
-    trackedOrigins: new Set([origin]),
-  });
+  // Los tres mapas, no dos: si el `UndoManager` no vigilase los módulos, un
+  // lote que crea un módulo y falla en la operación siguiente revertiría las
+  // clases y dejaría el módulo puesto, que es justo el estado a medias que este
+  // método existe para evitar.
+  const undoable = new Y.UndoManager(
+    [getClassesMap(doc), getRelationsMap(doc), getModulesMap(doc)],
+    { trackedOrigins: new Set([origin]) },
+  );
 
   doc.transact(() => {
     for (const [index, operation] of operations.entries()) {
@@ -477,7 +488,101 @@ function applyInsideTransaction(doc: Y.Doc, operation: Operation): ApplyResult {
       filas.delete(operation.index - 1, 1);
       return { ok: true, description, classId: target.id };
     }
+
+    case 'addModule': {
+      const modules = getModulesMap(doc);
+      const chocado = segmentoOcupado(modules, operation.packageSegment, null);
+      if (chocado !== null) {
+        return {
+          ok: false,
+          error: `El módulo «${chocado}» ya usa el paquete «${operation.packageSegment}»`,
+        };
+      }
+      const id = ulid();
+      const entry = new Y.Map<unknown>();
+      entry.set('id', id);
+      entry.set('name', operation.name);
+      entry.set('packageSegment', operation.packageSegment);
+      entry.set('description', operation.description);
+      modules.set(id, entry);
+      return { ok: true, description, moduleId: id };
+    }
+
+    case 'updateModule': {
+      const modules = getModulesMap(doc);
+      const entry = modules.get(operation.id);
+      if (!(entry instanceof Y.Map)) {
+        return { ok: false, error: `No existe el módulo ${operation.id}` };
+      }
+      const { changes } = operation;
+      if (changes.packageSegment !== undefined) {
+        const chocado = segmentoOcupado(modules, changes.packageSegment, operation.id);
+        if (chocado !== null) {
+          return {
+            ok: false,
+            error: `El módulo «${chocado}» ya usa el paquete «${changes.packageSegment}»`,
+          };
+        }
+        entry.set('packageSegment', changes.packageSegment);
+      }
+      if (changes.name !== undefined) entry.set('name', changes.name);
+      if (changes.description !== undefined) entry.set('description', changes.description);
+      return { ok: true, description, moduleId: operation.id };
+    }
+
+    case 'removeModule': {
+      const modules = getModulesMap(doc);
+      if (!(modules.get(operation.id) instanceof Y.Map)) {
+        return { ok: false, error: `No existe el módulo ${operation.id}` };
+      }
+      // Se limpia la referencia en cada clase en lugar de dejarla colgando. El
+      // lector ya tolera un `moduleId` huérfano, pero si más tarde reapareciera
+      // un módulo con ese mismo identificador —deshacer y rehacer basta— las
+      // clases volverían solas a un módulo del que se las había sacado.
+      for (const value of classes.values()) {
+        if (!(value instanceof Y.Map)) continue;
+        if (value.get('moduleId') === operation.id) value.delete('moduleId');
+      }
+      modules.delete(operation.id);
+      return { ok: true, description, moduleId: operation.id };
+    }
+
+    case 'assignClassToModule': {
+      const target = resolveClass(doc, operation.classRef);
+      if (!target.ok) return { ok: false, error: target.error };
+      if (operation.moduleId === null) {
+        target.map.delete('moduleId');
+        return { ok: true, description, classId: target.id };
+      }
+      if (!(getModulesMap(doc).get(operation.moduleId) instanceof Y.Map)) {
+        return { ok: false, error: `No existe el módulo ${operation.moduleId}` };
+      }
+      target.map.set('moduleId', operation.moduleId);
+      return { ok: true, description, classId: target.id, moduleId: operation.moduleId };
+    }
   }
+}
+
+/**
+ * Nombre del módulo que ya ocupa ese segmento de paquete, o `null` si está libre.
+ *
+ * Dos módulos con el mismo segmento no dan un error de compilación: dan algo
+ * peor, que es que sus clases acaben mezcladas en la misma carpeta del proyecto
+ * generado sin que nada lo avise. Por eso se rechaza al escribir y no al
+ * generar.
+ */
+function segmentoOcupado(
+  modules: Y.Map<unknown>,
+  segmento: string,
+  exceptoId: string | null,
+): string | null {
+  for (const [id, value] of modules.entries()) {
+    if (!(value instanceof Y.Map) || id === exceptoId) continue;
+    if (value.get('packageSegment') !== segmento) continue;
+    const name = value.get('name');
+    return typeof name === 'string' ? name : id;
+  }
+  return null;
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   describeCardinality,
   type RelationKind,
 } from '../model/uml.js';
+import { isValidJavaPackageSegment } from '../model/naming.js';
 
 /**
  * Operaciones de dominio.
@@ -185,6 +186,66 @@ export const RemoveSeedRowOpSchema = z.object({
   index: z.number().int().min(1),
 });
 
+// ---------------------------------------------------------------------------
+// Módulos
+// ---------------------------------------------------------------------------
+
+/**
+ * El segmento de paquete de un módulo, validado aquí y no más tarde.
+ *
+ * Este es el punto por el que un módulo entra al sistema, venga del formulario,
+ * de una orden dictada o de la respuesta de un modelo de lenguaje. Y el valor
+ * acaba siendo un tramo de `package …;` y un nombre de carpeta dentro del ZIP,
+ * así que es entrada no confiable en el sentido de RNF-SEG-06: se acepta lo que
+ * encaja con la lista blanca y se rechaza lo demás. No se limpia, no se
+ * transforma, no se le quitan los puntos a `../..` para dejarlo pasar.
+ */
+const PackageSegmentSchema = z
+  .string()
+  .min(1)
+  .refine(isValidJavaPackageSegment, {
+    message:
+      'El paquete del módulo debe ser un único segmento Java en minúsculas (ventas, inventario)',
+  });
+
+export const AddModuleOpSchema = z.object({
+  op: z.literal('addModule'),
+  name: z.string().min(1),
+  packageSegment: PackageSegmentSchema,
+  description: z.string().default(''),
+});
+
+export const UpdateModuleOpSchema = z.object({
+  op: z.literal('updateModule'),
+  id: z.string().min(1),
+  changes: z
+    .object({
+      name: z.string().min(1),
+      packageSegment: PackageSegmentSchema,
+      description: z.string(),
+    })
+    .partial(),
+});
+
+/**
+ * Borra el módulo, no sus clases.
+ *
+ * Las clases que estaban dentro vuelven a colgar del paquete base, que es donde
+ * estaban antes de que existiera el módulo. Arrastrarlas al borrarlo convertiría
+ * un cambio de organización en una pérdida de trabajo.
+ */
+export const RemoveModuleOpSchema = z.object({
+  op: z.literal('removeModule'),
+  id: z.string().min(1),
+});
+
+/** Mueve una clase a un módulo, o la saca de todos con `null`. */
+export const AssignClassToModuleOpSchema = z.object({
+  op: z.literal('assignClassToModule'),
+  classRef: ClassRefSchema,
+  moduleId: z.string().min(1).nullable(),
+});
+
 export const OperationSchema = z.discriminatedUnion('op', [
   AddClassOpSchema,
   RenameClassOpSchema,
@@ -202,6 +263,10 @@ export const OperationSchema = z.discriminatedUnion('op', [
   AddEnumLiteralOpSchema,
   SetSeedRowsOpSchema,
   RemoveSeedRowOpSchema,
+  AddModuleOpSchema,
+  UpdateModuleOpSchema,
+  RemoveModuleOpSchema,
+  AssignClassToModuleOpSchema,
 ]);
 
 export type Operation = z.infer<typeof OperationSchema>;
@@ -316,6 +381,28 @@ export function describeOperation(op: Operation): string {
         : `Fijar ${op.rows.length} fila(s) de datos iniciales en «${refName(op.classRef)}»`;
     case 'removeSeedRow':
       return `Eliminar la fila ${op.index} de datos de «${refName(op.classRef)}»`;
+    case 'addModule':
+      return `Crear el módulo «${op.name}» (paquete ${op.packageSegment})`;
+    case 'updateModule': {
+      const { changes } = op;
+      const partes: string[] = [];
+      if (changes.name !== undefined) partes.push(`se llama «${changes.name}»`);
+      // El cambio de paquete se nombra aparte porque no es cosmético: mueve de
+      // sitio todos los ficheros que el generador escriba para ese módulo.
+      if (changes.packageSegment !== undefined) {
+        partes.push(`pasa al paquete ${changes.packageSegment}`);
+      }
+      if (changes.description !== undefined) partes.push('cambia la descripción');
+      return partes.length > 0
+        ? `Modificar el módulo: ${partes.join(', ')}`
+        : 'Modificar el módulo';
+    }
+    case 'removeModule':
+      return 'Eliminar un módulo; sus clases vuelven al paquete base';
+    case 'assignClassToModule':
+      return op.moduleId === null
+        ? `Sacar «${refName(op.classRef)}» de su módulo`
+        : `Mover «${refName(op.classRef)}» a otro módulo`;
   }
 }
 
@@ -341,6 +428,9 @@ const DESTRUCTIVAS: ReadonlySet<OperationKind> = new Set<OperationKind>([
   'removeRelation',
   'removeSeedRow',
   'setSeedRows',
+  // Borrar el módulo no borra clases, pero devuelve todas al paquete base y
+  // pierde el reparto, que es trabajo de organización hecho a mano.
+  'removeModule',
 ]);
 
 export function isDestructiveOperation(op: Operation): boolean {

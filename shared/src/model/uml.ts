@@ -86,6 +86,29 @@ export const SizeSchema = z.object({ w: z.number().positive(), h: z.number().pos
  */
 export const SeedRowSchema = z.record(z.string().min(1), z.string());
 
+/**
+ * Un módulo: un trozo del diagrama que se genera en su propio subpaquete.
+ *
+ * Existe por una razón concreta y comprobable: cambia las rutas que escribe el
+ * generador. Sin módulos, `Pedido` sale en `com.ejemplo.tienda.domain`; dentro
+ * del módulo `ventas` sale en `com.ejemplo.tienda.ventas.domain`, con su
+ * repositorio, su servicio y su controlador al lado. Si no cambiara nada de lo
+ * que se escribe sería una pegatina, y para eso no hace falta un esquema.
+ *
+ * `packageSegment` es **un solo segmento**, no una ruta. El paquete completo lo
+ * compone el generador concatenando `meta.basePackage`. Esa decisión no es
+ * estética: al no aceptar puntos, un módulo no puede colocarse fuera del
+ * paquete base ni subir por el árbol, por mucho que se escriba en su nombre
+ * (RNF-SEG-06).
+ */
+export const UmlModuleSchema = z.object({
+  id: IdSchema,
+  name: z.string().min(1),
+  /** Segmento de paquete Java en minúsculas: `ventas`, `inventario`. */
+  packageSegment: z.string().min(1),
+  description: z.string().default(''),
+});
+
 export const UmlClassSchema = z.object({
   id: IdSchema,
   name: z.string().min(1),
@@ -107,6 +130,16 @@ export const UmlClassSchema = z.object({
    * la migración. No son datos de producción ni pretenden serlo.
    */
   seedRows: z.array(SeedRowSchema).default([]),
+  /**
+   * Módulo al que pertenece la clase, o `null` si cuelga directamente del
+   * paquete base.
+   *
+   * El valor por omisión es `null` a propósito: un diagrama que nunca ha oído
+   * hablar de módulos genera exactamente los mismos ficheros que antes de que
+   * esto existiera. La funcionalidad se activa creando un módulo, no con un
+   * interruptor de configuración.
+   */
+  moduleId: IdSchema.nullable().default(null),
 });
 
 export const EndPointSchema = z.object({
@@ -138,6 +171,7 @@ export const ClassDiagramSchema = z.object({
   name: z.string().min(1),
   classes: z.record(IdSchema, UmlClassSchema).default({}),
   relations: z.record(IdSchema, UmlRelationSchema).default({}),
+  modules: z.record(IdSchema, UmlModuleSchema).default({}),
   meta: DiagramMetaSchema.default({}),
 });
 
@@ -151,6 +185,7 @@ export type Attribute = z.infer<typeof AttributeSchema>;
 export type Parameter = z.infer<typeof ParameterSchema>;
 export type Method = z.infer<typeof MethodSchema>;
 export type SeedRow = z.infer<typeof SeedRowSchema>;
+export type UmlModule = z.infer<typeof UmlModuleSchema>;
 export type UmlClass = z.infer<typeof UmlClassSchema>;
 export type EndPoint = z.infer<typeof EndPointSchema>;
 export type UmlRelation = z.infer<typeof UmlRelationSchema>;
@@ -218,6 +253,50 @@ export function listRelations(diagram: ClassDiagram): UmlRelation[] {
 
 export function getClass(diagram: ClassDiagram, id: Id): UmlClass | undefined {
   return diagram.classes[id];
+}
+
+export function listModules(diagram: ClassDiagram): UmlModule[] {
+  return Object.values(diagram.modules);
+}
+
+export function getModule(diagram: ClassDiagram, id: Id): UmlModule | undefined {
+  return diagram.modules[id];
+}
+
+/**
+ * Clases asignadas a un módulo. Con `null`, las que no están en ninguno.
+ *
+ * Un `moduleId` que apunta a un módulo borrado cuenta como sin asignar. Es la
+ * situación normal cuando dos personas editan a la vez: una borra el módulo
+ * mientras la otra le mete una clase, y el CRDT deja las dos operaciones. La
+ * alternativa —tratarlo como error— convertiría una carrera perfectamente
+ * corriente en un diagrama que no se puede generar.
+ */
+export function classesInModule(diagram: ClassDiagram, moduleId: Id | null): UmlClass[] {
+  return listClasses(diagram).filter((cls) => resolveModuleId(diagram, cls) === moduleId);
+}
+
+/** El `moduleId` de la clase, o `null` si no tiene o si apunta a un módulo que ya no existe. */
+export function resolveModuleId(diagram: ClassDiagram, cls: UmlClass): Id | null {
+  if (cls.moduleId === null) return null;
+  return diagram.modules[cls.moduleId] ? cls.moduleId : null;
+}
+
+/**
+ * El paquete del que cuelgan las capas de esta clase.
+ *
+ * Es la función que hace que un módulo sea algo más que una etiqueta: el
+ * generador construye desde aquí las rutas de `domain/`, `repository/`,
+ * `service/`, `controller/` y `dto/`. Sin módulo devuelve el paquete base tal
+ * cual, que es exactamente lo que devolvía antes de que los módulos
+ * existieran.
+ */
+export function packageForClass(diagram: ClassDiagram, cls: UmlClass): string {
+  const moduleId = resolveModuleId(diagram, cls);
+  if (moduleId === null) return diagram.meta.basePackage;
+  const modulo = diagram.modules[moduleId];
+  if (!modulo) return diagram.meta.basePackage;
+  return `${diagram.meta.basePackage}.${modulo.packageSegment}`;
 }
 
 /** Clases que se materializan como tabla: ni interfaces, ni enums, ni transitorias. */

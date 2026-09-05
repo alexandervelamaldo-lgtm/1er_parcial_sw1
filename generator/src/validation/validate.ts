@@ -6,8 +6,10 @@ import {
   isToMany,
   isValidJavaIdentifier,
   isValidJavaPackage,
+  isValidJavaPackageSegment,
   isValidSqlIdentifier,
   listClasses,
+  listModules,
   listRelations,
   parseMultiplicity,
   pluralize,
@@ -47,6 +49,7 @@ export function validateDiagram(diagram: ClassDiagram): ValidationResult {
   const issues: ValidationIssue[] = [];
 
   validateProjectMeta(diagram, issues);
+  validateModules(diagram, issues);
   validateClassNames(diagram, issues);
   validateNameCollisions(diagram, issues);
   validateIdentifiers(diagram, issues);
@@ -92,6 +95,53 @@ function validateProjectMeta(diagram: ClassDiagram, issues: ValidationIssue[]): 
       code: 'EMPTY_DIAGRAM',
       message: 'El diagrama no contiene ninguna clase.',
     });
+  }
+}
+
+/**
+ * Los módulos, que aportan un tramo al paquete de las clases que contienen.
+ *
+ * Se comprueba aquí además de en la operación que los crea porque un diagrama
+ * puede llegar de otro sitio —un XMI importado, un fichero copiado a mano, una
+ * versión futura del formato— y este es el último punto antes de que el
+ * segmento se convierta en un `package …;` y en una carpeta del ZIP.
+ *
+ * Los dos módulos con el mismo segmento no son un error de compilación sino
+ * algo peor: sus ficheros se mezclan en una carpeta y nadie lo advierte hasta
+ * que dos clases con el mismo nombre se pisan.
+ */
+function validateModules(diagram: ClassDiagram, issues: ValidationIssue[]): void {
+  const porSegmento = new Map<string, string[]>();
+
+  for (const modulo of listModules(diagram)) {
+    if (!isValidJavaPackageSegment(modulo.packageSegment)) {
+      issues.push({
+        severity: 'error',
+        code: 'INVALID_MODULE_SEGMENT',
+        message:
+          `El módulo «${modulo.name}» usa el paquete «${modulo.packageSegment}», que no es ` +
+          `un único segmento Java en minúsculas (por ejemplo: ventas, inventario).`,
+        elementId: modulo.id,
+        elementName: modulo.name,
+      });
+      continue;
+    }
+
+    const bucket = porSegmento.get(modulo.packageSegment) ?? [];
+    bucket.push(modulo.name);
+    porSegmento.set(modulo.packageSegment, bucket);
+  }
+
+  for (const [segmento, nombres] of porSegmento) {
+    if (nombres.length > 1) {
+      issues.push({
+        severity: 'error',
+        code: 'MODULE_SEGMENT_COLLISION',
+        message:
+          `${nombres.length} módulos (${nombres.map((n) => `«${n}»`).join(', ')}) usan el ` +
+          `paquete «${segmento}»: sus clases acabarían mezcladas en la misma carpeta.`,
+      });
+    }
   }
 }
 

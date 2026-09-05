@@ -1,10 +1,10 @@
-package {{{project.basePackage}}}.service;
+package {{{pkg}}}.service;
 
 {{#if serviceNeedsOwnEntity}}
-import {{{project.basePackage}}}.domain.{{{entity.className}}};
+import {{{pkg}}}.domain.{{{entity.className}}};
 {{/if}}
-import {{{project.basePackage}}}.dto.{{{entity.className}}}Request;
-import {{{project.basePackage}}}.dto.{{{entity.className}}}Response;
+import {{{pkg}}}.dto.{{{entity.className}}}Request;
+import {{{pkg}}}.dto.{{{entity.className}}}Response;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 {{#if identifierImport}}

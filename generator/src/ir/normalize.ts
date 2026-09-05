@@ -10,6 +10,7 @@ import {
   listClasses,
   listRelations,
   lookupType,
+  packageForClass,
   pluralize,
   toCamelCase,
   toKebabCase,
@@ -82,9 +83,12 @@ export function normalize(
   const enums: EnumIR[] = enumClasses.map((cls) => ({
     className: toPascalCase(cls.name),
     values: cls.literals.map((l) => l.toUpperCase()),
+    packageName: packageForClass(diagram, cls),
   }));
 
-  const interfaces: InterfaceIR[] = interfaceClasses.map(buildInterface);
+  const interfaces: InterfaceIR[] = interfaceClasses.map((cls) =>
+    buildInterface(cls, packageForClass(diagram, cls)),
+  );
 
   const migration = buildMigration(entities, strategy);
   const seed = buildSeed(entityClasses, entities);
@@ -577,6 +581,7 @@ function buildEntity(
     imports: [],
     methods,
     methodImports: [...methodImports].sort(),
+    packageName: packageForClass(diagram, cls),
   };
 
   entity.imports = computeImports(entity);
@@ -753,13 +758,14 @@ function buildEntityMethods(
   });
 }
 
-function buildInterface(cls: UmlClass): InterfaceIR {
+function buildInterface(cls: UmlClass, packageName: string): InterfaceIR {
   const imports = new Set<string>();
   const methods = buildMethods(cls, imports);
   return {
     className: toPascalCase(cls.name),
     methods,
     imports: [...imports].sort(),
+    packageName,
   };
 }
 

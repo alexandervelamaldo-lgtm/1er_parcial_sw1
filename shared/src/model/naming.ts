@@ -73,6 +73,17 @@ export function isValidJavaPackage(name: string): boolean {
   return name.split('.').every((segment) => !JAVA_RESERVED.has(segment));
 }
 
+/**
+ * Un único segmento de paquete: `ventas` sí, `com.ventas` no.
+ *
+ * Lo usan los módulos, que aportan un solo tramo al paquete base. Rechazar el
+ * punto es lo que impide que un módulo llamado `..` o `com.otro` acabe
+ * escribiendo fuera del paquete base del proyecto.
+ */
+export function isValidJavaPackageSegment(name: string): boolean {
+  return !name.includes('.') && isValidJavaPackage(name);
+}
+
 // ---------------------------------------------------------------------------
 // Conversión de mayúsculas y minúsculas
 // ---------------------------------------------------------------------------

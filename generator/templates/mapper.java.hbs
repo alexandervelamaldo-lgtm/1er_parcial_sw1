@@ -1,16 +1,16 @@
-package {{{project.basePackage}}}.dto.mapper;
+package {{{pkg}}}.dto.mapper;
 
-import {{{project.basePackage}}}.domain.{{{entity.className}}};
-import {{{project.basePackage}}}.dto.{{{entity.className}}}Request;
-import {{{project.basePackage}}}.dto.{{{entity.className}}}Response;
+import {{{pkg}}}.domain.{{{entity.className}}};
+import {{{pkg}}}.dto.{{{entity.className}}}Request;
+import {{{pkg}}}.dto.{{{entity.className}}}Response;
 {{#if toOneAssociations}}
 import {{{project.basePackage}}}.exception.ResourceNotFoundException;
 {{/if}}
 {{#each repositoryDependencies}}
-import {{{../project.basePackage}}}.repository.{{{className}}}Repository;
+import {{{packageName}}}.repository.{{{className}}}Repository;
 {{/each}}
 {{#each repositoryDependencies}}
-import {{{../project.basePackage}}}.domain.{{{className}}};
+import {{{packageName}}}.domain.{{{className}}};
 {{/each}}
 import org.springframework.stereotype.Component;
 {{#each dtoImports}}

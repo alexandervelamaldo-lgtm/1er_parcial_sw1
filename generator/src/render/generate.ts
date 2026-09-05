@@ -45,6 +45,8 @@ export interface ToOneView {
 export interface RepositoryDependency {
   className: string;
   varName: string;
+  /** Paquete de la clase referida, que puede ser el de otro módulo. */
+  packageName: string;
 }
 
 export interface InterfaceMethodStub {
@@ -55,6 +57,15 @@ export interface InterfaceMethodStub {
 export interface EntityView {
   project: ProjectIR;
   entity: EntityIR;
+  /**
+   * Paquete del que cuelgan las capas de *esta* entidad.
+   *
+   * Las plantillas lo usan en lugar de `project.basePackage` para el `package`
+   * de cabecera y para importarse entre sí. Sin módulos vale exactamente lo
+   * mismo que `project.basePackage`, que es la razón de que un diagrama sin
+   * módulos siga generando los mismos ficheros byte a byte.
+   */
+  pkg: string;
   /** Imports de la entidad más los que arrastran las interfaces que realiza. */
   imports: string[];
   /** Métodos que la entidad debe implementar por realizar una interfaz. */
@@ -94,6 +105,7 @@ export interface EntityView {
 
 export function buildEntityView(ir: GenerationIR, entity: EntityIR): EntityView {
   const byName = new Map(ir.entities.map((e) => [e.className, e]));
+  const paquetes = paquetesDeDominio(ir);
 
   const fields = entity.fields.filter((f) => !f.isIdentifier);
   const allFields = [...inheritedFields(entity, byName), ...fields];
@@ -136,13 +148,20 @@ export function buildEntityView(ir: GenerationIR, entity: EntityIR): EntityView 
     .filter((f) => f.unique)
     .map((f) => ({ ...f, pascalName: f.name.charAt(0).toUpperCase() + f.name.slice(1) }));
 
-  const repositoryDependencies = dedupeByClassName(toOneAssociations);
+  const repositoryDependencies = dedupeByClassName(toOneAssociations, paquetes, ir.project);
   const realized = realizedInterfaces(ir, entity);
 
   return {
     project: ir.project,
     entity,
-    imports: [...new Set([...entity.imports, ...realized.imports])].sort(),
+    pkg: entity.packageName,
+    imports: [
+      ...new Set([
+        ...entity.imports,
+        ...realized.imports,
+        ...importsEntreModulos(ir, entity, paquetes),
+      ]),
+    ].sort(),
     interfaceMethods: realized.methods,
     fields,
     allFields,
@@ -159,14 +178,14 @@ export function buildEntityView(ir: GenerationIR, entity: EntityIR): EntityView 
       ),
     ].sort(),
     identifierImport: entity.identifier.javaImport,
-    dtoImports: dtoImportsFor(ir, allFields, associationComponents),
+    dtoImports: dtoImportsFor(ir, allFields, associationComponents, paquetes),
     requestComponents: [...fieldComponents, ...associationComponents],
     responseComponents: [identifierComponent, ...fieldComponents, ...associationComponents],
     toOneAssociations,
     repositoryDependencies,
     serviceMethods: entity.methods,
     hasServiceMethods: entity.methods.length > 0,
-    serviceImports: serviceImportsFor(ir, entity),
+    serviceImports: serviceImportsFor(ir, entity, paquetes),
     serviceNeedsOwnEntity: mentionsOwnEntity(entity),
   };
 }
@@ -183,13 +202,12 @@ export function buildEntityView(ir: GenerationIR, entity: EntityIR): EntityView 
  * Se descarta el import del identificador porque la plantilla ya lo emite por
  * su cuenta, y un `import` repetido no compila.
  */
-function serviceImportsFor(ir: GenerationIR, entity: EntityIR): string[] {
+function serviceImportsFor(
+  ir: GenerationIR,
+  entity: EntityIR,
+  paquetes: Map<string, string>,
+): string[] {
   const imports = new Set(entity.methodImports);
-  const delDominio = new Set([
-    ...ir.enums.map((e) => e.className),
-    ...ir.entities.map((e) => e.className),
-    ...ir.interfaces.map((i) => i.className),
-  ]);
 
   for (const method of entity.methods) {
     for (const tipo of [method.returnType, ...method.parameters.map((p) => p.javaType)]) {
@@ -197,14 +215,63 @@ function serviceImportsFor(ir: GenerationIR, entity: EntityIR): string[] {
       const base = tipo.replace(/^List<(.+)>$/, '$1');
       // La propia entidad va aparte: la implementación ya la importa para el
       // CRUD y repetir el import no compila. Ver `serviceNeedsOwnEntity`.
-      if (base !== entity.className && delDominio.has(base)) {
-        imports.add(`${ir.project.basePackage}.domain.${base}`);
-      }
+      if (base === entity.className) continue;
+      const paquete = paquetes.get(base);
+      if (paquete !== undefined) imports.add(`${paquete}.domain.${base}`);
     }
   }
 
   imports.delete(entity.identifier.javaImport ?? '');
   return [...imports].sort();
+}
+
+/**
+ * Todas las clases del diagrama con el paquete en el que se van a escribir.
+ *
+ * Es el índice que permite que una clase de un módulo importe a otra de un
+ * módulo distinto. Antes de los módulos no hacía falta —todo colgaba de
+ * `basePackage.domain`— y por eso las plantillas lo construían con una
+ * concatenación; ahora el destino manda, y solo se sabe mirándolo.
+ */
+function paquetesDeDominio(ir: GenerationIR): Map<string, string> {
+  const paquetes = new Map<string, string>();
+  for (const enumeration of ir.enums) paquetes.set(enumeration.className, enumeration.packageName);
+  for (const contract of ir.interfaces) paquetes.set(contract.className, contract.packageName);
+  for (const entity of ir.entities) paquetes.set(entity.className, entity.packageName);
+  return paquetes;
+}
+
+/**
+ * Imports que la entidad necesita por referirse a clases de otro módulo.
+ *
+ * Sin módulos esta función no devuelve nada: todo el dominio comparte paquete y
+ * Java no pide import para el paquete propio. En cuanto `Pedido` vive en
+ * `ventas` y `Cliente` en `clientes`, la referencia deja de resolverse sola y
+ * falta el import — que es exactamente el fallo de compilación que hay que
+ * evitar, y la razón por la que el reparto en módulos no puede ser cosmético.
+ *
+ * Se mira todo lo que la clase generada nombra: el tipo de las asociaciones,
+ * los enumerados de sus campos, la superclase y las interfaces que realiza.
+ */
+function importsEntreModulos(
+  ir: GenerationIR,
+  entity: EntityIR,
+  paquetes: Map<string, string>,
+): string[] {
+  const referidas = new Set<string>([
+    ...entity.associations.map((a) => a.targetClass),
+    ...entity.fields.filter((f) => f.isEnum).map((f) => f.javaType),
+    ...entity.implementsInterfaces,
+  ]);
+  if (entity.superclass) referidas.add(entity.superclass);
+
+  const imports: string[] = [];
+  for (const nombre of referidas) {
+    const paquete = paquetes.get(nombre);
+    if (paquete === undefined || paquete === entity.packageName) continue;
+    imports.push(`${paquete}.domain.${nombre}`);
+  }
+  return imports;
 }
 
 /**
@@ -294,11 +361,19 @@ function realizedInterfaces(
   return { methods: [...methods.values()], imports: [...imports] };
 }
 
-function dedupeByClassName(associations: ToOneView[]): RepositoryDependency[] {
+function dedupeByClassName(
+  associations: ToOneView[],
+  paquetes: Map<string, string>,
+  project: ProjectIR,
+): RepositoryDependency[] {
   const seen = new Map<string, RepositoryDependency>();
   for (const assoc of associations) {
     if (seen.has(assoc.targetClass)) continue;
-    seen.set(assoc.targetClass, { className: assoc.targetClass, varName: assoc.targetVar });
+    seen.set(assoc.targetClass, {
+      className: assoc.targetClass,
+      varName: assoc.targetVar,
+      packageName: paquetes.get(assoc.targetClass) ?? project.basePackage,
+    });
   }
   return [...seen.values()];
 }
@@ -312,6 +387,7 @@ function dtoImportsFor(
   ir: GenerationIR,
   fields: FieldIR[],
   associationComponents: DtoComponent[],
+  paquetes: Map<string, string>,
 ): string[] {
   const imports = new Set<string>();
   const enumNames = new Set(ir.enums.map((e) => e.className));
@@ -319,7 +395,7 @@ function dtoImportsFor(
   for (const field of fields) {
     if (field.javaImport) imports.add(field.javaImport);
     if (enumNames.has(field.javaType)) {
-      imports.add(`${ir.project.basePackage}.domain.${field.javaType}`);
+      imports.add(`${paquetes.get(field.javaType) ?? ir.project.basePackage}.domain.${field.javaType}`);
     }
   }
   for (const component of associationComponents) {
@@ -331,6 +407,11 @@ function dtoImportsFor(
 // ---------------------------------------------------------------------------
 // Árbol de ficheros
 // ---------------------------------------------------------------------------
+
+/** `com.tienda.ventas` → `src/main/java/com/tienda/ventas`. */
+function raizDe(packageName: string): string {
+  return `src/main/java/${packageName.split('.').join('/')}`;
+}
 
 export function generateProject(ir: GenerationIR): GeneratedFile[] {
   const files: GeneratedFile[] = [];
@@ -407,24 +488,36 @@ export function generateProject(ir: GenerationIR): GeneratedFile[] {
 
   for (const enumeration of ir.enums) {
     files.push({
-      path: `${javaRoot}/domain/${enumeration.className}.java`,
-      content: render('enum.java.hbs', { project: ir.project, enumeration }),
+      path: `${raizDe(enumeration.packageName)}/domain/${enumeration.className}.java`,
+      content: render('enum.java.hbs', {
+        project: ir.project,
+        enumeration,
+        pkg: enumeration.packageName,
+      }),
     });
   }
 
   for (const contract of ir.interfaces) {
     files.push({
-      path: `${javaRoot}/domain/${contract.className}.java`,
-      content: render('interface.java.hbs', { project: ir.project, contract }),
+      path: `${raizDe(contract.packageName)}/domain/${contract.className}.java`,
+      content: render('interface.java.hbs', {
+        project: ir.project,
+        contract,
+        pkg: contract.packageName,
+      }),
     });
   }
 
   for (const entity of ir.entities) {
     const view = buildEntityView(ir, entity);
     const name = entity.className;
+    // La carpeta sale del paquete de la entidad, no del paquete base. Es lo
+    // que hace que el módulo se vea en el árbol del ZIP y no solo en la
+    // primera línea del fichero.
+    const raiz = raizDe(entity.packageName);
 
     files.push({
-      path: `${javaRoot}/domain/${name}.java`,
+      path: `${raiz}/domain/${name}.java`,
       content: render('entity.java.hbs', view),
     });
 
@@ -433,31 +526,31 @@ export function generateProject(ir: GenerationIR): GeneratedFile[] {
     if (entity.isAbstract) continue;
 
     files.push({
-      path: `${javaRoot}/repository/${name}Repository.java`,
+      path: `${raiz}/repository/${name}Repository.java`,
       content: render('repository.java.hbs', view),
     });
     files.push({
-      path: `${javaRoot}/dto/${name}Request.java`,
+      path: `${raiz}/dto/${name}Request.java`,
       content: render('dto-request.java.hbs', view),
     });
     files.push({
-      path: `${javaRoot}/dto/${name}Response.java`,
+      path: `${raiz}/dto/${name}Response.java`,
       content: render('dto-response.java.hbs', view),
     });
     files.push({
-      path: `${javaRoot}/dto/mapper/${name}Mapper.java`,
+      path: `${raiz}/dto/mapper/${name}Mapper.java`,
       content: render('mapper.java.hbs', view),
     });
     files.push({
-      path: `${javaRoot}/service/${name}Service.java`,
+      path: `${raiz}/service/${name}Service.java`,
       content: render('service.java.hbs', view),
     });
     files.push({
-      path: `${javaRoot}/service/impl/${name}ServiceImpl.java`,
+      path: `${raiz}/service/impl/${name}ServiceImpl.java`,
       content: render('service-impl.java.hbs', view),
     });
     files.push({
-      path: `${javaRoot}/controller/${name}Controller.java`,
+      path: `${raiz}/controller/${name}Controller.java`,
       content: render('controller.java.hbs', view),
     });
   }

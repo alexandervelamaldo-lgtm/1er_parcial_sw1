@@ -7,6 +7,7 @@ import type {
   Method,
   SeedRow,
   UmlClass,
+  UmlModule,
   UmlRelation,
   Visibility,
 } from '../model/uml.js';
@@ -49,6 +50,7 @@ import type {
  */
 const CLASSES = 'diagrama.clases';
 const RELATIONS = 'diagrama.relaciones';
+const MODULES = 'diagrama.modulos';
 const META = 'diagrama.meta';
 
 export function getClassesMap(doc: Y.Doc): Y.Map<unknown> {
@@ -57,6 +59,19 @@ export function getClassesMap(doc: Y.Doc): Y.Map<unknown> {
 
 export function getRelationsMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap(RELATIONS);
+}
+
+/**
+ * Los módulos, en su propio tipo raíz y no dentro de `meta`.
+ *
+ * Por lo mismo que se explica arriba: si colgaran de un mapa anidado, dos
+ * réplicas que crean su primer módulo sin haberse visto perderían una de las
+ * dos listas enteras. Un documento anterior a los módulos no tiene esta clave y
+ * tampoco la necesita: `getMap` sobre un tipo raíz que no existe devuelve uno
+ * vacío sin escribir nada, así que los proyectos ya guardados se abren igual.
+ */
+export function getModulesMap(doc: Y.Doc): Y.Map<unknown> {
+  return doc.getMap(MODULES);
 }
 
 export function getMetaMap(doc: Y.Doc): Y.Map<unknown> {
@@ -157,6 +172,7 @@ function readClass(map: Y.Map<unknown>): UmlClass {
   const literals = map.get('literals');
   const seedRows = map.get('seedRows');
   const stereotype = map.get('stereotype');
+  const moduleId = map.get('moduleId');
 
   return {
     id: readString(map, 'id'),
@@ -182,6 +198,16 @@ function readClass(map: Y.Map<unknown>): UmlClass {
       seedRows instanceof Y.Array
         ? seedRows.toArray().flatMap((r) => (r instanceof Y.Map ? [readSeedRow(r)] : []))
         : [],
+    moduleId: typeof moduleId === 'string' && moduleId.length > 0 ? moduleId : null,
+  };
+}
+
+function readModule(map: Y.Map<unknown>): UmlModule {
+  return {
+    id: readString(map, 'id'),
+    name: readString(map, 'name', 'Módulo'),
+    packageSegment: readString(map, 'packageSegment', 'modulo'),
+    description: readString(map, 'description', ''),
   };
 }
 
@@ -221,6 +247,13 @@ export function readDiagram(doc: Y.Doc): ClassDiagram {
   const meta = getMetaMap(doc);
   const classesMap = getClassesMap(doc);
   const relationsMap = getRelationsMap(doc);
+  const modulesMap = getModulesMap(doc);
+
+  const modules: Record<string, UmlModule> = {};
+  for (const [id, value] of modulesMap.entries()) {
+    if (!(value instanceof Y.Map)) continue;
+    modules[id] = { ...readModule(value), id };
+  }
 
   const classes: Record<string, UmlClass> = {};
   for (const [id, value] of classesMap.entries()) {
@@ -244,6 +277,7 @@ export function readDiagram(doc: Y.Doc): ClassDiagram {
     name: readString(meta, 'name', 'Diagrama sin título'),
     classes,
     relations,
+    modules,
     meta: {
       basePackage: readString(meta, 'basePackage', 'com.ejemplo.proyecto'),
       artifactId: readString(meta, 'artifactId', 'proyecto'),
@@ -308,6 +342,9 @@ export function writeClass(cls: UmlClass): Y.Map<unknown> {
   map.set('w', cls.size.w);
   map.set('h', cls.size.h);
   map.set('transient', cls.transient);
+  // Solo se escribe si hay módulo. Un `moduleId: null` explícito en cada clase
+  // haría que todo diagrama existente cambiara de estado al abrirse.
+  if (cls.moduleId !== null) map.set('moduleId', cls.moduleId);
 
   const attributes = new Y.Array<unknown>();
   attributes.push(cls.attributes.map(writeAttribute));
@@ -331,6 +368,15 @@ export function writeClass(cls: UmlClass): Y.Map<unknown> {
 export function writeSeedRow(row: SeedRow): Y.Map<unknown> {
   const map = new Y.Map<unknown>();
   for (const [key, value] of Object.entries(row)) map.set(key, value);
+  return map;
+}
+
+export function writeModule(modulo: UmlModule): Y.Map<unknown> {
+  const map = new Y.Map<unknown>();
+  map.set('id', modulo.id);
+  map.set('name', modulo.name);
+  map.set('packageSegment', modulo.packageSegment);
+  map.set('description', modulo.description);
   return map;
 }
 
@@ -367,6 +413,12 @@ export function initializeDiagram(doc: Y.Doc, diagram: ClassDiagram): void {
     meta.set('description', diagram.meta.description);
     meta.set('createdAt', diagram.meta.createdAt ?? new Date().toISOString());
 
+    const modules = getModulesMap(doc);
+    for (const key of [...modules.keys()]) modules.delete(key);
+    for (const modulo of Object.values(diagram.modules)) {
+      modules.set(modulo.id, writeModule(modulo));
+    }
+
     const classes = getClassesMap(doc);
     for (const key of [...classes.keys()]) classes.delete(key);
     for (const cls of Object.values(diagram.classes)) {
@@ -396,5 +448,6 @@ export function initializeEmpty(
     meta.set('createdAt', new Date().toISOString());
     getClassesMap(doc);
     getRelationsMap(doc);
+    getModulesMap(doc);
   }, 'inicializacion');
 }
