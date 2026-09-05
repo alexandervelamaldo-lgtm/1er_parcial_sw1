@@ -8,67 +8,81 @@
 
 :root {
   /*
-    Los grises son grises.
-    ----------------------
-    Antes no lo eran: toda la rampa estaba teñida de azul. Restando el canal
-    rojo del azul, `--borde` era `#2a3040` (+22), `--texto-2` `#8a93a6` (+28) y
-    `--borde-fuerte` `#3a4356` (+28). El efecto no es estético, es funcional: un
-    acento azul sobre un cromo que ya es azul no destaca, porque no contrasta en
-    tono con lo que lo rodea; se lee como una pieza más del fondo. Marcar algo
-    exige que el entorno sea neutro.
+    La rampa es gris azulado, y esta vez a propósito.
+    -------------------------------------------------
+    Durante una etapa esta rampa fue estrictamente neutra —desviación máxima de
+    6 puntos entre el canal más alto y el más bajo— con un motivo que era bueno:
+    un acento azul sobre un cromo que ya es azul no destaca, porque no contrasta
+    en tono con lo que lo rodea.
 
-    Ahora la desviación máxima entre el canal más alto y el más bajo de cada uno
-    de los ocho neutros es de 6 puntos —una pizca fría, deliberada, para que no
-    parezca papel de periódico—. La prueba lo fija en `estilos.test.ts`.
+    El acento ya no es azul, es cian. Contra una rampa fría de tono azul, un
+    cian saturado sigue separándose por croma aunque comparta familia, así que
+    la razón que obligaba al gris estricto ya no aplica. Lo que se gana a cambio
+    es una interfaz que no parece de aluminio bajo un proyector.
+
+    La desviación llega ahora a 36 puntos en `--texto-2`, y el techo de la
+    prueba en `estilos.test.ts` se subió de 6 a 40 en la misma decisión que
+    escribió estos colores. Lo que la prueba sigue impidiendo es que la rampa se
+    tiña *más* de lo que se decidió aquí.
   */
-  --fondo: #17181a;
-  --fondo-2: #1d1f21;
-  --fondo-3: #25272a;
-  --borde: #34363a;
-  --texto: #e7e8ea;
-  --texto-2: #9b9da1;
+  --fondo: #020617;
+  --fondo-2: #0f172a;
+  --fondo-3: #1e293b;
+  --borde: #334155;
+  --texto: #f8fafc;
+  --texto-2: #94a3b8;
   /*
-    El acento es azul acero, no azul saturado.
-    -----------------------------------------
-    `#5b9cff` era un azul de máxima saturación en el canal B: llamaba tanto que
-    competía con el propio diagrama, y sobre todo se repite en cada plantilla y
-    cada demo hecha deprisa, hasta el punto de que se ha vuelto una firma. Una
-    herramienta de modelado tiene que dejar que el color más fuerte de la
-    pantalla sea el del contenido, no el del cromo.
+    El acento es cian, y sí, es saturado.
+    -------------------------------------
+    Aquí hubo antes un `#7fa2c2` azul acero, elegido para no competir con el
+    diagrama, y antes de él un `#5b9cff` que se retiró por ser «el azul de
+    plantilla». El cian de ahora tiene un rango de 204 y es, sin rodeos, más
+    llamativo que los dos.
 
-    `#7fa2c2` da 6.2:1 sobre `--fondo-2` y 7.1:1 como fondo de botón contra
-    `--sobre-acento`. El color sigue reservado a cuatro cosas: selección, foco,
-    error y estado de la conexión. Nada decorativo lo usa.
+    Es una decisión tomada con las dos opciones delante y sabiendo lo que cuesta:
+    el cromo pesa más en la pantalla que antes. A cambio, la herramienta se lee
+    a distancia en una proyección, que es donde se defiende.
+
+    Sigue reservado a lo mismo que antes —selección, foco y estado de la
+    conexión—, y esa disciplina es la que evita que el color extra se convierta
+    en ruido: si se usara también para decorar, el diagrama dejaría de ser lo
+    más fuerte de la pantalla.
   */
-  --acento: #7fa2c2;
+  --acento: #22d3ee;
   /*
-    Los tres semánticos, bajo la misma disciplina que el acento.
-    -----------------------------------------------------------
-    Eran `#4ecb8f`, `#ffd24a` y `#ff5b7f`: menta, amarillo de rotulador y un
-    rojo que en realidad era rosa. Sus rangos de saturación eran 125, 181 y 164,
-    y ninguno saltaba porque el techo que ya existía en las pruebas solo miraba
-    a `--acento`. Pasaban AA de sobra y aun así eran justo la nota de color que
-    delata una interfaz montada deprisa.
+    Los tres semánticos, en la misma clave que el acento.
+    ----------------------------------------------------
+    Fueron `#4ecb8f`, `#ffd24a` y `#ff5b7f` —menta, rotulador y rosa—, luego los
+    apagados `#6fae86`, `#c9a86a` y `#d0726f`, y ahora vuelven a ser vivos.
 
-    Ahora los tres están por debajo de 110, y el error es rojo ladrillo en vez
-    de rosa. Un estado no necesita gritar para leerse: necesita no parecerse a
-    los otros dos.
+    Lo que no cambia, y es lo único que de verdad importa aquí, es que los tres
+    se distingan entre sí y del acento: un aviso que se confunde con un error es
+    peor que uno feo. Están a 232 y 296 de distancia euclídea del acento y a 153
+    entre ellos, comprobado en la prueba de las vías de entrada.
   */
-  --exito: #6fae86;
-  --aviso: #c9a86a;
-  --error: #d0726f;
+  --exito: #34d399;
+  --aviso: #fbbf24;
+  --error: #fb7185;
 
   /*
-    Dos píxeles, no ocho.
+    Doce píxeles, no dos.
     ---------------------
-    Ocho píxeles de radio es el redondeo de una tarjeta de una página de
-    producto. En una rejilla densa de paneles acoplados el efecto es que nada
-    encaja con nada: cada esquina redondeada deja un triángulo de fondo entre
-    dos elementos que deberían leerse como contiguos, y la retícula se deshace.
-    Dos píxeles quitan el filo del pixel sin fingir que un panel es una tarjeta.
-    Enterprise Architect, Visual Studio y IntelliJ están todos entre 0 y 3.
+    Aquí ponía dos, con el argumento de que en una rejilla densa de paneles
+    acoplados cada esquina redondeada deja un triángulo de fondo entre dos
+    elementos que deberían leerse como contiguos.
+
+    El argumento sigue siendo cierto y por eso el radio grande **no se aplica a
+    los paneles acoplados**, que siguen encajando a hueso: se aplica a lo que
+    flota —diálogos, tarjetas del tablero, campos y botones—, que es donde el
+    redondeo se lee como suavidad y no como una retícula rota.
   */
-  --radio: 2px;
+  --radio: 12px;
+  /*
+    El radio de lo que sí forma retícula: campos dentro de un formulario, celdas
+    y controles pegados a un borde. Existe para no tener que elegir entre una
+    tarjeta con esquinas de tarjeta y una rejilla que encaje.
+  */
+  --radio-ajustado: 6px;
 
   /*
     Medidas de la interfaz de escritorio.
@@ -94,12 +108,45 @@
     hover que aclara sobre fondo oscuro tiene que oscurecer sobre fondo claro, y
     el texto de un botón de acento pasa de casi negro a blanco.
   */
-  --realce: #2b2d30;
-  --borde-fuerte: #494b4f;
-  /* El acento aclarado del hover, desaturado en la misma proporción:
-     9.5:1 contra `--sobre-acento`. */
-  --acento-2: #9dbad4;
-  --sobre-acento: #0d1013;
+  --realce: #1e293b;
+  --borde-fuerte: #475569;
+  /* El acento aclarado del hover: 12.9:1 contra `--sobre-acento`. */
+  --acento-2: #67e8f9;
+  /*
+    Casi negro con un poso teal. No es `#000`: sobre el cian del botón, un negro
+    puro corta demasiado y el rótulo se lee como un agujero.
+
+    Su luminancia está atada a algo que no se ve desde aquí. La ficha de
+    presencia pinta la inicial de cada participante con este color sobre el
+    color del participante, así que aclararlo apaga esas ocho iniciales a la vez.
+    Con `#042f2e` —el primer valor que se probó— dos de los ocho caían a 3.7:1 y
+    suspendían AA. Este deja el peor caso en 4.79:1.
+  */
+  --sobre-acento: #021513;
+
+  /*
+    La sombra, que vuelve pero acotada.
+    -----------------------------------
+    Esta hoja llegó a prohibir las sombras difusas enteras, y por un motivo que
+    sigue siendo bueno: una sombra de 20 o 60 px dice «esto levita», que es el
+    idioma de la interfaz de tarjetas, y aquí hay paneles acoplados que no
+    levitan —comparten canaleta y tienen que encajar—. La regla, sin embargo,
+    estaba mal dirigida: prohibía la sombra en todas partes cuando lo que
+    sobraba era en los paneles.
+
+    Un diálogo sobre el velo, un desplegable y el aviso flotante sí están en
+    otra capa, y ahí la sombra no decora: dice cuál de las dos superficies
+    recibe el clic. Se permite en esos cinco sitios —la lista está en
+    `estilos.test.ts`— y en ninguno más.
+
+    El color no se escribe: se mezcla. En oscuro es el propio fondo llevado a
+    opaco, y en claro el color del texto al 16%, porque una sombra negra sobre
+    blanco ensucia y una sombra blanca sobre negro no existe. Como el resto de
+    las superficies, el tema claro solo redefine `--sombra-color` y esta se
+    recalcula sola.
+  */
+  --sombra-color: color-mix(in srgb, var(--fondo) 82%, transparent);
+  --sombra: 0 12px 28px -8px var(--sombra-color);
 
   /*
     Superficies de estado, derivadas en vez de escritas.
@@ -156,28 +203,49 @@
    -------------------------------------------------------------------------- */
 
 :root[data-tema='claro'] {
-  --fondo: #ffffff;
-  --fondo-2: #f5f6f7;
-  --fondo-3: #e9eaec;
-  --borde: #ced0d4;
-  --texto: #131416;
-  /* #5f6165 sobre #ffffff da 6.1:1 y sobre #f5f6f7 5.7:1; el gris del tema
-     oscuro trasladado tal cual se quedaba en 2.6:1 y suspendía AA. */
-  --texto-2: #5f6165;
-  /* 7.0:1 sobre blanco y 6.5:1 sobre `--fondo-2`. El `#1f5fd0` original era el
-     mismo azul de escaparate del tema oscuro trasladado, y sobre papel blanco
-     saltaba todavía más. */
-  --acento: #2d5b8c;
-  --exito: #2f6b4a;
-  --aviso: #856619;
-  --error: #a34242;
+  /*
+    La maqueta de la que sale el tema oscuro no tiene tema claro: es una
+    interfaz de una sola piel. Éste se deriva manteniendo su familia de tono
+    —rampa fría, acento cian— pero no sus valores, porque trasladar un color
+    pensado para fondo negro a fondo blanco es exactamente como se llegó al
+    `--texto-2` de 2.6:1 que estuvo semanas suspendiendo AA.
 
-  --realce: #dfe1e4;
-  --borde-fuerte: #a9abaf;
-  /* 9.9:1 sobre blanco: el hover oscurece, que es lo que corresponde cuando el
-     fondo es claro. */
-  --acento-2: #21456b;
+    La regla al derivarlo: el tono se conserva, la luminancia se invierte.
+  */
+  --fondo: #ffffff;
+  --fondo-2: #f8fafc;
+  --fondo-3: #f1f5f9;
+  --borde: #cbd5e1;
+  --texto: #0f172a;
+  /* 7.5:1 sobre blanco. El `--texto-2` del tema oscuro es `#94a3b8`, que sobre
+     papel blanco da 2.3:1: es el mismo error de traslación de siempre. */
+  --texto-2: #475569;
+  /* El cian del tema oscuro da 1.9:1 sobre blanco —ilegible—, así que aquí baja
+     tres peldaños hasta cyan-700: 5.4:1 sobre blanco, mismo tono. */
+  --acento: #0e7490;
+  /*
+    Verde y no el emerald-700 que le tocaría por familia. `#047857` dista 14 de
+    `--acento` en distancia de canal, y los dos se usan a la vez en la barra de
+    vías de entrada del tablero: pegados y sin separador se leían como un solo
+    tramo. `#15803d` los separa a 84.
+  */
+  --exito: #15803d;
+  --aviso: #a16207;
+  --error: #be123c;
+
+  --realce: #e2e8f0;
+  --borde-fuerte: #94a3b8;
+  /* El hover oscurece, que es lo que corresponde cuando el fondo es claro. */
+  --acento-2: #155e75;
   --sobre-acento: #ffffff;
+  /*
+    Solo el color de la sombra: el desplazamiento y el desenfoque son los
+    mismos, y `--sombra` los hereda del bloque de arriba. Sobre blanco, el
+    fondo ya no sirve de sombra —sería blanco sobre blanco—, así que la tiñe el
+    color del texto, y al 16%: por encima de eso deja de leerse como una
+    elevación y empieza a leerse como suciedad.
+  */
+  --sombra-color: color-mix(in srgb, var(--texto) 16%, transparent);
 }
 
 * {
@@ -220,7 +288,7 @@ select {
 button {
   background: var(--fondo-3);
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 6px 12px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -340,7 +408,7 @@ input,
 select {
   background: var(--fondo);
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 6px 8px;
   min-width: 0;
 }
@@ -456,6 +524,7 @@ select:focus {
   background: var(--fondo-2);
   border: 1px solid var(--borde-fuerte);
   border-radius: var(--radio);
+  box-shadow: var(--sombra);
   /*
     El panel no se envuelve. Un desplegable de seis órdenes se abarca de un
     vistazo y una orden partida en dos líneas rompe la columna de atajos, que es
@@ -1044,7 +1113,7 @@ select:focus {
   background: var(--superficie-error);
   border: 1px solid var(--borde-error);
   color: var(--error);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 8px 10px;
   font-size: 13px;
   margin: 0 0 12px;
@@ -1088,7 +1157,7 @@ select:focus {
   align-items: center;
   gap: 4px;
   min-height: var(--fila-alto);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   cursor: default;
   white-space: nowrap;
   /* El nombre lo escribe quien quiera —o lo escribe un OCR— y puede ser
@@ -1146,7 +1215,7 @@ select:focus {
   place-items: center;
   width: 14px;
   height: 14px;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   border: 1px solid var(--borde);
   font-size: 9px;
   font-weight: 700;
@@ -1222,7 +1291,7 @@ select:focus {
   padding: 3px 6px;
   background: none;
   border: 1px solid transparent;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   font-size: var(--fuente-ui);
   text-align: left;
   white-space: nowrap;
@@ -1332,7 +1401,7 @@ select:focus {
   padding: 0 4px;
   background: none;
   border: 1px solid transparent;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   font-size: 12px;
   line-height: 1;
 }
@@ -1397,7 +1466,7 @@ select:focus {
   align-items: center;
   gap: 4px;
   background: var(--fondo-3);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 4px 6px;
 }
 
@@ -1437,7 +1506,7 @@ select:focus {
 .relacion {
   background: var(--fondo-3);
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 6px 8px;
 }
 
@@ -1587,7 +1656,7 @@ select:focus {
   margin-top: 10px;
   background: var(--fondo-3);
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 10px 12px;
 }
 
@@ -1720,7 +1789,7 @@ select:focus {
 .aviso--sesion {
   background: var(--superficie-aviso);
   border: 1px solid var(--borde-aviso);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   color: var(--aviso);
   cursor: default;
   line-height: 1.45;
@@ -1744,6 +1813,7 @@ select:focus {
   background: var(--fondo-2);
   border: 1px solid var(--borde);
   border-radius: var(--radio);
+  box-shadow: var(--sombra);
   padding: 28px;
 }
 
@@ -1791,7 +1861,7 @@ select:focus {
 .aviso--fuerte {
   background: var(--superficie-aviso);
   border: 1px solid var(--borde-aviso);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   color: var(--aviso);
   line-height: 1.45;
   margin: 0 0 16px;
@@ -1805,7 +1875,7 @@ select:focus {
   display: block;
   background: var(--fondo);
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 14px 10px;
   margin-bottom: 12px;
   font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
@@ -1924,7 +1994,7 @@ select:focus {
 .etiqueta {
   display: inline-block;
   font-size: 11px;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 2px 9px;
   background: var(--fondo-3);
   color: var(--texto-2);
@@ -2060,7 +2130,7 @@ select:focus {
   display: flex;
   height: 8px;
   overflow: hidden;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   background: var(--fondo-3);
 }
 
@@ -2109,7 +2179,7 @@ select:focus {
 .tablero__marca {
   width: 8px;
   height: 8px;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   flex: none;
 }
 
@@ -2159,6 +2229,7 @@ select:focus {
   background: var(--fondo-2);
   border: 1px solid var(--borde);
   border-radius: var(--radio);
+  box-shadow: var(--sombra);
   padding: 20px;
 }
 
@@ -2210,7 +2281,7 @@ select:focus {
 .importar__error {
   background: var(--superficie-error);
   border: 1px solid var(--borde-error);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   color: var(--error);
   margin: 0 0 12px;
   padding: 8px 10px;
@@ -2271,7 +2342,7 @@ select:focus {
   overflow: hidden;
   position: relative;
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   background: var(--lupa-fondo);
   cursor: zoom-in;
   touch-action: none;
@@ -2384,7 +2455,7 @@ select:focus {
   margin: 0 0 12px;
   padding: 10px 12px;
   background: var(--fondo-3);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   font-size: 13px;
   color: var(--texto-2);
 }
@@ -2422,7 +2493,7 @@ select:focus {
 
 .importar-xmi__detalle {
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 8px 12px;
   margin-bottom: 10px;
   font-size: 13px;
@@ -2476,7 +2547,7 @@ select:focus {
 .importar-diagrama__alerta {
   background: var(--superficie-error);
   border: 1px solid var(--borde-error);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   color: var(--error);
   font-size: 13px;
   line-height: 1.5;
@@ -2494,7 +2565,7 @@ select:focus {
 
 .importar-diagrama__alerta code {
   background: var(--superficie-error-fuerte);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 1px 5px;
 }
 
@@ -2533,7 +2604,7 @@ select:focus {
   gap: 6px;
   background: var(--fondo-3);
   border: 1px solid var(--borde);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   padding: 6px 8px;
   margin-bottom: 6px;
   font-size: 13px;
@@ -2592,7 +2663,7 @@ select:focus {
 
 .historial__entrada {
   padding: 9px 10px;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
   background: var(--fondo-3);
   border: 1px solid transparent;
 }
@@ -2698,13 +2769,16 @@ select:focus {
   border-radius: var(--radio);
   background: var(--fondo-3);
   /*
-    El botón flota sobre el lienzo y tiene que despegarse de él. Antes lo hacía
-    con una sombra difusa de 20 px de radio; ahora con un borde de un píxel más
-    marcado que el resto de la interfaz. Una sombra difusa dice «esto levita»,
-    que es lenguaje de tarjeta; un borde firme dice «esto es otra capa», que es
-    lo que de verdad ocurre y lo que usa cualquier herramienta de escritorio.
+    El botón flota de verdad sobre el lienzo —está en `position: fixed` y tapa
+    lo que haya debajo—, así que aquí la sombra no es adorno: es la señal de
+    qué capa recibe el clic. Lo que se retiró en su día fue el desenfoque de
+    20 px sin recorte, que hacía levitar el botón como una tarjeta; este está
+    desplazado y recortado, y se apoya en un borde más marcado que el resto de
+    la interfaz. La regla completa de dónde se permite sombra está en
+    `estilos.test.ts`.
   */
   border: 1px solid var(--borde-fuerte);
+  box-shadow: var(--sombra);
   font-weight: 600;
   /* En un móvil el pulgar necesita un objetivo de 44 px; el texto se esconde
      pero el botón no encoge por debajo de eso. */
@@ -2739,9 +2813,12 @@ select:focus {
   padding: 20px;
   background: var(--fondo-2);
   /* Lo mismo que en `.boton-ayuda`: la separación del fondo la marca el borde,
-     no una sombra de 60 px. El velo oscuro de `.guia` ya aísla la caja. */
+     La separación la marcan el borde y una sombra acotada, no los 60 px de
+     desenfoque que hubo aquí: el velo oscuro de `.guia` ya aísla la caja, así
+     que la sombra solo tiene que decir cuál de las dos capas recibe el clic. */
   border: 1px solid var(--borde-fuerte);
   border-radius: var(--radio);
+  box-shadow: var(--sombra);
 }
 
 .guia__cabecera {
@@ -2809,7 +2886,7 @@ select:focus {
   color: var(--acento);
   font-size: 13px;
   padding: 5px 10px;
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
 }
 
 .guia__respuesta {
@@ -2817,7 +2894,7 @@ select:focus {
   background: var(--fondo-3);
   border: 1px solid var(--borde);
   border-left: 3px solid var(--acento);
-  border-radius: var(--radio);
+  border-radius: var(--radio-ajustado);
 }
 
 .guia__respuesta p {

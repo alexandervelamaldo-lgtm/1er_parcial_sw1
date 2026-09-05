@@ -166,13 +166,18 @@ describe('contraste AA en los dos temas', () => {
   }
 
   /*
-    El acento tiene un techo además de un suelo. Un azul que cumple AA de sobra
-    puede seguir siendo un azul de escaparate: lo que se persigue no es que se
-    lea, es que no compita con el diagrama. Un color con los tres canales muy
-    separados es un color saturado; se mide la distancia entre el canal más alto
-    y el más bajo.
+    El acento tiene un techo además de un suelo, y el techo se subió a mano.
+
+    Estuvo en 120 mientras el acento fue un azul acero, con este argumento: lo
+    que se persigue no es que se lea, es que no compita con el diagrama. Al
+    adoptar el aspecto de la maqueta se pasó a un cian de rango 204, sabiendo lo
+    que se perdía, y el techo se movió a 210 en esa misma decisión.
+
+    Que quede en 210 y no en 255 es lo que hace que esto siga siendo una prueba:
+    deja pasar el color elegido y sigue cerrando el paso a un fucsia puro. Un
+    techo que no rechaza nada no es un techo.
   */
-  it('el acento está desaturado, no es el azul de plantilla', () => {
+  it('el acento no se sale de lo que se decidió', () => {
     for (const [tema, tabla] of [
       ['oscuro', OSCURO],
       ['claro', CLARO],
@@ -180,18 +185,22 @@ describe('contraste AA en los dos temas', () => {
       const hex = (tabla['--acento'] as string).replace('#', '');
       const canales = [0, 2, 4].map((i) => Number.parseInt(hex.slice(i, i + 2), 16));
       const rango = Math.max(...canales) - Math.min(...canales);
-      expect(rango, `el acento del tema ${tema} (#${hex}) tiene un rango de ${String(rango)}`).toBeLessThanOrEqual(120);
+      expect(rango, `el acento del tema ${tema} (#${hex}) tiene un rango de ${String(rango)}`).toBeLessThanOrEqual(210);
     }
   });
 
   /*
-    El techo va también para los tres semánticos, que es justo lo que no hacía.
-    Mientras solo miraba a `--acento`, `--exito` (#4ecb8f, rango 125), `--aviso`
-    (#ffd24a, 181) y `--error` (#ff5b7f, 164) pasaron desapercibidos: cumplían
-    AA de sobra y eran menta, amarillo de rotulador y rosa. Una regla que se
-    aplica a un solo color no es una regla, es una excepción.
+    El techo va también para los tres semánticos. Una regla que se aplica a un
+    solo color no es una regla, es una excepción.
+
+    Subió de 110 a 220 con el mismo cambio de aspecto que el acento. Lo que
+    seguía siendo cierto cuando eran apagados y lo sigue siendo ahora es que el
+    peligro real no es que un color grite: es que dos se confundan. De eso se
+    encarga la prueba de las vías de entrada, que mide la distancia entre ellos
+    y no su intensidad, y es la que de verdad protege que un aviso no se lea
+    como un error.
   */
-  it('los semánticos están desaturados, no son caramelo', () => {
+  it('los semánticos no se salen de lo que se decidió', () => {
     for (const [tema, tabla] of [
       ['oscuro', OSCURO],
       ['claro', CLARO],
@@ -201,25 +210,27 @@ describe('contraste AA en los dos temas', () => {
         expect(
           rango,
           `${nombre} del tema ${tema} (${(tabla[nombre] ?? OSCURO[nombre]) as string}) tiene un rango de ${String(rango)}`,
-        ).toBeLessThanOrEqual(110);
+        ).toBeLessThanOrEqual(220);
       }
     }
   });
 
   /*
-    Y los neutros tienen que ser neutros.
+    La rampa es fría, pero con un límite.
 
-    Toda la rampa estaba teñida de azul: `--borde` `#2a3040` llevaba 22 puntos
-    más de azul que de rojo, y `--texto-2` y `--borde-fuerte` llevaban 28. No es
-    una objeción de gusto. Un acento solo destaca si el entorno es neutro; sobre
-    un cromo que ya es azul, un acento azul se lee como una pieza más del fondo,
-    y entonces la selección deja de saltar a la vista, que es lo único que tiene
-    que hacer.
+    Este techo estuvo en 6 —grises estrictos— con este argumento: un acento solo
+    destaca si el entorno es neutro, porque sobre un cromo que ya es azul un
+    acento azul se lee como una pieza más del fondo.
 
-    Seis puntos dejan sitio a una pizca fría deliberada y cierran la puerta a
-    volver a teñirlo entero.
+    Al cambiar el acento a cian, ese argumento dejó de aplicar: un cian saturado
+    se separa por croma de una rampa azul aunque compartan familia. El techo
+    subió a 40, que es lo que necesita la rampa *slate* elegida —su peor caso es
+    `--texto-2` con 36—.
+
+    Cuarenta sigue siendo un techo y no una puerta abierta: deja pasar un gris
+    frío y sigue rechazando que alguien pinte el fondo de azul de verdad.
   */
-  it('los neutros son neutros', () => {
+  it('la rampa es fría, no de colores', () => {
     for (const [tema, tabla] of [
       ['oscuro', OSCURO],
       ['claro', CLARO],
@@ -231,7 +242,7 @@ describe('contraste AA en los dos temas', () => {
         expect(
           desviacion,
           `${nombre} del tema ${tema} (${valor}) se desvía ${String(desviacion)} puntos del gris`,
-        ).toBeLessThanOrEqual(6);
+        ).toBeLessThanOrEqual(40);
       }
     }
   });
@@ -241,14 +252,32 @@ describe('contraste AA en los dos temas', () => {
    Geometría: esquinas y sombras
    -------------------------------------------------------------------------- */
 
-describe('la geometría es la de una herramienta, no la de una tarjeta', () => {
-  it('ningún radio pasa de 3 px, salvo los indicadores redondos', () => {
+describe('el redondeo sale de los dos tokens, no de números sueltos', () => {
+  /*
+    Esta prueba cambió de intención, no de existencia.
+
+    Antes prohibía el redondeo: techo de 3 px, porque una rejilla de paneles
+    acoplados con esquinas redondeadas deja un triángulo de fondo entre dos
+    elementos que deberían leerse como contiguos. Al adoptar el aspecto de la
+    maqueta el radio pasó a 12 px y ese argumento habría dejado la prueba
+    inservible.
+
+    Lo que se conserva es lo que seguía teniendo valor: que el redondeo salga de
+    un token y no de un número escrito a mano. Con dos valores —`--radio` para
+    lo que flota y `--radio-ajustado` para lo que forma retícula— la decisión de
+    cuál toca se sigue tomando una vez y en un sitio. Un `border-radius: 9px`
+    suelto en una regla es justo lo que empieza a deshacer un sistema.
+  */
+  it('ningún radio suelto: todos salen de un token o son círculos', () => {
     const culpables: string[] = [];
     for (const [, valor] of CSS.matchAll(/border-radius:\s*([^;]+);/g)) {
       const v = (valor ?? '').trim();
       // `50%` es un círculo de verdad: el punto de presencia de cada
       // participante y el avatar. No es una esquina redondeada.
-      if (v === '50%' || v === '0' || v.includes('var(--radio)')) continue;
+      if (v === '50%' || v === '0') continue;
+      if (v.includes('var(--radio)') || v.includes('var(--radio-ajustado)')) continue;
+      // Se siguen tolerando los radios de 1 y 2 px: son el matado de un pixel
+      // en un borde, no una esquina de tarjeta, y no merecen un token.
       const px = /^(\d+(?:\.\d+)?)px$/.exec(v);
       if (px?.[1] !== undefined && Number.parseFloat(px[1]) <= 3) continue;
       culpables.push(v);
@@ -256,29 +285,102 @@ describe('la geometría es la de una herramienta, no la de una tarjeta', () => {
     expect(culpables, `radios sueltos: ${culpables.join(', ')}`).toEqual([]);
   });
 
-  it('la propia variable --radio es discreta', () => {
-    const m = /--radio:\s*(\d+)px/.exec(CSS);
-    expect(m?.[1]).toBeDefined();
-    expect(Number.parseInt(m?.[1] ?? '99', 10)).toBeLessThanOrEqual(3);
+  /*
+    Los dos tokens también tienen techo. Doce es el redondeo de una tarjeta;
+    veinticuatro es el de una pastilla, y a partir de ahí los diálogos empiezan a
+    parecer notificaciones de móvil.
+  */
+  it('los dos tokens de radio se quedan donde se decidió', () => {
+    const radio = /--radio:\s*(\d+)px/.exec(CSS);
+    expect(radio?.[1], 'no se encontró --radio').toBeDefined();
+    expect(Number.parseInt(radio?.[1] ?? '99', 10)).toBeLessThanOrEqual(12);
+
+    const ajustado = /--radio-ajustado:\s*(\d+)px/.exec(CSS);
+    expect(ajustado?.[1], 'no se encontró --radio-ajustado').toBeDefined();
+    expect(Number.parseInt(ajustado?.[1] ?? '99', 10)).toBeLessThanOrEqual(8);
+  });
+});
+
+/* --------------------------------------------------------------------------
+   Sombras
+   -------------------------------------------------------------------------- */
+
+describe('la sombra dice qué capa recibe el clic, no adorna', () => {
+  /*
+    La sombra: permitida donde hay capas, prohibida donde hay retícula.
+
+    Esta regla antes prohibía el desenfoque en toda la hoja, con un techo de
+    4 px. El motivo era bueno —una sombra difusa dice «esto levita», que es el
+    idioma de la interfaz de tarjetas, y aquí hay paneles acoplados que
+    comparten canaleta y no levitan— pero estaba mal dirigida: castigaba la
+    propiedad en vez del sitio. Un diálogo sobre el velo sí está en otra capa, y
+    ahí la sombra no decora, informa: dice cuál de las dos superficies recibe el
+    clic.
+
+    Así que el techo se sustituye por una lista. Cinco selectores, los que de
+    verdad se dibujan encima de otra cosa. Los veintiséis restantes —paneles,
+    filas de árbol, campos, tarjetas del tablero— siguen sin poder llevarla, que
+    es donde estaba el peligro: `.tarjeta` y `.tablero` quedan fuera a propósito,
+    porque son exactamente los dos que tientan a convertir esto en un tablero de
+    tarjetas flotantes.
+  */
+  const FLOTAN = [
+    '.menu__desplegable',
+    '.modal__caja',
+    '.guia__caja',
+    '.boton-ayuda',
+    '.acceso__tarjeta',
+  ];
+
+  it('solo llevan sombra las cinco superficies que están en otra capa', () => {
+    const intrusos: string[] = [];
+    for (const [, selector, cuerpo] of sinComentariosCss(CSS).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!/box-shadow:\s*(?!none)/.test(cuerpo ?? '')) continue;
+      const sel = (selector ?? '').trim();
+      if (!FLOTAN.some((f) => sel.includes(f))) intrusos.push(sel);
+    }
+    expect(intrusos, `llevan sombra sin estar en otra capa: ${intrusos.join(' | ')}`).toEqual([]);
   });
 
   /*
-    Las sombras difusas son la firma de la interfaz de tarjetas: un panel que
-    levita. Una herramienta de escritorio separa capas con una línea. Se permite
-    un desenfoque mínimo por si algún día hace falta un realce de un píxel, pero
-    no los 20 y 60 px que había.
+    Y la sombra sale del token, como el color. Escribir un `rgba()` suelto aquí
+    reabre justo el agujero que cerró la prueba de los colores literales: el
+    tema claro solo redefine variables, así que una sombra escrita a mano se
+    queda negra sobre blanco.
   */
-  it('no hay sombras difusas', () => {
-    const culpables: string[] = [];
-    for (const [, valor] of CSS.matchAll(/box-shadow:\s*([^;]+);/g)) {
+  it('la sombra se pone con el token, no a mano', () => {
+    const sueltas: string[] = [];
+    for (const [, valor] of sinComentariosCss(CSS).matchAll(/box-shadow:\s*([^;]+);/g)) {
       const v = (valor ?? '').trim();
-      if (v === 'none') continue;
-      const desenfoques = [...v.matchAll(/(-?\d+(?:\.\d+)?)px/g)].map((m) => Number.parseFloat(m[1] ?? '0'));
-      // El tercer número de una sombra es el desenfoque.
-      const blur = desenfoques[2] ?? 0;
-      if (blur > 4) culpables.push(v);
+      if (v !== 'none' && v !== 'var(--sombra)') sueltas.push(v);
     }
-    expect(culpables, `sombras difusas: ${culpables.join(' | ')}`).toEqual([]);
+    expect(sueltas, `sombras escritas a mano: ${sueltas.join(' | ')}`).toEqual([]);
+  });
+
+  /*
+    El token también tiene techo. Veintiocho es una elevación; a partir de
+    cuarenta vuelve a ser el halo de 60 px que se retiró, y la lista de arriba
+    no serviría de nada si el valor permitido fuera cualquiera.
+  */
+  it('el desenfoque de la sombra se queda donde se decidió', () => {
+    const sombra = /--sombra:\s*([^;]+);/.exec(CSS)?.[1] ?? '';
+    expect(sombra, 'no se encontró --sombra').not.toBe('');
+    /*
+      Las medidas se sacan por posición, no buscando «px»: el desplazamiento
+      horizontal se escribe `0`, sin unidad, y buscar `px` se lo salta y hace
+      que el tercer valor encontrado sea la extensión en vez del desenfoque.
+      Con ese fallo la prueba daba por bueno un desenfoque de 60 px, que es
+      exactamente lo que existe para rechazar.
+    */
+    const medidas = sombra
+      .replace(/[a-z-]+\([^)]*\)/g, '')
+      .trim()
+      .split(/\s+/)
+      .filter((t) => /^-?[\d.]+/.test(t))
+      .map((t) => Number.parseFloat(t));
+    // Desplazamiento en x, desplazamiento en y, desenfoque, extensión.
+    expect(medidas.length, `no se leyeron las medidas de --sombra: ${sombra}`).toBeGreaterThanOrEqual(3);
+    expect(medidas[2] ?? 0, `desenfoque de --sombra: ${sombra}`).toBeLessThanOrEqual(40);
   });
 });
 
