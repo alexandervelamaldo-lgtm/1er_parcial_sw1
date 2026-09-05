@@ -2252,6 +2252,228 @@ select:focus {
 }
 
 /* --------------------------------------------------------------------------
+   Informe de estado
+   -------------------------------------------------------------------------- */
+
+/*
+ * El único cuadro de esta hoja pensado para salir por una impresora.
+ *
+ * Eso cambia dos cosas respecto al resto de modales. La primera es la anchura:
+ * lleva una tabla de cinco columnas y a 440 px los nombres de proyecto se
+ * parten. La segunda está abajo, en `@media print`, y es la que de verdad
+ * importa: en papel no hay tema oscuro, no hay botón de cerrar y no hay
+ * ventana; hay una hoja blanca. Sin ese bloque, imprimir esto gasta un
+ * cartucho en pintar el fondo #020617 de un modal recortado por el borde de la
+ * página.
+ */
+.informe {
+  width: min(860px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.informe__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.informe__cabecera h2 {
+  margin: 0;
+}
+
+.informe__emitido {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.informe__acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * El aviso de alcance va arriba y con fondo, no en letra pequeña al pie. Es la
+ * frase que decide si las cifras de debajo se pueden citar o no.
+ */
+.informe__alcance {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--superficie-aviso);
+  border: 1px solid var(--borde-aviso);
+  border-radius: var(--radio-ajustado);
+  padding: 8px 10px;
+  font-size: 12px;
+  margin: 0 0 16px;
+}
+
+.informe__cifras {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.informe__cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  padding: 10px 12px;
+}
+
+.informe__cifra-valor {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.informe__cifra-rotulo {
+  color: var(--texto-2);
+  font-size: 11px;
+}
+
+.informe__cifra-nota {
+  color: var(--error);
+  font-size: 11px;
+}
+
+.informe__seccion {
+  margin-bottom: 20px;
+}
+
+.informe__titulo {
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.informe__vacio,
+.informe__nota {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.informe__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.informe__tabla th,
+.informe__tabla td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.informe__tabla thead th {
+  color: var(--texto-2);
+  font-weight: 500;
+}
+
+/* Las tres columnas de recuentos se alinean a la derecha y con cifras de ancho
+   fijo: una columna de números centrada obliga a leer dígito a dígito. */
+.informe__tabla td:nth-child(2),
+.informe__tabla td:nth-child(3),
+.informe__tabla td:nth-child(4),
+.informe__tabla thead th:nth-child(2),
+.informe__tabla thead th:nth-child(3),
+.informe__tabla thead th:nth-child(4) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * El estado lleva fondo además de color de texto. Impreso en blanco y negro,
+ * o leído por alguien que no distingue rojo de verde, el color solo no dice
+ * nada; el rótulo escrito es el que lleva la información, y esto lo acompaña.
+ */
+.informe__estado {
+  display: inline-block;
+  border-radius: var(--radio-ajustado);
+  padding: 2px 8px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.informe__estado--neutro {
+  background: var(--realce);
+  color: var(--texto-2);
+}
+
+.informe__estado--error {
+  background: var(--superficie-error);
+  color: var(--error);
+}
+
+.informe__estado--aviso {
+  background: var(--superficie-aviso);
+  color: var(--aviso);
+}
+
+.informe__estado--exito {
+  background: var(--superficie-exito);
+  color: var(--exito);
+}
+
+.informe__pie {
+  border-top: 1px solid var(--borde);
+  padding-top: 12px;
+  color: var(--texto-2);
+  font-size: 11px;
+}
+
+/*
+ * Lo que sale por la impresora.
+ *
+ * `color-adjust` no se fuerza a propósito: si el navegador decide no imprimir
+ * los fondos, lo que queda sigue siendo legible porque ningún dato de este
+ * informe vive solo en un color. Los estados llevan su rótulo escrito y la
+ * barra de procedencia lleva su leyenda con nombre y número debajo.
+ */
+@media print {
+  .modal {
+    position: static;
+    display: block;
+    background: none;
+    padding: 0;
+  }
+
+  .informe {
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 0;
+  }
+
+  /* Ni el botón de imprimir ni el de cerrar significan nada en papel. */
+  .informe__acciones {
+    display: none;
+  }
+
+  /* Una fila de la tabla partida entre dos hojas es un proyecto que hay que
+     reconstruir mirando las dos páginas a la vez. */
+  .informe__tabla tr,
+  .informe__cifra {
+    break-inside: avoid;
+  }
+
+  .informe__seccion {
+    break-inside: avoid-page;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Importar una tabla desde una foto
    -------------------------------------------------------------------------- */
 
@@ -3113,6 +3335,7 @@ select:focus {
   .modal__caja,
   .importar,
   .importar-xmi,
+  .informe,
   .historial {
     max-height: 100%;
     height: 100%;

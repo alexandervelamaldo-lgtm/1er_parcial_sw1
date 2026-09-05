@@ -335,7 +335,18 @@ describe('la sombra dice qué capa recibe el clic, no adorna', () => {
   it('solo llevan sombra las cinco superficies que están en otra capa', () => {
     const intrusos: string[] = [];
     for (const [, selector, cuerpo] of sinComentariosCss(CSS).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      if (!/box-shadow:\s*(?!none)/.test(cuerpo ?? '')) continue;
+      /*
+        El valor se extrae y se compara; no se descarta con `\s*(?!none)`.
+        Aquello parecía decir «una sombra que no sea `none`» y en realidad no
+        decía nada: `\s*` puede casar la cadena vacía, y entonces la mirada
+        adelante se hace delante del espacio en vez de delante de `none` y pasa
+        siempre. La primera regla `box-shadow: none` que se escribió en la hoja
+        —la del `@media print` del informe— salió señalada como intrusa.
+      */
+      const conSombra = [...(cuerpo ?? '').matchAll(/box-shadow:\s*([^;]+)/g)].some(
+        (d) => (d[1] ?? '').trim() !== 'none',
+      );
+      if (!conSombra) continue;
       const sel = (selector ?? '').trim();
       if (!FLOTAN.some((f) => sel.includes(f))) intrusos.push(sel);
     }

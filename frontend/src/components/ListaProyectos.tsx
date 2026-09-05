@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, type FilaPanel, type Miembro, type Proyecto } from '../services/api';
 import { useSesion } from '../services/sesion';
 import { CodigoRecuperacion } from './CodigoRecuperacion';
+import { InformeEjecutivo } from './InformeEjecutivo';
 import { TableroProyectos } from './TableroProyectos';
 import { haceCuanto } from './tablero-proyectos';
 
@@ -30,6 +31,7 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
   const [creando, setCreando] = useState(false);
   const [nuevo, setNuevo] = useState({ nombre: '', descripcion: '', paquete: '' });
   const [compartiendo, setCompartiendo] = useState<Proyecto | null>(null);
+  const [informando, setInformando] = useState(false);
   const [codigoNuevo, setCodigoNuevo] = useState<string | null>(null);
 
   /*
@@ -101,6 +103,22 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
         <h1 className="barra__titulo">Proyectos</h1>
         <div className="barra__herramientas">
           <span className="barra__usuario">{usuario?.displayName || usuario?.email}</span>
+          {/*
+            El informe se ofrece solo cuando hay algo que informar. Con la lista
+            vacía —cuenta recién creada, o carga caída por falta de red— el
+            botón abriría una hoja de ceros, que es lo que parece una aplicación
+            rota en una demostración desde cero.
+          */}
+          {filas.length > 0 && (
+            <button
+              type="button"
+              className="boton boton--discreto"
+              title="Resumen imprimible del estado de todos los proyectos"
+              onClick={() => setInformando(true)}
+            >
+              Informe
+            </button>
+          )}
           <button
             type="button"
             className="boton boton--discreto"
@@ -248,6 +266,8 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
       {compartiendo && (
         <DialogoCompartir proyecto={compartiendo} onCerrar={() => setCompartiendo(null)} />
       )}
+
+      {informando && <InformeEjecutivo filas={filas} onCerrar={() => setInformando(false)} />}
 
       {codigoNuevo !== null && (
         // Sin cierre al pulsar fuera, al revés que el de compartir: aquí un clic
