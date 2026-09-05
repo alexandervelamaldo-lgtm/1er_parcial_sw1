@@ -32,10 +32,18 @@
 
 ## Estado
 
-Borrador de arquitectura, versión 0.1. Ocho preguntas abiertas (Q1–Q8) bloquean decisiones de diseño; su calendario está en [§4.10](04-plan-sprints.md#410-calendario-de-decisiones-pendientes).
+Sistema construido y en funcionamiento. Los documentos 1 a 4 se escribieron antes de empezar y se conservan tal cual: son el diseño, no el acta de lo ocurrido. Donde el código se apartó de ellos, manda el código, y la diferencia está anotada en el documento 9.
 
-Las más urgentes:
+De las ocho preguntas abiertas de [§1.6](01-requisitos.md#16-preguntas-abiertas), cinco las contestó el propio desarrollo y tres siguen sin contestar:
 
-- **Q8** (semana 1) — corpus de fotografías de pizarra. Sin él, el spike de visión del sprint 1 no mide nada y el sprint 5 se planifica a ciegas.
-- **Q4** (semana 1) — formato canónico del modelo. Condiciona los tipos de `shared/`.
-- **Q1/Q2** (semana 4) — contrato de Architech Enterprise e identidad. Toda la sección [2.9](02-arquitectura.md#29-integración-con-architech-enterprise) es provisional hasta resolverlas.
+| | Estado |
+|---|---|
+| **Q4** — formato canónico del modelo | Resuelta. Es el de `shared/`, y de él salen tanto el generador como el manifiesto del móvil |
+| **Q5** — versiones de Spring Boot y Java | Resuelta. Spring Boot 3.3.5 sobre JDK 17, verificado compilando y arrancando el proyecto generado |
+| **Q6** — restricciones de despliegue | Resuelta. AWS con PostgreSQL gestionado; el porqué del descarte del disco efímero está en el documento 6 |
+| **Q3** — dirección de la integración | Resuelta en la práctica: XMI en los dos sentidos con Enterprise Architect (documento 5, §5.5) |
+| **Q8** — corpus de fotos de pizarra | Parcial. La lectura desde imagen funciona, pero **no se ha medido contra un corpus**: no hay cifra de acierto que defender, solo ejemplos |
+| **Q1, Q2** — contrato e identidad de Architech | **Sin resolver.** La sección [2.9](02-arquitectura.md#29-integración-con-architech-enterprise) sigue siendo provisional entera |
+| **Q7** — usuarios concurrentes esperados | **Sin resolver.** Los umbrales de RNF-ESC siguen siendo conjeturas; el techo real medido está en el documento 9 |
+
+Lo que falta por hacer, y lo que está implementado pero sin una prueba que lo vigile, está en [§9.1](09-calidad-escalabilidad-innovacion.md#91-cómo-leer-las-tablas) y en las tablas que le siguen.
