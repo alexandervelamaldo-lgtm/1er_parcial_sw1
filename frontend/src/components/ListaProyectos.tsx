@@ -3,6 +3,7 @@ import { ApiError, api, type FilaPanel, type Miembro, type Proyecto } from '../s
 import { useSesion } from '../services/sesion';
 import { CodigoRecuperacion } from './CodigoRecuperacion';
 import { InformeEjecutivo } from './InformeEjecutivo';
+import { MenuCuenta } from './MenuCuenta';
 import { TableroProyectos } from './TableroProyectos';
 import { haceCuanto } from './tablero-proyectos';
 
@@ -101,35 +102,20 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
     <div className="proyectos">
       <header className="barra">
         <h1 className="barra__titulo">Proyectos</h1>
+        {/*
+          Las tres acciones de cuenta se recogen en un menú en vez de ocupar la
+          barra en fila. Dos de ellas —el código de recuperación y salir— se
+          usan una vez cada varias semanas, y en fila empujaban a la derecha lo
+          único que se mira siempre, que es de quién es la sesión abierta.
+        */}
         <div className="barra__herramientas">
-          <span className="barra__usuario">{usuario?.displayName || usuario?.email}</span>
-          {/*
-            El informe se ofrece solo cuando hay algo que informar. Con la lista
-            vacía —cuenta recién creada, o carga caída por falta de red— el
-            botón abriría una hoja de ceros, que es lo que parece una aplicación
-            rota en una demostración desde cero.
-          */}
-          {filas.length > 0 && (
-            <button
-              type="button"
-              className="boton boton--discreto"
-              title="Resumen imprimible del estado de todos los proyectos"
-              onClick={() => setInformando(true)}
-            >
-              Informe
-            </button>
-          )}
-          <button
-            type="button"
-            className="boton boton--discreto"
-            title="Emitir un código para recuperar la cuenta en caso de olvidar la contraseña"
-            onClick={() => void pedirCodigo()}
-          >
-            Código de recuperación
-          </button>
-          <button type="button" className="boton boton--discreto" onClick={salir}>
-            Salir
-          </button>
+          <MenuCuenta
+            usuario={usuario}
+            filas={filas}
+            onInforme={() => setInformando(true)}
+            onCodigoRecuperacion={() => void pedirCodigo()}
+            onSalir={salir}
+          />
         </div>
       </header>
 

@@ -659,11 +659,6 @@ select:focus {
   border-left: 1px solid var(--borde);
 }
 
-.barra__usuario {
-  color: var(--texto-2);
-  font-size: 13px;
-}
-
 .grupo-relacion {
   display: flex;
   gap: 2px;
@@ -2249,6 +2244,119 @@ select:focus {
   place-items: center;
   height: 100%;
   color: var(--texto-2);
+}
+
+/* --------------------------------------------------------------------------
+   Menú de cuenta
+   -------------------------------------------------------------------------- */
+
+/*
+ * El desplegable de la sesión abierta. Reutiliza `.menu__desplegable`,
+ * `.menu__orden` y `.menu__separador` de la barra de menús en vez de tener su
+ * propia lista de estilos: es el mismo objeto —un panel que cuelga con órdenes
+ * dentro— y dos implementaciones del mismo objeto acaban divergiendo en el
+ * parche que solo toca una.
+ */
+.cuenta {
+  position: relative;
+}
+
+.cuenta__disparador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radio-ajustado);
+  padding: 3px 8px 3px 3px;
+  color: var(--texto);
+  max-width: 240px;
+}
+
+.cuenta__disparador:hover:not(:disabled) {
+  background: var(--realce);
+  border-color: var(--borde);
+}
+
+/*
+ * Las iniciales van sobre el acento y en `--sobre-acento`, que es el par que
+ * la tabla de contraste ya verifica. Un círculo con un color inventado aquí
+ * sería el primero de la hoja que nadie ha comprobado.
+ */
+.cuenta__iniciales {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--acento);
+  color: var(--sobre-acento);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cuenta__nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El panel cuelga alineado a la derecha: el disparador está pegado al borde de
+   la ventana y uno alineado a la izquierda se saldría de la pantalla. */
+.cuenta__panel {
+  right: 0;
+  min-width: 240px;
+}
+
+.cuenta__ficha {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.cuenta__ficha-nombre {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cuenta__ficha-correo {
+  margin: 2px 0 0;
+  color: var(--texto-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cuenta__roles {
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px;
+}
+
+.cuenta__roles li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--texto-2);
+}
+
+.cuenta__roles-cuenta {
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Salir es la única orden destructiva del panel y va marcada. No en un rojo
+ * inventado: en `--error`, que es el que el resto de la interfaz ya usa para
+ * «esto no se deshace» y el que la tabla de contraste comprueba.
+ */
+.cuenta__salir {
+  color: var(--error);
+}
+
+.cuenta__salir:hover:not(:disabled),
+.cuenta__salir:focus-visible {
+  background: var(--superficie-error);
 }
 
 /* --------------------------------------------------------------------------
