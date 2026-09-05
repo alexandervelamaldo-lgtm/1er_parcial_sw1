@@ -20,6 +20,7 @@ import { ImportarDiagrama } from './ImportarDiagrama';
 import { ImportarXmi } from './ImportarXmi';
 import { PrevisualizarGeneracion } from './PrevisualizarGeneracion';
 import { CatalogoModulos } from './CatalogoModulos';
+import { VisorComunicacion } from './VisorComunicacion';
 import { HistorialCambios } from './HistorialCambios';
 import { ColumnaAcoplada } from './PanelAcoplado';
 import type { Acoplado, EstadoColumna } from './paneles';
@@ -105,6 +106,7 @@ export function EditorDiagrama({
   const [importandoXmi, setImportandoXmi] = useState(false);
   const [generando, setGenerando] = useState(false);
   const [modulos, setModulos] = useState(false);
+  const [comunicacion, setComunicacion] = useState(false);
   const ultimoCursor = useRef(0);
 
   // El encuadre se pide como una acción numerada; el lienzo la atiende una vez y
@@ -431,6 +433,13 @@ export function EditorDiagrama({
             icono: 'modulo',
             separadorAntes: true,
           },
+          // En «Modelo» y no en «Ver» porque no enseña este diagrama desde otro
+          // ángulo: enseña el backend que saldría de él.
+          {
+            id: 'comunicacion',
+            etiqueta: 'Diagrama de comunicación…',
+            icono: 'comunicacion',
+          },
         ],
       },
     ],
@@ -466,6 +475,9 @@ export function EditorDiagrama({
           return;
         case 'modulos':
           setModulos(true);
+          return;
+        case 'comunicacion':
+          setComunicacion(true);
           return;
         case 'salir':
           onSalir();
@@ -782,6 +794,10 @@ export function EditorDiagrama({
           soloLectura={soloLectura}
           onCerrar={() => setModulos(false)}
         />
+      )}
+
+      {comunicacion && (
+        <VisorComunicacion diagrama={estado.diagrama} onCerrar={() => setComunicacion(false)} />
       )}
     </div>
   );

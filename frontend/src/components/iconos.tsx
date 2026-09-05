@@ -19,7 +19,7 @@ import type { ClassKind, RelationKind } from '@app/shared';
  * deshabilitado o activo arrastra su icono al color que le toque sin una sola
  * regla extra.
  *
- * No se instala una librería de iconos. Son treinta y tres; una librería trae
+ * No se instala una librería de iconos. Son treinta y cuatro; una librería trae
  * varios miles, un `package.json` más largo y un árbol de dependencias que
  * auditar, para usar el uno por ciento.
  */
@@ -66,7 +66,8 @@ export type NombreIcono =
   | 'llave'
   | 'alerta'
   | 'comprobado'
-  | 'modulo';
+  | 'modulo'
+  | 'comunicacion';
 
 /** El punteado de las relaciones que en UML se dibujan con línea discontinua. */
 const PUNTEADO = '2 1.6';
@@ -269,6 +270,18 @@ const TRAZOS: Record<NombreIcono, ReactNode> = {
     <>
       <path d="M2.5 5.5 8 2.5l5.5 3v5L8 13.5l-5.5-3z" />
       <path d="M2.5 5.5 8 8.5l5.5-3M8 8.5v5" />
+    </>
+  ),
+
+  /* Dos objetos y el mensaje que va de uno al otro: exactamente lo que es un
+     diagrama de comunicación. La flecha va sobre la línea, no en su punta, que
+     es la notación de UML y lo que distingue esto de una simple asociación. */
+  comunicacion: (
+    <>
+      <rect x="1.5" y="2.5" width="5" height="4" />
+      <rect x="9.5" y="9.5" width="5" height="4" />
+      <path d="M4 6.5v3.5a1.5 1.5 0 0 0 1.5 1.5H9" />
+      <path d="M6.5 8.5 8.5 6.5 8.5 10.5z" />
     </>
   ),
 };

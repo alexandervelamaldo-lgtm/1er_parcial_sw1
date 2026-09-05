@@ -3152,6 +3152,214 @@ select:focus {
 }
 
 /* --------------------------------------------------------------------------
+   Diagrama de comunicación
+   -------------------------------------------------------------------------- */
+
+/*
+ * El dibujo arriba y la tabla debajo, en la misma vista y sin pestañas.
+ *
+ * Son las dos mitades de lo mismo: el dibujo dice quién habla con quién, la
+ * tabla dice qué le dice y en qué línea del Java generado está. Separarlas en
+ * dos pestañas obligaría a memorizar el número de un mensaje para ir a buscarlo
+ * a la otra, que es justo el trabajo que la tabla venía a evitar.
+ */
+.comunicacion {
+  width: min(1180px, 100%);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.comunicacion__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.comunicacion__cabecera h2 {
+  margin: 0;
+}
+
+.comunicacion__resumen {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 4px 0 0;
+  max-width: 78ch;
+}
+
+.comunicacion__mandos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.comunicacion__campo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+.comunicacion__operaciones {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Empujada al extremo: es el resultado de las dos elecciones de la izquierda. */
+.comunicacion__ruta {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+.comunicacion__lienzo {
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  background: var(--fondo-2);
+  padding: 8px;
+  overflow-x: auto;
+}
+
+/*
+ * Ancho mínimo en vez de escalar al hueco: por debajo de esto el número de un
+ * mensaje deja de leerse, y un diagrama con los rótulos ilegibles no informa de
+ * nada. Que aparezca una barra horizontal es preferible.
+ */
+.comunicacion__lienzo svg {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
+}
+
+.comunicacion__enlace {
+  stroke: var(--borde-fuerte);
+  stroke-width: 1;
+}
+
+.comunicacion__caja rect {
+  fill: var(--fondo-3);
+  stroke: var(--borde-fuerte);
+  stroke-width: 1;
+}
+
+.comunicacion__caja text {
+  fill: var(--texto);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.comunicacion__caja .comunicacion__capa {
+  fill: var(--texto-2);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+/* El único participante que no es código generado se distingue por el trazo. */
+.comunicacion__caja--cliente rect {
+  fill: var(--fondo);
+  stroke-dasharray: 4 3;
+}
+
+.comunicacion__caja--controller rect {
+  stroke: var(--acento);
+}
+
+.comunicacion__flecha path {
+  fill: none;
+  stroke: var(--acento);
+  stroke-width: 1.5;
+}
+
+.comunicacion__punta {
+  fill: var(--acento);
+}
+
+.comunicacion__flecha text {
+  fill: var(--acento);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/*
+ * El retorno, discontinuo y apagado. Es la convención de UML y además dice lo
+ * que hay que decir: la conversación se lee siguiendo las llamadas, y las
+ * respuestas están para completar, no para guiar.
+ */
+.comunicacion__flecha--retorno path {
+  stroke: var(--texto-2);
+  stroke-dasharray: 4 3;
+}
+
+.comunicacion__punta--retorno {
+  fill: var(--texto-2);
+}
+
+.comunicacion__flecha--retorno text {
+  fill: var(--texto-2);
+}
+
+.comunicacion__tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  display: block;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.comunicacion__tabla caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 6px;
+}
+
+.comunicacion__tabla th,
+.comunicacion__tabla td {
+  text-align: left;
+  padding: 4px 10px 4px 0;
+  border-bottom: 1px solid var(--borde);
+  vertical-align: top;
+}
+
+.comunicacion__tabla th {
+  color: var(--texto-2);
+  font-weight: 500;
+}
+
+.comunicacion__tabla td:first-child {
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+
+.comunicacion__tabla code {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto-2);
+}
+
+.comunicacion__fila--retorno td {
+  color: var(--texto-2);
+}
+
+.comunicacion__sin-codigo {
+  color: var(--texto-2);
+  font-style: italic;
+}
+
+.comunicacion__nota {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+/* --------------------------------------------------------------------------
    Importar una tabla desde una foto
    -------------------------------------------------------------------------- */
 

@@ -1435,7 +1435,122 @@ revirtieron.
 
 ---
 
-## 5.10 Seguridad
+## 5.10 Diagrama de comunicación: quién llama a quién
+
+**Modelo ▸ Diagrama de comunicación…** dibuja, para una clase y una operación
+REST, la conversación entre las capas del backend que se va a generar.
+
+### De dónde salen los mensajes, y por qué no del diagrama de clases
+
+Un diagrama de clases **no tiene mensajes**. Tiene cajas y líneas: una
+asociación entre `Pedido` y `Cliente` dice que un pedido tiene un cliente, no
+que uno le mande nada al otro. Cualquier herramienta que saque de ahí un
+«diagrama de comunicación» está inventando una conversación.
+
+Aquí los mensajes salen del **backend generado**, cuya cadena de llamadas está
+fijada por las plantillas de `generator/templates/`. Cuando se pulsa «Crear»
+sobre `Pedido`, lo que se dibuja es esto, y cada línea existe de verdad en el
+proyecto que baja en el ZIP:
+
+| # | De | A | Mensaje | En el código generado |
+|---|---|---|---|---|
+| 1 | cliente | controlador | `POST /api/pedidos · PedidoRequest` | `@PostMapping` |
+| 1.1 | controlador | servicio | `create(PedidoRequest)` | `service.create(request)` |
+| 1.1.1 | servicio | mapeador | `toEntity(PedidoRequest)` | `mapper.toEntity(request)` |
+| 1.1.1.1 | mapeador | entidad | `new Pedido()` | `new Pedido()` |
+| 1.1.1.2 | mapeador | mapeador | `update(Pedido, PedidoRequest)` | `update(entity, request)` |
+| 1.1.2 | servicio | repositorio | `save(Pedido)` | `repository.save(entity)` |
+| 1.1.3 | servicio | mapeador | `toResponse(Pedido)` | `mapper.toResponse(` |
+| 1 | controlador | cliente | `201 Created · cabecera Location` | *respuesta* |
+
+La última columna no es una explicación: es la cadena que la prueba busca
+literalmente dentro del `.java` generado. Es lo que impide que esta pantalla se
+convierta en un dibujo bonito y desfasado.
+
+### Cómo se usa
+
+| Acción | Qué pasa |
+|---|---|
+| Elegir clase en el desplegable | Solo salen las que generan API REST |
+| Pulsar Listar / Obtener / Crear / Actualizar / Borrar | Cambia el diagrama y la tabla |
+| Mirar el rótulo de cada caja | El nombre de la clase Java y su capa |
+| Mirar arriba a la derecha | El verbo y la ruta: `POST /api/pedidos` |
+
+Las flechas continuas son llamadas y las discontinuas, respuestas. El bucle
+sobre el mapeador en «Crear» es un auto-mensaje: `toEntity` llama a `update`
+dentro de la misma clase, y así está escrito en `mapper.java.hbs`.
+
+**Borrar sale con cuatro cajas y no con seis.** No pasa por el mapeador ni toca
+la entidad, porque `delete` solo hace `existsById` y `deleteById`: no hay nada
+que traducir. Dibujar las dos cajas apagadas al lado sugeriría una colaboración
+que no ocurre.
+
+### Qué clases aparecen en el desplegable
+
+Las que generan controlador: **concretas y persistentes**. Una interfaz, una
+enumeración, una clase abstracta o una marcada como transitoria no tiene API
+REST, así que no hay conversación que dibujar. Es el mismo filtro que aplica
+`generator/src/render/generate.ts`, no una lista aparte.
+
+### El módulo también se ve aquí
+
+Los paquetes de las cajas son los definitivos. Mover `Pedido` al módulo
+«Ventas» ([§5.9](#59-módulos-repartir-el-dominio-en-subpaquetes)) cambia las
+seis de `com.tienda.*` a `com.tienda.ventas.*` en el acto.
+
+### Lo que no se dibuja, y por qué
+
+Las **asociaciones a-uno** que el mapeador resuelve contra el repositorio de
+*otra* entidad —lo que hace que crear un `Pedido` con un `clienteId` inexistente
+devuelva 404— no aparecen. Dependen del cálculo de asociaciones de
+`generator/src/ir/normalize.ts`, y repetir ese cálculo en la derivación sería
+tener dos versiones de la misma cuenta, condenadas a separarse. El esqueleto de
+cuatro capas es idéntico para toda entidad; el cableado de asociaciones es
+asunto del generador.
+
+### Cómo está comprobado
+
+`generator/src/comunicacion.test.ts` genera el proyecto de verdad y, para cada
+clase, cada operación y cada mensaje, comprueba dos cosas: que el participante
+que lo emite **es un fichero que se escribe**, en el paquete que dice; y que su
+evidencia **aparece literalmente** dentro de ese fichero. Se le pasa a todo el
+corpus, y también a la tienda repartida en módulos.
+
+La red se rompió a propósito dos veces. Cambiar `repository.deleteById(id)` por
+`repository.delete(...)` en `service-impl.java.hbs` hizo caer «`borrar 1.1.2`
+no aparece en `CategoriaServiceImpl.java`». Atribuir `crear 1.1.1` al
+repositorio en vez de al servicio hizo caer «`mapper.toEntity(request)` no
+aparece en `CategoriaRepository.java`». Las dos se revirtieron.
+
+Aparte, `frontend/src/components/comunicacion.test.ts` vigila el dibujo: que
+todo quepa en el lienzo, que ningún número caiga sobre una caja y que dos
+mensajes del mismo enlace no salgan uno encima del otro. Esa última se escribió
+después de que ocurriera: la perpendicular sobre la que se apilan los mensajes
+se estaba tomando del mensaje y no del enlace, así que una llamada y su
+respuesta —que recorren la misma línea en sentidos opuestos— se anulaban y
+acababan superpuestas.
+
+### Dónde está esto en el código
+
+| Fichero | Qué hace |
+|---|---|
+| `shared/src/model/capas.ts` | La derivación: participantes, mensajes y su evidencia |
+| `frontend/src/components/VisorComunicacion.tsx` | La pantalla |
+| `frontend/src/components/comunicacion.ts` | La geometría: dónde va cada caja y cada flecha |
+| `frontend/src/components/comunicacion.test.ts` | Sus pruebas, sin navegador |
+| `generator/src/comunicacion.test.ts` | El contraste contra el `.java` generado |
+
+### Ojo con no confundirlo con el XMI de comunicación
+
+`shared/src/xmi/ea-comunicacion.ts` también emite diagramas de comunicación,
+pero para otra cosa: los catorce casos de uso **de esta herramienta**, que van a
+`docs/uml/` y se abren en Enterprise Architect ([documento
+8](08-casos-de-uso.md)). Aquello describe la aplicación con la que se está
+dibujando; esto describe la aplicación que se va a generar.
+
+---
+
+## 5.11 Seguridad
 
 ### Permisos
 
@@ -1501,11 +1616,11 @@ gasta nada y **el texto de las preguntas no sale del equipo**.
 
 ---
 
-## 5.11 Pruebas
+## 5.12 Pruebas
 
-**543 pruebas en 24 ficheros, todas en verde.** Se ejecutan con `npx vitest run`.
+**1055 pruebas en 43 ficheros, todas en verde.** Se ejecutan con `npx vitest run`.
 
-De ellas, **539 corren sin instalar nada**. Las cuatro restantes se saltan solas
+De ellas, **1051 corren sin instalar nada**. Las cuatro restantes se saltan solas
 porque necesitan algo que no está en integración continua, y se activan poniendo
 una variable:
 
@@ -1569,7 +1684,7 @@ modelo**.
 
 ---
 
-## 5.12 Problemas frecuentes
+## 5.13 Problemas frecuentes
 
 | Síntoma | Causa | Solución |
 |---|---|---|

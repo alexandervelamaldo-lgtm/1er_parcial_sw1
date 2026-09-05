@@ -1,6 +1,7 @@
 export * from './model/uml.js';
 export * from './model/type-catalog.js';
 export * from './model/naming.js';
+export * from './model/capas.js';
 export * from './model/id.js';
 export * from './model/factory.js';
 export * from './ops/operations.js';
