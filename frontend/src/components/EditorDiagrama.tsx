@@ -13,7 +13,8 @@ import { usePaneles } from '../hooks/usePaneles';
 import { useTema } from '../hooks/useTema';
 import { useSesion } from '../services/sesion';
 import { type Proyecto } from '../services/api';
-import { Lienzo, type OrdenVista } from './Lienzo';
+import type { OrdenVista } from './Lienzo';
+import { LienzoFlow } from './LienzoFlow';
 import { PanelPropiedades } from './PanelPropiedades';
 import { Asistente } from './Asistente';
 import { ImportarDiagrama } from './ImportarDiagrama';
@@ -697,7 +698,7 @@ export function EditorDiagrama({
           ]}
         />
 
-        <Lienzo
+        <LienzoFlow
           diagrama={estado.diagrama}
           seleccion={seleccion}
           participantes={participantes}

@@ -1164,6 +1164,217 @@ select:focus {
 }
 
 /* --------------------------------------------------------------------------
+   El lienzo sobre React Flow
+   -------------------------------------------------------------------------- */
+
+/*
+  React Flow trae su propia hoja (`@xyflow/react/dist/style.css`, importada desde
+  `LienzoFlow.tsx`) y viene pensada para un fondo claro: botones blancos con
+  sombra, minimapa blanco, líneas grises. Lo de aquí abajo no es decoración, es
+  traducirla a los tokens de esta hoja para que el tema claro siga funcionando.
+
+  Se hace en CSS y no con las props de color que ofrece cada componente porque
+  esas props toman un valor, no una variable que se recalcule al conmutar de
+  tema: con `<MiniMap maskColor="#0f172a">` el minimapa se quedaría oscuro sobre
+  el tema claro, que es exactamente el fallo que ya se pagó una vez con los
+  colores literales de los diálogos de error.
+*/
+
+/*
+  React Flow mide su contenedor y lo necesita con altura propia. El lienzo
+  anterior era un `<svg>` que se estiraba solo dentro de la pista de la rejilla;
+  este es un `<div>`, y sin `height` se queda en la altura de su contenido, que
+  al principio es cero: el diagrama no llega a dibujarse nunca.
+*/
+.lienzo--flow {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/*
+  Los marcadores de flecha viven en un SVG de tamaño cero, fuera del que dibuja
+  las aristas: React Flow no deja meter un `<defs>` dentro del suyo, pero un
+  `url(#herencia)` se resuelve contra el documento entero. Se saca del flujo para
+  que ese SVG vacío no reserve una línea de altura sobre el diagrama.
+*/
+.lienzo__marcadores {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* El nodo lo posiciona React Flow; lo que aporta esta hoja es el cursor. */
+.react-flow__node .caja {
+  cursor: grab;
+}
+
+.react-flow__node .caja:active {
+  cursor: grabbing;
+}
+
+.react-flow__node .caja > svg {
+  display: block;
+  overflow: visible;
+}
+
+/*
+  Los cuatro conectores, invisibles hasta que hacen falta.
+
+  Un diagrama de clases con cuatro puntos permanentes por caja se lee peor, y lo
+  que tiene que destacar es el modelo. Aparecen al pasar por encima de la caja o
+  al enfocarla con el teclado, que es cuando alguien está a punto de tirar de
+  uno. Siguen recibiendo el ratón con `opacity: 0` —no se ocultan con
+  `visibility`— para que el arrastre pueda empezar sin un primer clic que solo
+  sirva para revelarlos.
+*/
+.caja__conector {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--fondo);
+  background: var(--acento);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+/*
+  `.caja--activa` y no `.react-flow__node.selected`, que era lo primero que se
+  escribió aquí. Son casi lo mismo pero no exactamente: la clase la pone el
+  componente con la unión de las dos selecciones —la nuestra, la que viaja por
+  el documento colaborativo, y la interna de React Flow— así que la caja marcada
+  desde el árbol del proyecto o desde el panel de propiedades también enseña sus
+  conectores. Además deja de depender de un nombre de clase interno de la
+  biblioteca, que no es parte de su API.
+*/
+.react-flow__node .caja:hover .caja__conector,
+.react-flow__node .caja:focus-visible .caja__conector,
+.caja--activa .caja__conector,
+.lienzo--relacionando .caja__conector {
+  opacity: 1;
+}
+
+/*
+  El nombre de quien tiene la clase seleccionada. El color lo pone el componente
+  —es el del participante, que sale de la lista fija de `usePresencia`— y por eso
+  aquí no hay ninguno: solo la forma y la posición.
+*/
+.caja__ajeno {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/*
+  Los cursores ajenos, en coordenadas del diagrama.
+
+  Van dentro del `ViewportPortal`, así que React Flow los traslada y los escala
+  con el resto. El `transform` del elemento lo escribe el componente con la
+  posición; lo de aquí es que no capture el ratón y que la etiqueta no se parta.
+*/
+.lienzo__cursor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.lienzo__cursor svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.lienzo__cursor span {
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sobre-acento);
+  white-space: nowrap;
+}
+
+/* --- El cromo: controles, minimapa, fondo y atribución ------------------- */
+
+.react-flow__controls {
+  box-shadow: none;
+}
+
+.react-flow__controls-button {
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border: none;
+  border-bottom: 1px solid var(--borde);
+  background: var(--fondo-2);
+  fill: var(--texto-2);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--realce);
+  fill: var(--texto);
+}
+
+.react-flow__controls-button:disabled {
+  fill: var(--borde);
+}
+
+.react-flow__minimap {
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+.react-flow__minimap-mask {
+  fill: var(--fondo);
+  fill-opacity: 0.6;
+}
+
+.react-flow__minimap-node {
+  fill: var(--borde-fuerte);
+  stroke: none;
+}
+
+/*
+  El velo del pellizco y el rectángulo de selección por arrastre, que React Flow
+  pinta con un azul propio.
+*/
+.react-flow__selection {
+  background: var(--realce);
+  border: 1px solid var(--acento);
+}
+
+/*
+  La línea que se ve mientras se tira de un conector hacia otra caja. Va del
+  color del acento porque es una acción en curso, no una relación ya existente.
+*/
+.react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--acento);
+  stroke-width: 2;
+}
+
+.react-flow__attribution {
+  background: transparent;
+  padding: 2px 5px;
+}
+
+.react-flow__attribution a {
+  color: var(--texto-2);
+  font-size: 9px;
+  text-decoration: none;
+}
+
+/* --------------------------------------------------------------------------
    Panel de propiedades
    -------------------------------------------------------------------------- */
 

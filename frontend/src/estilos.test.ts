@@ -735,3 +735,84 @@ describe('las fuentes se sirven desde el propio repositorio', () => {
     expect(css).toMatch(/'Plus Jakarta Sans', system-ui/);
   });
 });
+
+/* --------------------------------------------------------------------------
+   Las clases que el lienzo pide y la hoja tiene que dar
+   -------------------------------------------------------------------------- */
+
+/*
+  Esta prueba existe por un fallo que estuvo a punto de irse tal cual.
+
+  Al reescribir el lienzo sobre React Flow, el componente quedó pidiendo cinco
+  clases —`lienzo--flow`, `lienzo__marcadores`, `lienzo__cursor`,
+  `caja__conector`, `caja__ajeno`— que no existían en la hoja. Nada se quejó: el
+  `tsc` pasó limpio, las 1068 pruebas pasaron y `vite build` construyó sin una
+  advertencia, porque un `className` es una cadena y a nadie le consta que
+  signifique algo.
+
+  Lo que se habría visto en pantalla es peor que un error: React Flow mide su
+  contenedor para saber dónde poner las cosas, y sin la altura de
+  `.lienzo--flow` ese contenedor mide cero. El diagrama no sale, y lo que se
+  investiga es por qué falla React Flow en vez de por qué falta una regla.
+
+  Se comprueba la dirección que importa —que lo que se pide exista— y no la
+  contraria: una regla en la hoja sin usuario en el `.tsx` es basura que
+  conviene barrer, pero no rompe nada, y castigarla obligaría a listar aquí cada
+  clase que solo se aplica desde un estado o desde otra hoja.
+*/
+describe('el lienzo no pide clases que la hoja no tenga', () => {
+  const LIENZO = readFileSync(join(AQUI, 'components', 'LienzoFlow.tsx'), 'utf8');
+
+  /**
+   * Las clases propias que aparecen en los `className` del componente.
+   *
+   * Se descartan las de React Flow —`react-flow__*`— porque las define su hoja,
+   * que se importa aparte y no es nuestra; y las que llevan `${`, porque son
+   * plantillas y su valor no se conoce leyendo el fichero.
+   */
+  function clasesPedidas(): string[] {
+    const literales = [...LIENZO.matchAll(/className=(?:"([^"]*)"|\{`([^`]*)`\})/g)].map(
+      (m) => m[1] ?? m[2] ?? '',
+    );
+    const sueltas = literales.flatMap((l) => l.split(/[\s${}?:'"]+/)).filter(Boolean);
+    /*
+      Se exige que el nombre lleve `__` o `--`, o que sea uno de los bloques que
+      se usan a secas. No es un capricho: dentro de un
+      `className={`caja${activa ? ' caja--activa' : ''}`}` el troceado también
+      saca `activa`, que es una variable de JavaScript y no una clase. Sin este
+      filtro la prueba señalaría cosas que no existen y acabaría borrada por
+      pesada, que es como muere una prueba ruidosa.
+    */
+    const BLOQUES = ['caja', 'lienzo', 'relacion'];
+    return [...new Set(sueltas)].filter(
+      (c) =>
+        /^[a-z][\w-]*$/.test(c) &&
+        !c.startsWith('react-flow') &&
+        (c.includes('__') || c.includes('--') || BLOQUES.includes(c)),
+    );
+  }
+
+  it('todas las clases del componente están declaradas en la hoja', () => {
+    /*
+      El límite se escribe `(?![\w-])` y no `\b`. Para una expresión regular el
+      guion cuenta como separador, así que `\.caja__miembro\b` casaría dentro de
+      `.caja__miembro--metodo` y daría por declarada una clase que no lo está:
+      justo el fallo que esta prueba existe para encontrar.
+    */
+    const huerfanas = clasesPedidas().filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(CSS));
+    expect(
+      huerfanas,
+      `el lienzo usa clases que no existen en estilos.css: ${huerfanas.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  /*
+    Y la que sostiene el resto, comprobada aparte por lo que cuesta el fallo: sin
+    altura, React Flow mide cero y no dibuja nada.
+  */
+  it('.lienzo--flow le da altura al contenedor que React Flow mide', () => {
+    const regla = /\.lienzo--flow\s*\{([^}]*)\}/.exec(sinComentariosCss(CSS))?.[1] ?? '';
+    expect(regla, 'no se encontró la regla .lienzo--flow').not.toBe('');
+    expect(regla, '.lienzo--flow sin height: React Flow mediría cero').toMatch(/height:/);
+  });
+});
