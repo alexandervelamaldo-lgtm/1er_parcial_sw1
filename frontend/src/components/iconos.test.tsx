@@ -28,9 +28,9 @@ function trazos(nodo: ReactNode): ReactElement<Record<string, unknown>>[] {
 const svgDe = (nombre: NombreIcono) => Icono({ nombre });
 
 describe('Icono', () => {
-  it('dibuja los treinta y dos del repertorio y ninguno repetido', () => {
+  it('dibuja los treinta y tres del repertorio y ninguno repetido', () => {
     expect(new Set(NOMBRES_ICONO).size).toBe(NOMBRES_ICONO.length);
-    expect(NOMBRES_ICONO.length).toBeGreaterThanOrEqual(32);
+    expect(NOMBRES_ICONO.length).toBeGreaterThanOrEqual(33);
   });
 
   it.each(NOMBRES_ICONO)('«%s» sale en la rejilla de 16 y con al menos un trazo', (nombre) => {
@@ -38,7 +38,7 @@ describe('Icono', () => {
     const props = svg.props as Record<string, unknown>;
     // El viewBox es el contrato: todas las coordenadas de `iconos.tsx` están
     // escritas para esta rejilla. Cambiarlo en un icono suelto lo descuadra
-    // frente a los otros treinta y uno.
+    // frente a los otros treinta y dos.
     expect(props.viewBox).toBe('0 0 16 16');
     expect(props.width).toBe('16');
     expect(props.height).toBe('16');

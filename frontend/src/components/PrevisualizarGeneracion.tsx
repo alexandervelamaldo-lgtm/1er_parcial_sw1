@@ -206,7 +206,14 @@ export function PrevisualizarGeneracion({ proyecto, onCerrar }: Props) {
                   <>
                     <p className="generado__codigo-ruta">{activo.ruta}</p>
                     <pre>
-                      <code>{activo.contenido}</code>
+                      <code>
+                        {activo.contenido.split('\n').map((linea, num) => (
+                          <span key={num} className="generado__linea">
+                            <span className="generado__linea-num">{num + 1}</span>
+                            <span className="generado__linea-texto">{linea}</span>
+                          </span>
+                        ))}
+                      </code>
                     </pre>
                   </>
                 ) : (

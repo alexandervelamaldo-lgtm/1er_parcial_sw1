@@ -2,7 +2,7 @@
 
 PWA colaborativa para diseñar diagramas de clases UML, con asistente conversacional por voz y texto y reconocimiento de pizarras a partir de una fotografía. Funciona sin conexión y sincroniza al recuperar la red. Genera un backend Spring Boot en 4 capas con PostgreSQL a partir del diagrama.
 
-> **Estado:** implementada y en verde (986 pruebas, 38 ficheros). La arquitectura y las guías de uso están en [`docs/`](docs/README.md). El backend generado ya se ha compilado y arrancado de verdad; lo que sigue sin verificar —imagen Docker, RDS— está enumerado sin adornos en [Despliegue §6.6](docs/06-despliegue.md#66-estado) y [§5.10](docs/05-guia-voz-y-ocr.md#510-pruebas).
+> **Estado:** implementada y en verde (1024 pruebas, 40 ficheros). La arquitectura y las guías de uso están en [`docs/`](docs/README.md). El backend generado ya se ha compilado y arrancado de verdad; lo que sigue sin verificar —imagen Docker, RDS— está enumerado sin adornos en [Despliegue §6.6](docs/06-despliegue.md#66-estado) y [§5.11](docs/05-guia-voz-y-ocr.md#511-pruebas).
 
 ## Stack
 

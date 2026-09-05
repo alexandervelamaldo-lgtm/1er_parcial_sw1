@@ -217,6 +217,18 @@ export function Asistente({
         </button>
       </form>
 
+      {escuchando && (
+        <div className="asistente__escuchando" role="status">
+          <span className="asistente__onda">
+            <span className="asistente__onda-barra" />
+            <span className="asistente__onda-barra" />
+            <span className="asistente__onda-barra" />
+            <span className="asistente__onda-barra" />
+          </span>
+          <span className="asistente__escuchando-texto">Escuchando audio… Hable para dictar la orden</span>
+        </div>
+      )}
+
       {mensaje && <p className="asistente__mensaje">{mensaje}</p>}
 
       {propuestas.length > 0 && (
@@ -225,7 +237,9 @@ export function Asistente({
             impacto.destructiva ? ' asistente__propuesta--destructiva' : ''
           }`}
         >
-          <p className="asistente__origen">Propuesta de {origen}:</p>
+          <p className="asistente__origen">
+            Propuesta de <span className="asistente__origen-badge">{origen}</span>:
+          </p>
           <ol>
             {propuestas.map((p, indice) => (
               <li key={indice}>{p.descripcion}</li>

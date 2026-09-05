@@ -712,6 +712,9 @@ select:focus {
 .indicador--bien {
   color: var(--exito);
 }
+.indicador--bien .indicador__punto {
+  animation: pulso-sync 2.5s ease-in-out infinite;
+}
 .indicador--esperando {
   color: var(--aviso);
 }
@@ -731,6 +734,17 @@ select:focus {
   }
 }
 
+@keyframes pulso-sync {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.75;
+  }
+}
+
 .presentes {
   display: flex;
 }
@@ -746,6 +760,12 @@ select:focus {
   color: var(--sobre-acento);
   border: 2px solid var(--fondo-2);
   margin-left: -6px;
+  transition: transform 0.15s ease;
+}
+
+.presentes__ficha:hover {
+  transform: translateY(-2px) scale(1.1);
+  z-index: 2;
 }
 
 /* --------------------------------------------------------------------------
@@ -1645,6 +1665,62 @@ select:focus {
   white-space: nowrap;
 }
 
+.asistente__escuchando {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--superficie-error);
+  border: 1px solid var(--borde-error);
+  border-radius: var(--radio-ajustado);
+  color: var(--error);
+  font-size: 12px;
+}
+
+.asistente__onda {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+
+.asistente__onda-barra {
+  width: 3px;
+  height: 12px;
+  background: var(--error);
+  border-radius: 1px;
+  animation: onda-audio 0.8s ease-in-out infinite alternate;
+}
+
+.asistente__onda-barra:nth-child(2) {
+  animation-delay: 0.2s;
+  height: 16px;
+}
+
+.asistente__onda-barra:nth-child(3) {
+  animation-delay: 0.4s;
+  height: 8px;
+}
+
+.asistente__onda-barra:nth-child(4) {
+  animation-delay: 0.1s;
+  height: 14px;
+}
+
+@keyframes onda-audio {
+  0% {
+    transform: scaleY(0.4);
+  }
+  100% {
+    transform: scaleY(1.3);
+  }
+}
+
+.asistente__escuchando-texto {
+  font-weight: 500;
+}
+
 .asistente__mensaje {
   color: var(--texto-2);
   font-size: 13px;
@@ -1670,6 +1746,20 @@ select:focus {
   color: var(--texto-2);
   font-size: 12px;
   margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.asistente__origen-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radio-ajustado);
+  background: var(--fondo-2);
+  color: var(--acento);
+  border: 1px solid var(--borde);
 }
 
 .asistente__propuesta ol {
@@ -2801,7 +2891,7 @@ select:focus {
   flex: 1;
   overflow: auto;
   margin: 0;
-  padding: 12px;
+  padding: 10px 0;
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.55;
@@ -2810,6 +2900,31 @@ select:focus {
      partida por el generador se distinguirían mal. */
   white-space: pre;
   tab-size: 4;
+}
+
+.generado__linea {
+  display: flex;
+  padding: 0 12px 0 0;
+}
+
+.generado__linea:hover {
+  background: var(--fondo-2);
+}
+
+.generado__linea-num {
+  width: 44px;
+  padding-right: 14px;
+  text-align: right;
+  color: var(--texto-2);
+  opacity: 0.5;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.generado__linea-texto {
+  flex: 1;
+  color: var(--texto);
 }
 
 .generado__nota {
@@ -2830,6 +2945,209 @@ select:focus {
 
   .generado__arbol {
     max-height: 30vh;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Catálogo de módulos
+   -------------------------------------------------------------------------- */
+
+/*
+ * Dos columnas: el formulario fijo a la izquierda y el catálogo desplazándose a
+ * la derecha. El formulario no se va de la vista al bajar por veinte clases,
+ * que es la diferencia entre reorganizar el dominio de una sentada y subir a
+ * buscar el campo cada vez.
+ */
+.modulos {
+  width: min(1080px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modulos__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modulos__cabecera h2 {
+  margin: 0;
+}
+
+.modulos__resumen {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.modulos__cuerpo {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 16px;
+  min-height: 0;
+}
+
+.modulos__formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-content: start;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  padding: 14px;
+  align-self: start;
+}
+
+.modulos__formulario h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* El paquete completo mientras se escribe: `com.tienda.ventas` antes de crear nada. */
+.modulos__vista-paquete {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto-2);
+  overflow-wrap: anywhere;
+}
+
+.modulos__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error);
+}
+
+.modulos__acciones {
+  display: flex;
+  gap: 8px;
+}
+
+.modulos__lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.modulos__tarjeta {
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  padding: 12px 14px;
+  background: var(--fondo-2);
+}
+
+/*
+ * La fila de las clases sin módulo va con el fondo del lienzo y no con el de
+ * una tarjeta: no es un módulo, es el resto. Confundirla con uno haría creer
+ * que hay un módulo llamado «Sin módulo».
+ */
+.modulos__tarjeta--sueltas {
+  background: var(--fondo-3);
+  border-style: dashed;
+}
+
+.modulos__tarjeta-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modulos__tarjeta-cabecera h3 {
+  margin: 0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modulos__paquete {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto-2);
+  overflow-wrap: anywhere;
+}
+
+.modulos__descripcion {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+.modulos__tarjeta-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.modulos__cuenta {
+  font-size: 11px;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.modulos__clases {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modulos__clases li {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+.modulos__clase-nombre {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* La ruta del fichero que se va a escribir; cambia al mover la clase de módulo. */
+.modulos__ruta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--texto-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modulos__selector {
+  font-size: 12px;
+}
+
+.modulos__nota {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+@media (max-width: 900px) {
+  .modulos__cuerpo {
+    grid-template-columns: 1fr;
+  }
+
+  .modulos__clases li {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 }
 
@@ -2910,6 +3228,45 @@ select:focus {
   position: sticky;
   top: 0;
   align-self: start;
+}
+
+.importar__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.importar__modelo-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: var(--radio-ajustado);
+  background: var(--fondo-3);
+  color: var(--texto-2);
+  border: 1px solid var(--borde);
+}
+
+.importar__confianza-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radio-ajustado);
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  color: var(--texto);
+}
+
+.importar__confianza-badge--alta {
+  border-color: var(--exito);
+  color: var(--exito);
+}
+
+.importar__confianza-badge--media {
+  border-color: var(--aviso);
+  color: var(--aviso);
 }
 
 /* --- la foto con zoom (FotoConLupa) --- */

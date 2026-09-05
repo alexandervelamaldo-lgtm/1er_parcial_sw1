@@ -1295,7 +1295,147 @@ Los errores sí bloquean, y eso ocurre en la validación (RF-GEN-11), no aquí.
 
 ---
 
-## 5.9 Seguridad
+## 5.9 Módulos: repartir el dominio en subpaquetes
+
+Un proyecto de cuarenta clases en un solo paquete `com.tienda.domain` compila
+perfectamente y no hay quien lo lea. Los **módulos** reparten esas clases en
+contextos acotados —«Ventas», «Catálogo», «Inventario»— y cada uno aporta **un
+tramo** al paquete de las suyas:
+
+```
+com.tienda.domain.Pedido                 →  com.tienda.ventas.domain.Pedido
+com.tienda.repository.PedidoRepository   →  com.tienda.ventas.repository.PedidoRepository
+com.tienda.service.PedidoService         →  com.tienda.ventas.service.PedidoService
+```
+
+La orden está en **Modelo ▸ Módulos del proyecto…**.
+
+### Lo que hace que no sea una etiqueta
+
+Es la única pregunta que importa aquí, porque una pantalla de módulos que
+colorea cajas y no cambia nada es fácil de montar y no vale para nada. **El
+módulo cambia lo que el generador escribe**: la línea `package …;` de cada
+fichero, la carpeta dentro del ZIP, y los `import` entre unas clases y otras.
+
+Ese último punto es el que se olvida. Sin módulos, `Pedido` y `Cliente`
+comparten paquete y Java resuelve la referencia sin ningún `import`. En cuanto
+`Pedido` se va a «Ventas» y `Cliente` se queda fuera, falta el import y **el
+proyecto deja de compilar**. El generador lo detecta y lo escribe:
+
+```java
+package com.tienda.ventas.domain;
+
+import com.tienda.domain.Cliente;                 // se quedó en el paquete base
+import com.tienda.catalogo.domain.Producto;       // vive en otro módulo
+```
+
+Por eso la pantalla enseña, junto a cada clase, **la ruta del fichero que se va
+a escribir**. Mover `Pedido` a «Ventas» cambia la línea a
+`com/tienda/ventas/domain/Pedido.java` en el acto; al descomprimir el ZIP el
+fichero está exactamente ahí. Es la comprobación que se puede hacer delante del
+tribunal sin generar nada.
+
+### Cómo se usa
+
+| Para | Dónde |
+|---|---|
+| Crear un módulo | Formulario de la izquierda: nombre, paquete, descripción |
+| Mover una clase | El selector que hay a la derecha de cada clase |
+| Sacar una clase de todos los módulos | El mismo selector, opción **Sin módulo** |
+| Ver dónde acabará un fichero | La ruta en monoespaciada, junto al nombre de la clase |
+| Renombrar o borrar un módulo | **Editar** / **Borrar** en la cabecera de su tarjeta |
+
+El paquete se **propone** a partir del nombre —«Recursos Humanos» sugiere
+`recursos_humanos`, «Catálogo» sugiere `catalogo`— pero el campo queda editable
+y manda lo que quede escrito. La propuesta deja de sobrescribir en cuanto
+alguien toca el campo a mano: corregir una tilde del nombre no borra el paquete
+que ya se había decidido.
+
+Cuando de un nombre no sale nada válido —«2020», «class»— el campo se queda
+**vacío** en vez de inventar `m2020` o `class2`. Un segmento inventado es peor
+que un campo vacío: el vacío se ve, y `class2` acaba en el `package` sin que
+nadie haya decidido llamarlo así.
+
+### Borrar un módulo no borra sus clases
+
+Vuelven al paquete base, que es donde estaban antes de que el módulo existiera.
+Arrastrarlas consigo convertiría un cambio de organización en una pérdida de
+trabajo.
+
+Lo mismo pasa con las carreras de la edición colaborativa: si alguien borra
+«Ventas» mientras otro le mete una clase, el CRDT conserva las dos operaciones y
+la clase queda apuntando a un módulo que ya no existe. Eso **no es un error**;
+se trata como «sin asignar» y el fichero sale en el paquete base. Tratarlo como
+error convertiría una carrera corriente en un diagrama que no se puede generar.
+
+### Qué se rechaza, y por qué no se «limpia»
+
+El segmento acaba siendo un tramo de `package …;` y un nombre de carpeta dentro
+del ZIP, así que es entrada no confiable en el sentido de **RNF-SEG-06**: se
+acepta lo que encaja con la lista blanca y se rechaza lo demás, sin
+transformarlo.
+
+| Se escribe | Qué pasa |
+|---|---|
+| `com.ventas` | Rechazado: *«El paquete del módulo es un único tramo: escriba «ventas», no «com.ventas».»* |
+| `../otro`, `..` | Rechazado. **No se le quitan los puntos para dejarlo pasar**: un módulo no puede salirse del paquete base por muy creativo que sea su nombre |
+| `package`, `int` | Rechazado: palabra reservada de Java |
+| `Ventas`, `recursos humanos` | Rechazado: mayúsculas y espacios |
+| `ventas` cuando ya lo usa otro | Rechazado, **nombrando al que lo ocupa**: sus clases acabarían mezcladas en la misma carpeta |
+
+Esa última es la peor de todas si se cuela, y no porque no compile: compila. Dos
+módulos con el mismo paquete mezclan sus ficheros en una carpeta y nadie lo
+advierte hasta que dos clases con el mismo nombre se pisan. Se comprueba **dos
+veces**: en el formulario y otra vez en la validación del generador, porque un
+diagrama puede llegar de un XMI importado o de un fichero copiado a mano sin
+pasar por esta pantalla.
+
+### Lo que los módulos no tocan
+
+- **La base de datos.** Las tablas salen idénticas estén las clases repartidas o
+  no. El módulo organiza el código, que es de lo que trata un contexto acotado.
+  Hay una prueba que compara el fichero de migración con y sin módulos y exige
+  que sea el mismo byte a byte.
+- **La infraestructura compartida.** `Application.java`, el manejador global de
+  errores y `ResourceNotFoundException` se quedan donde estaban; todos los
+  módulos los importan del paquete base.
+- **Un diagrama sin módulos.** Genera exactamente lo mismo que antes de que los
+  módulos existieran. No es una promesa: hay dos pruebas que comparan las listas
+  de ficheros enteras con `toEqual`, y las 986 pruebas anteriores pasaron sin
+  tocar ni una.
+
+### Cómo está comprobado, sin un compilador de Java a mano
+
+No se puede compilar Java dentro de la suite, así que la comprobación
+equivalente es **estructural** y se le pasa a todo el corpus de diagramas:
+
+1. La línea `package …;` de cada fichero generado **coincide con la carpeta** en
+   la que está.
+2. Cada `import` que apunta dentro del proyecto **resuelve a un fichero que
+   existe** en lo generado.
+
+Un proyecto que pasa esas dos y no compila tendría que fallar por otra cosa.
+
+Y para saber que la red no está descosida, se rompió a propósito: al hacer que
+el generador usara el paquete base en vez del paquete de la entidad, cayeron
+cinco pruebas; al invertir la condición que decide si hace falta el `import`
+entre módulos, cayó exactamente la que lo vigila. Las dos mutaciones se
+revirtieron.
+
+### Dónde está esto en el código
+
+| Fichero | Qué hace |
+|---|---|
+| `frontend/src/components/CatalogoModulos.tsx` | La pantalla |
+| `frontend/src/components/modulos.ts` | Reparto, propuesta de segmento, validación y ruta del fichero |
+| `frontend/src/components/modulos.test.ts` | Sus pruebas, sin navegador |
+| `shared/src/ops/operations.ts` | `addModule`, `updateModule`, `removeModule`, `assignClassToModule` y la lista blanca del segmento |
+| `generator/src/validation/validate.ts` | `INVALID_MODULE_SEGMENT` y `MODULE_SEGMENT_COLLISION` |
+| `generator/src/modulos.test.ts` | La comprobación estructural y las pruebas de invariancia |
+
+---
+
+## 5.10 Seguridad
 
 ### Permisos
 
@@ -1361,7 +1501,7 @@ gasta nada y **el texto de las preguntas no sale del equipo**.
 
 ---
 
-## 5.10 Pruebas
+## 5.11 Pruebas
 
 **543 pruebas en 24 ficheros, todas en verde.** Se ejecutan con `npx vitest run`.
 
@@ -1429,7 +1569,7 @@ modelo**.
 
 ---
 
-## 5.11 Problemas frecuentes
+## 5.12 Problemas frecuentes
 
 | Síntoma | Causa | Solución |
 |---|---|---|

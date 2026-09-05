@@ -19,6 +19,7 @@ import { Asistente } from './Asistente';
 import { ImportarDiagrama } from './ImportarDiagrama';
 import { ImportarXmi } from './ImportarXmi';
 import { PrevisualizarGeneracion } from './PrevisualizarGeneracion';
+import { CatalogoModulos } from './CatalogoModulos';
 import { HistorialCambios } from './HistorialCambios';
 import { ColumnaAcoplada } from './PanelAcoplado';
 import type { Acoplado, EstadoColumna } from './paneles';
@@ -103,6 +104,7 @@ export function EditorDiagrama({
   const [importando, setImportando] = useState(false);
   const [importandoXmi, setImportandoXmi] = useState(false);
   const [generando, setGenerando] = useState(false);
+  const [modulos, setModulos] = useState(false);
   const ultimoCursor = useRef(0);
 
   // El encuadre se pide como una acción numerada; el lienzo la atiende una vez y
@@ -423,6 +425,12 @@ export function EditorDiagrama({
             icono: 'enumeracion',
             deshabilitado: soloLectura,
           },
+          {
+            id: 'modulos',
+            etiqueta: 'Módulos del proyecto…',
+            icono: 'modulo',
+            separadorAntes: true,
+          },
         ],
       },
     ],
@@ -455,6 +463,9 @@ export function EditorDiagrama({
           return;
         case 'generar':
           setGenerando(true);
+          return;
+        case 'modulos':
+          setModulos(true);
           return;
         case 'salir':
           onSalir();
@@ -762,6 +773,15 @@ export function EditorDiagrama({
 
       {generando && (
         <PrevisualizarGeneracion proyecto={proyecto} onCerrar={() => setGenerando(false)} />
+      )}
+
+      {modulos && (
+        <CatalogoModulos
+          diagrama={estado.diagrama}
+          aplicar={aplicar}
+          soloLectura={soloLectura}
+          onCerrar={() => setModulos(false)}
+        />
       )}
     </div>
   );

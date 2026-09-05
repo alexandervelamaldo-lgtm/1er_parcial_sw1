@@ -361,14 +361,28 @@ export function ImportarDiagrama({
               {vistaPrevia && (
                 <FotoConLupa src={vistaPrevia} alt="La imagen que se está importando" />
               )}
+              {(modelo || confianza !== null) && (
+                <div className="importar__meta">
+                  {modelo && <span className="importar__modelo-tag">Modelo: {modelo}</span>}
+                  {confianza !== null && (
+                    <span
+                      className={`importar__confianza-badge ${
+                        confianza >= 0.85
+                          ? 'importar__confianza-badge--alta'
+                          : 'importar__confianza-badge--media'
+                      }`}
+                    >
+                      Confianza: {Math.round(confianza * 100)}%
+                    </span>
+                  )}
+                </div>
+              )}
               <p className="importar__nota">
-                {modelo && <>Leído por {modelo}. </>}
                 {confianza !== null && (
                   <>
-                    Confianza declarada: {Math.round(confianza * 100)}%.{' '}
-                    <strong>Es lo que el modelo opina de sí mismo</strong>, no una garantía: en
-                    las pruebas declaró el 100% mientras cambiaba una letra de un correo.
-                    Compara la imagen con lo leído antes de aceptar.
+                    <strong>Estimación declarada por el modelo</strong>, no una garantía de
+                    corrección. Conviene revisar la imagen con el visor y contrastar las clases y
+                    cardinalidades antes de incorporar la propuesta.
                   </>
                 )}
               </p>

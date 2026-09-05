@@ -8,6 +8,7 @@ import {
   getClassesMap,
   getHistorialArray,
   getMetaMap,
+  getModulesMap,
   getRelationsMap,
   leerHistorial,
   readDiagram,
@@ -169,9 +170,14 @@ export function useDiagrama(proyectoId: string, autor: Autor | null = null): Est
     // detalle del formato del documento y escribirlo aquí sería una segunda
     // copia que nadie actualizaría al cambiar la primera: el resultado no sería
     // un error de compilación, sino un «deshacer» que deja de funcionar.
-    const manager = new Y.UndoManager([getClassesMap(doc), getRelationsMap(doc), getMetaMap(doc)], {
-      trackedOrigins: new Set([ORIGEN_LOCAL]),
-    });
+    // Los módulos están en la lista por la misma razón que las clases: crear un
+    // módulo y asignarle clases es un solo lote, y si el gestor no vigilase el
+    // mapa de módulos, `Ctrl+Z` devolvería las clases a su sitio y dejaría el
+    // módulo puesto.
+    const manager = new Y.UndoManager(
+      [getClassesMap(doc), getRelationsMap(doc), getModulesMap(doc), getMetaMap(doc)],
+      { trackedOrigins: new Set([ORIGEN_LOCAL]) },
+    );
 
     // El array del historial no está entre los tipos vigilados, y no por
     // descuido: si lo estuviera, `Ctrl+Z` borraría la entrada que acaba de

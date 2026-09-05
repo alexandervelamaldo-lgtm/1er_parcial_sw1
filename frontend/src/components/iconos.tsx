@@ -19,7 +19,7 @@ import type { ClassKind, RelationKind } from '@app/shared';
  * deshabilitado o activo arrastra su icono al color que le toque sin una sola
  * regla extra.
  *
- * No se instala una librería de iconos. Son veinticuatro; una librería trae
+ * No se instala una librería de iconos. Son treinta y tres; una librería trae
  * varios miles, un `package.json` más largo y un árbol de dependencias que
  * auditar, para usar el uno por ciento.
  */
@@ -65,7 +65,8 @@ export type NombreIcono =
   | 'altavoz-mudo'
   | 'llave'
   | 'alerta'
-  | 'comprobado';
+  | 'comprobado'
+  | 'modulo';
 
 /** El punteado de las relaciones que en UML se dibujan con línea discontinua. */
 const PUNTEADO = '2 1.6';
@@ -260,6 +261,16 @@ const TRAZOS: Record<NombreIcono, ReactNode> = {
     </>
   ),
   comprobado: <path d="M3 8.5 6.5 12 13 4" />,
+
+  /* Un módulo es una caja isométrica: la misma metáfora que usa cualquier
+     herramienta para «paquete que contiene cosas», y se distingue de la caja
+     plana de `clase` sin necesidad de rótulo. */
+  modulo: (
+    <>
+      <path d="M2.5 5.5 8 2.5l5.5 3v5L8 13.5l-5.5-3z" />
+      <path d="M2.5 5.5 8 8.5l5.5-3M8 8.5v5" />
+    </>
+  ),
 };
 
 /** Los nombres válidos, para que las pruebas puedan recorrerlos todos. */

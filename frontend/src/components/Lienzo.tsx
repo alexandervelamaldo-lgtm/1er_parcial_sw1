@@ -369,19 +369,20 @@ export function Lienzo({
     >
       <defs>
         <pattern id="rejilla" width="24" height="24" patternUnits="userSpaceOnUse">
-          <path d="M24 0H0V24" fill="none" stroke="#1b1f2a" strokeWidth="1" />
+          <path d="M 24 0 L 0 0 0 24" fill="none" stroke="var(--borde)" strokeWidth="0.75" strokeOpacity="0.35" />
+          <circle cx="24" cy="24" r="0.8" fill="var(--borde)" opacity="0.6" />
         </pattern>
         <marker id="flecha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0 0L10 5L0 10z" fill="#8a93a6" />
+          <path d="M0 0L10 5L0 10z" fill="var(--texto-2)" />
         </marker>
         <marker id="herencia" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="11" markerHeight="11" orient="auto-start-reverse">
-          <path d="M0 0L11 6L0 12z" fill="#0f1115" stroke="#8a93a6" strokeWidth="1.5" />
+          <path d="M0 0L11 6L0 12z" fill="var(--fondo)" stroke="var(--texto-2)" strokeWidth="1.5" />
         </marker>
         <marker id="rombo" viewBox="0 0 14 10" refX="13" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse">
-          <path d="M0 5L7 0L14 5L7 10z" fill="#0f1115" stroke="#8a93a6" strokeWidth="1.5" />
+          <path d="M0 5L7 0L14 5L7 10z" fill="var(--fondo)" stroke="var(--texto-2)" strokeWidth="1.5" />
         </marker>
         <marker id="rombo-lleno" viewBox="0 0 14 10" refX="13" refY="5" markerWidth="12" markerHeight="10" orient="auto-start-reverse">
-          <path d="M0 5L7 0L14 5L7 10z" fill="#8a93a6" />
+          <path d="M0 5L7 0L14 5L7 10z" fill="var(--texto-2)" />
         </marker>
       </defs>
 
@@ -466,8 +467,23 @@ export function Lienzo({
         {participantes.map((p) =>
           p.cursor ? (
             <g key={p.clientId} transform={`translate(${p.cursor.x} ${p.cursor.y})`}>
-              <path d="M0 0L0 14L4 11L7 17L10 15L7 9L12 9z" fill={p.color} stroke="#0f1115" strokeWidth="1" />
-              <text x="14" y="16" fill={p.color} fontSize="11" className="etiqueta-cursor">
+              <path d="M0 0L0 14L4 11L7 17L10 15L7 9L12 9z" fill={p.color} stroke="var(--fondo)" strokeWidth="1" />
+              <rect
+                x="12"
+                y="10"
+                width={Math.max(34, p.nombre.length * 7 + 10)}
+                height="18"
+                rx="3"
+                fill={p.color}
+              />
+              <text
+                x="17"
+                y="23"
+                fill="var(--sobre-acento)"
+                fontSize="11"
+                fontWeight="600"
+                className="etiqueta-cursor"
+              >
                 {p.nombre}
               </text>
             </g>
@@ -566,7 +582,7 @@ function Caja({
         height={alto}
         rx="6"
         className="caja__fondo"
-        stroke={colorAjeno ?? (seleccionada ? '#5b9cff' : '#2a3040')}
+        stroke={colorAjeno ?? (seleccionada ? 'var(--acento)' : 'var(--borde)')}
         strokeWidth={colorAjeno || seleccionada ? 2 : 1}
       />
       {etiqueta && (
@@ -611,7 +627,7 @@ function Caja({
       ))}
 
       {nombreAjeno && (
-        <text x={ancho - 4} y="-6" textAnchor="end" fontSize="10" fill={colorAjeno ?? '#888'}>
+        <text x={ancho - 4} y="-6" textAnchor="end" fontSize="10" fill={colorAjeno ?? 'var(--texto-2)'}>
           {nombreAjeno}
         </text>
       )}
@@ -675,7 +691,7 @@ function Relacion({
       <path
         d={d}
         fill="none"
-        stroke="#8a93a6"
+        stroke="var(--texto-2)"
         strokeWidth="1.5"
         strokeDasharray={estilo.discontinua ? '6 4' : undefined}
         markerEnd={estilo.marcadorFin}
@@ -782,7 +798,7 @@ function TrazoEnCurso({
       y1={desde.y}
       x2={hacia.x}
       y2={hacia.y}
-      stroke="#5b9cff"
+      stroke="var(--acento)"
       strokeWidth="2"
       strokeDasharray="5 4"
       markerEnd="url(#flecha)"
