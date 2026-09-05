@@ -33,3 +33,14 @@ tmp-*.json
 # de sesión que se genera solo cuando SESSION_SECRET no viene del entorno.
 datos/
 backend-tool/datos/
+
+# La maqueta de la que salió el lenguaje visual actual. Es un árbol React
+# completo —10.000 líneas— pero sin backend: cada función está fingida con un
+# `setTimeout` que devuelve datos escritos a mano, y llama a Gemini desde el
+# navegador, que exige la clave en el bundle del cliente. No entra en el
+# repositorio por dos motivos: no forma parte de la compilación, y tener dos
+# árboles React parecidos es la forma más segura de que alguien edite el que no
+# es. Lo que se aprovechó de ella —paleta, redondeo, elevación— está portado a
+# `frontend/src/estilos.css`, con las pruebas de `estilos.test.ts` recalibradas
+# en el mismo commit.
+gemini_front/

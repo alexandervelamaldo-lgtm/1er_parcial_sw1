@@ -14,7 +14,7 @@ Cada fila lleva un estado, y los tres significan cosas distintas:
 | **Implementado** | El código está y funciona a mano, pero nada lo vigila. Si alguien lo rompe, se descubre usándolo. |
 | **Pendiente** | Está escrito en los requisitos y no está en el código. Aparece aquí para que no lo encuentre otro. |
 
-El estado del proyecto hoy, en un número: **942 pruebas en 35 ficheros**, todas en verde (`npm test`), y `npm run typecheck` limpio en los cuatro paquetes. A eso se añade lo que no cuenta ese número y es lo que más costó: los tres proyectos Spring Boot del corpus compilan con Maven, y el de `tienda` arranca contra PostgreSQL 16 y responde.
+El estado del proyecto hoy, en un número: **944 pruebas en 35 ficheros**, todas en verde (`npm test`), y `npm run typecheck` limpio en los cuatro paquetes. A eso se añade lo que no cuenta ese número y es lo que más costó: los tres proyectos Spring Boot del corpus compilan con Maven, y el de `tienda` arranca contra PostgreSQL 16 y responde.
 
 ---
 
@@ -202,7 +202,7 @@ Ordenado por lo que cuesta, no por lo que luce:
 
 Cinco minutos, en este orden, porque cada paso apoya al siguiente:
 
-1. `npm test` — 630 pruebas en verde en trece segundos. **Calidad.**
+1. `npm test` — 944 pruebas en verde en quince segundos. **Calidad.**
 2. Abrir el mismo proyecto en dos navegadores, editar en uno y ver el cambio en el otro; cortar la red a uno, seguir editando, y reconectar. **Escalabilidad**, y la afirmación de que el servidor no arbitra deja de ser una frase.
 3. Dictar una orden con Ollama y el equipo en modo avión. **Innovación**, y la que menos se espera.
 4. Fotografiar un diagrama de la pizarra, enseñar la pantalla de revisión y **descartar** la propuesta. Enseñar que se puede rechazar vale más que enseñar que acierta.
