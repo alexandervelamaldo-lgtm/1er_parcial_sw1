@@ -6,6 +6,76 @@
  * traer un sistema de diseño entero para esto añadiría más superficie que orden.
  */
 
+/*
+ * Las fuentes van dentro del repositorio, no en un `<link>` a Google.
+ * ------------------------------------------------------------------
+ * La maqueta las pedía con `<link href="fonts.googleapis.com">`, que es una
+ * línea y funciona. Aquí no vale: esta aplicación tiene que servir sin
+ * conexión, y una fuente que llega por red no falla con un error —cae en
+ * silencio a `system-ui` y la interfaz se ve distinta justo el día en que se
+ * está presumiendo de que funciona sin internet. Un fallo que solo aparece en
+ * la demo es peor que uno que aparece siempre.
+ *
+ * Son cuatro ficheros y 98 KB porque Google sirve estas dos familias como
+ * **fuentes variables**: un solo `.woff2` cubre todo el eje de peso, así que
+ * los cuatro pesos que usa la hoja —400, 500, 600 y 700— salen del mismo
+ * fichero en vez de pedir uno por peso. De ahí el `font-weight` con rango en
+ * vez de un número: es lo que le dice al navegador que puede interpolar.
+ *
+ * Solo `latin` y `latin-ext`. El español entra entero en `latin`; `latin-ext`
+ * se queda por los nombres propios de las clases del diagrama, que los escribe
+ * quien quiera. Los subconjuntos cirílico, griego y vietnamita —que son la
+ * mayor parte de lo que sirve Google— no se descargan.
+ *
+ * `font-display: swap` a propósito: antes que esperar a la fuente, se pinta
+ * con la del sistema y se cambia al llegar. Con los ficheros en local la
+ * ventana es de milisegundos.
+ *
+ * Licencia: las dos son SIL Open Font License 1.1, que permite redistribuirlas
+ * dentro del proyecto. Plus Jakarta Sans es de Tokotype; Fira Code, de Nikita
+ * Prokopov sobre la Fira Mono de Mozilla.
+ */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fuentes/plus-jakarta-sans-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('/fuentes/plus-jakarta-sans-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fuentes/fira-code-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fuentes/fira-code-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF,
+    U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020,
+    U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
   /*
     La rampa es gris azulado, y esta vez a propósito.
@@ -193,7 +263,7 @@
     de un fichero generado podían salir con formas de letra diferentes en la
     misma pantalla. Nadie eligió eso; se coló copiando una regla.
   */
-  --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --mono: 'Fira Code', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 
   color-scheme: dark;
 }
@@ -280,7 +350,7 @@ body {
     lienzo no cambia —sus textos van en el SVG con tamaños propios—, así que la
     densidad solo afecta a la interfaz que la rodea, que es donde hacía falta.
   */
-  font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 13px/1.45 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   overflow: hidden;
 }
 

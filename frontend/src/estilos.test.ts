@@ -673,3 +673,65 @@ describe('la microcopia no tutea', () => {
     });
   }
 });
+
+/* --------------------------------------------------------------------------
+   Las fuentes, y que sigan estando sin conexión
+   -------------------------------------------------------------------------- */
+
+/**
+ * Plus Jakarta Sans y Fira Code son las de la maqueta, y llegaban en ella por un
+ * `<link>` a Google. Aquí están dentro del repositorio, y esa decisión tiene una
+ * forma concreta de romperse que ninguna otra prueba vería: alguien añade un
+ * peso o una familia, escribe el `@font-face`, y **no toca `sw.js`**. Con red
+ * todo se ve bien. Sin red la fuente no está en la caché, el navegador no da
+ * error —cae a `system-ui` en silencio— y la interfaz se ve distinta el día de
+ * la defensa, que es justo el día en que se presume de que funciona sin
+ * internet.
+ *
+ * Un fallo que solo aparece sin conexión no lo encuentra nadie mirando la
+ * pantalla, así que se comprueba aquí.
+ */
+const SW = readFileSync(join(AQUI, '..', 'public', 'sw.js'), 'utf8');
+const HTML = readFileSync(join(AQUI, '..', 'index.html'), 'utf8');
+
+function fuentesReferenciadas(): string[] {
+  return [...sinComentariosCss(CSS).matchAll(/url\('(\/fuentes\/[^']+)'\)/g)].map((m) => m[1]!);
+}
+
+describe('las fuentes se sirven desde el propio repositorio', () => {
+  it('la hoja referencia alguna, y todas son rutas locales', () => {
+    const rutas = fuentesReferenciadas();
+    expect(rutas.length).toBeGreaterThan(0);
+    expect(new Set(rutas).size).toBe(4);
+  });
+
+  it.each(fuentesReferenciadas())('«%s» existe en disco y es un WOFF2 de verdad', (ruta) => {
+    const fichero = join(AQUI, '..', 'public', ruta.replace(/^\//, ''));
+    const bytes = readFileSync(fichero);
+    // La firma, no solo la extensión: un `.woff2` que en realidad es el HTML de
+    // una página de error de la descarga pesa poco y pasaría desapercibido.
+    expect(bytes.subarray(0, 4).toString('latin1')).toBe('wOF2');
+  });
+
+  it.each(fuentesReferenciadas())('«%s» está en el precache del service worker', (ruta) => {
+    expect(
+      SW.includes(`'${ruta}'`),
+      `${ruta} no aparece en ESENCIALES de sw.js: sin conexión no estará`,
+    ).toBe(true);
+  });
+
+  it('no se pide ninguna fuente por red', () => {
+    for (const fuente of [sinComentariosCss(CSS), HTML]) {
+      expect(fuente).not.toContain('fonts.googleapis.com');
+      expect(fuente).not.toContain('fonts.gstatic.com');
+    }
+  });
+
+  it('las dos familias de la maqueta encabezan sus pilas', () => {
+    const css = sinComentariosCss(CSS);
+    expect(css).toMatch(/font: 13px\/1\.45 'Plus Jakarta Sans',/);
+    expect(css).toMatch(/--mono: 'Fira Code',/);
+    // Con respaldo detrás: si el `.woff2` no llegara, hay con qué pintar.
+    expect(css).toMatch(/'Plus Jakarta Sans', system-ui/);
+  });
+});

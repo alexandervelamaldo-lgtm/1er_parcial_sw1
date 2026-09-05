@@ -15,10 +15,28 @@
  * usuario no tiene forma de notarlo.
  */
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE_ARMAZON = `armazon-${VERSION}`;
 
-const ESENCIALES = ['/', '/index.html', '/manifest.webmanifest', '/icono.svg'];
+/*
+ * Las fuentes van en el precache y no solo en el `fetch` de más abajo, que ya
+ * las guardaría la primera vez que se pidieran. La diferencia importa: el
+ * navegador no pide un `.woff2` hasta que tiene que pintar un carácter de su
+ * `unicode-range`, así que `latin-ext` podría no descargarse nunca durante la
+ * sesión con red y faltar justo cuando alguien escribe una clase con un nombre
+ * acentuado raro estando sin conexión. Pedirlas en el `install` cuesta 98 KB
+ * una vez y quita ese «depende».
+ */
+const ESENCIALES = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/icono.svg',
+  '/fuentes/plus-jakarta-sans-latin.woff2',
+  '/fuentes/plus-jakarta-sans-latin-ext.woff2',
+  '/fuentes/fira-code-latin.woff2',
+  '/fuentes/fira-code-latin-ext.woff2',
+];
 
 self.addEventListener('install', (evento) => {
   evento.waitUntil(
