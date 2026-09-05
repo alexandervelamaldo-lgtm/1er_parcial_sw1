@@ -12,12 +12,13 @@ import { usePantallaEstrecha, useTecladoFisico } from '../hooks/useDispositivo';
 import { usePaneles } from '../hooks/usePaneles';
 import { useTema } from '../hooks/useTema';
 import { useSesion } from '../services/sesion';
-import { descargarProyecto, type Proyecto } from '../services/api';
+import { type Proyecto } from '../services/api';
 import { Lienzo, type OrdenVista } from './Lienzo';
 import { PanelPropiedades } from './PanelPropiedades';
 import { Asistente } from './Asistente';
 import { ImportarDiagrama } from './ImportarDiagrama';
 import { ImportarXmi } from './ImportarXmi';
+import { PrevisualizarGeneracion } from './PrevisualizarGeneracion';
 import { HistorialCambios } from './HistorialCambios';
 import { ColumnaAcoplada } from './PanelAcoplado';
 import type { Acoplado, EstadoColumna } from './paneles';
@@ -101,6 +102,7 @@ export function EditorDiagrama({
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [importando, setImportando] = useState(false);
   const [importandoXmi, setImportandoXmi] = useState(false);
+  const [generando, setGenerando] = useState(false);
   const ultimoCursor = useRef(0);
 
   // El encuadre se pide como una acción numerada; el lienzo la atiende una vez y
@@ -255,18 +257,15 @@ export function EditorDiagrama({
     return () => window.removeEventListener('keydown', alPulsar);
   }, [estado, seleccion, soloLectura, aplicar]);
 
-  const descargar = async (): Promise<void> => {
-    try {
-      const { avisos } = await descargarProyecto(proyecto.id, proyecto.name);
-      avisar(
-        avisos > 0
-          ? `Proyecto descargado con ${avisos} aviso${avisos === 1 ? '' : 's'}.`
-          : 'Proyecto descargado.',
-      );
-    } catch (error) {
-      avisar(error instanceof Error ? error.message : 'No se pudo generar el proyecto');
-    }
-  };
+  /*
+    Aquí estaba `descargar`, que bajaba el ZIP en cuanto se pulsaba la orden del
+    menú. Ya no: la orden abre `PrevisualizarGeneracion`, y el botón de descarga
+    vive dentro de esa pantalla, junto a los ficheros que se van a escribir.
+
+    El cambio no es de comodidad. Descargar a ciegas significaba que un paquete
+    base mal escrito o una entidad que el validador dejó fuera no se veían hasta
+    descomprimir el ZIP y abrir un editor —y en una defensa, no se veían nunca—.
+  */
 
   /**
    * Exportar el diagrama a XMI (RF-DIAG-12).
@@ -333,9 +332,11 @@ export function EditorDiagrama({
           // Exportar no cambia nada, así que también lo puede hacer quien solo
           // tiene permiso de lectura: se lleva una copia, no toca el original.
           { id: 'exportar-xmi', etiqueta: 'Exportar XMI', icono: 'exportar' },
+          // Con puntos suspensivos porque ya no descarga: abre la
+          // previsualización, y desde ahí se decide si se descarga.
           {
             id: 'generar',
-            etiqueta: 'Generar proyecto Spring Boot',
+            etiqueta: 'Generar proyecto Spring Boot…',
             separadorAntes: true,
           },
           { id: 'salir', etiqueta: 'Volver a proyectos', icono: 'atras', separadorAntes: true },
@@ -453,7 +454,7 @@ export function EditorDiagrama({
           exportarXmi();
           return;
         case 'generar':
-          void descargar();
+          setGenerando(true);
           return;
         case 'salir':
           onSalir();
@@ -478,7 +479,7 @@ export function EditorDiagrama({
           return;
       }
     },
-    // `descargar` y `exportarXmi` se redefinen en cada pintado y no se pueden
+    // `exportarXmi` se redefine en cada pintado y no se puede
     // memorizar sin arrastrar medio componente a sus dependencias; el menú se
     // rehace igualmente cuando cambia lo que sí importa.
     /* eslint-disable-next-line react-hooks/exhaustive-deps */
@@ -757,6 +758,10 @@ export function EditorDiagrama({
           }}
           onCerrar={() => setImportandoXmi(false)}
         />
+      )}
+
+      {generando && (
+        <PrevisualizarGeneracion proyecto={proyecto} onCerrar={() => setGenerando(false)} />
       )}
     </div>
   );

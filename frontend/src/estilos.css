@@ -184,6 +184,17 @@
   */
   --lupa-fondo: #000000;
 
+  /*
+    La monoespaciada, en un sitio.
+
+    Estaba escrita a mano en cuatro reglas y ya había divergido: dos pedían
+    `'Cascadia Code'` y dos `'Cascadia Mono'`, que son dos tipografías distintas
+    —la primera lleva ligaduras—, así que el atributo de una clase y el nombre
+    de un fichero generado podían salir con formas de letra diferentes en la
+    misma pantalla. Nadie eligió eso; se coló copiando una regla.
+  */
+  --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
   color-scheme: dark;
 }
 
@@ -1017,7 +1028,7 @@ select:focus {
 .caja__miembro {
   fill: var(--texto-2);
   font-size: 11px;
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-family: var(--mono);
 }
 
 /*
@@ -1188,7 +1199,7 @@ select:focus {
 }
 
 .arbol__fila--miembro {
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--texto-2);
 }
@@ -1873,7 +1884,7 @@ select:focus {
   border-radius: var(--radio-ajustado);
   padding: 14px 10px;
   margin-bottom: 12px;
-  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+  font-family: var(--mono);
   font-size: 17px;
   letter-spacing: 1.5px;
   text-align: center;
@@ -1914,7 +1925,7 @@ select:focus {
 }
 
 .campo__codigo {
-  font-family: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+  font-family: var(--mono);
   letter-spacing: 1px;
   text-transform: uppercase;
 }
@@ -2578,6 +2589,247 @@ select:focus {
 
   .informe__seccion {
     break-inside: avoid-page;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Previsualización del proyecto generado
+   -------------------------------------------------------------------------- */
+
+/*
+ * El backend generado, antes de descargarlo.
+ *
+ * Es ancho por el mismo motivo que el cuadro de importar desde una foto: lo que
+ * se hace aquí es comparar dos cosas a la vez —el árbol de ficheros y el
+ * contenido del que está abierto—, y una disposición que obligue a bajar de uno
+ * a otro convierte la comparación en un acto de memoria.
+ *
+ * No lleva `box-shadow` propia: la hereda de `.modal__caja`, que es quien está
+ * en otra capa. Escribirla aquí otra vez sería un sexto selector con sombra sin
+ * que haya una sexta superficie flotando.
+ */
+.generado {
+  width: min(1180px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.generado__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.generado__cabecera h2 {
+  margin: 0;
+}
+
+.generado__resumen {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.generado__acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.generado__avisos {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--superficie-aviso);
+  border: 1px solid var(--borde-aviso);
+  border-radius: var(--radio-ajustado);
+  padding: 8px 12px;
+  color: var(--texto);
+  font-size: 12px;
+  margin: 0;
+}
+
+/*
+ * El reparto por capas. Es una rejilla que se ajusta sola en vez de un número
+ * fijo de columnas: las capas vacías no se pintan, así que la cuenta cambia con
+ * el proyecto —uno sin entidades no tiene repositorio— y una rejilla de siete
+ * huecos dejaría cuatro en blanco.
+ */
+.generado__capas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.generado__capas li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  padding: 8px 10px;
+}
+
+.generado__capa-nombre {
+  color: var(--texto-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.generado__capa-cuenta {
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.generado__prefijo {
+  color: var(--texto-2);
+  font-size: 11px;
+  margin: 0;
+}
+
+.generado__prefijo code {
+  font-family: var(--mono);
+  color: var(--texto);
+}
+
+/*
+ * Árbol a la izquierda, código a la derecha. El árbol tiene ancho fijo y el
+ * código se queda con el resto: al revés, un nombre de clase largo
+ * —`ClienteServiceImpl.java`— ensancharía la lista y estrecharía justo lo que
+ * se ha venido a leer.
+ */
+.generado__cuerpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 14px;
+}
+
+.generado__arbol {
+  overflow-y: auto;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  background: var(--fondo);
+  padding: 8px;
+}
+
+.generado__carpeta + .generado__carpeta {
+  margin-top: 10px;
+}
+
+.generado__carpeta-nombre {
+  color: var(--texto-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  margin: 0 0 4px;
+  padding: 0 6px;
+  word-break: break-all;
+}
+
+.generado__fichero {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radio-ajustado);
+  padding: 4px 6px;
+  color: var(--texto);
+  text-align: left;
+  font-size: 12px;
+}
+
+.generado__fichero:hover:not(:disabled) {
+  background: var(--realce);
+}
+
+.generado__fichero--activo {
+  background: var(--realce);
+  border-color: var(--borde-fuerte);
+}
+
+.generado__fichero-nombre {
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generado__fichero-tamano {
+  color: var(--texto-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.generado__codigo {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  background: var(--fondo);
+  overflow: hidden;
+}
+
+.generado__codigo-ruta {
+  border-bottom: 1px solid var(--borde);
+  background: var(--fondo-2);
+  padding: 6px 12px;
+  margin: 0;
+  color: var(--texto-2);
+  font-family: var(--mono);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.generado__codigo pre {
+  flex: 1;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.55;
+  /* El código generado se lee tal cual se va a escribir en el ZIP: sin
+     reajustar las líneas largas, porque una línea partida por el visor y una
+     partida por el generador se distinguirían mal. */
+  white-space: pre;
+  tab-size: 4;
+}
+
+.generado__nota {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 0;
+}
+
+/*
+ * En pantalla estrecha el árbol pasa a estar encima y con altura acotada. Dos
+ * columnas de 280 px y pico en un móvil dejan el código en una tira de cuarenta
+ * caracteres, que es donde una firma de método deja de leerse.
+ */
+@media (max-width: 900px) {
+  .generado__cuerpo {
+    grid-template-columns: 1fr;
+  }
+
+  .generado__arbol {
+    max-height: 30vh;
   }
 }
 
@@ -3444,6 +3696,7 @@ select:focus {
   .importar,
   .importar-xmi,
   .informe,
+  .generado,
   .historial {
     max-height: 100%;
     height: 100%;

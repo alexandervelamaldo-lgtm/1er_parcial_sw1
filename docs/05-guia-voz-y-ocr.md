@@ -1225,7 +1225,77 @@ dejaría la ayuda «funcionando» y nadie iría a mirar los registros.
 
 ---
 
-## 5.8 Seguridad
+## 5.8 Generar el backend y verlo antes de descargarlo (RF-GEN-13)
+
+El diagrama no es el entregable: el entregable es un backend Spring Boot de
+cuatro capas más DTO, con su esquema PostgreSQL. La orden que lo produce está en
+**Archivo ▸ Generar proyecto Spring Boot…**.
+
+Los puntos suspensivos no son decorativos. Hasta hace poco esa orden bajaba el
+ZIP directamente, y eso tenía un problema concreto: **si el generador escribía
+mal un nombre de paquete, o el validador dejaba una entidad fuera, no se sabía
+hasta descomprimir el fichero y abrir un editor.** En una defensa de veinte
+minutos, eso significa no saberlo nunca.
+
+Ahora la orden abre una pantalla con lo que se va a escribir, y la descarga es
+un botón dentro de ella.
+
+### Cómo se usa
+
+| Para | Dónde |
+|---|---|
+| Ver cuántos ficheros salen y cuánto ocupan | Bajo el título, en cuanto abre |
+| Comprobar que están las cuatro capas y el DTO | La fila de recuentos por capa |
+| Leer un fichero concreto | Pulsarlo en el árbol de la izquierda; sale a la derecha |
+| Descargar el ZIP | Botón **Descargar ZIP**, arriba a la derecha |
+
+El árbol agrupa por carpeta y recorta el prefijo que comparten todas las rutas
+—`src/main/java/com/ejemplo/tienda/`— para que el ancho se gaste en los nombres
+y no en repetir lo mismo cuarenta veces. El prefijo recortado se indica encima
+del árbol, así que no se pierde de vista dónde va a parar cada cosa.
+
+### El recuento por capas es una cuenta, no una promesa
+
+Es la parte que contesta a la pregunta del enunciado —«¿de verdad genera las
+cuatro capas y el DTO?»— y la contesta **contando los ficheros que se van a
+escribir**, no afirmándolo. Si una capa sale a cero, no aparece su fila: un
+«Repositorio: 0» ocupa una línea para no informar de nada.
+
+La capa de cada fichero se deduce de la carpeta que lo contiene, mirando los
+segmentos de la ruta **desde el final**. Tiene un motivo que se ve con un
+ejemplo: el paquete base lo escribe quien crea el proyecto, y si escribe
+`com.tienda.service`, entonces *todas* las rutas del proyecto contienen
+`/service/`. Buscando desde el principio, las cuarenta clases saldrían como
+servicios.
+
+### Avisos: se genera igual, pero se dice antes
+
+Si la validación deja avisos, salen arriba, con su número, **antes** de que haya
+nada que descargar. Los avisos no son errores: el proyecto se genera igualmente.
+Los errores sí bloquean, y eso ocurre en la validación (RF-GEN-11), no aquí.
+
+### Lo que esta pantalla no hace
+
+- **No genera dos veces.** Previsualizar y descargar son dos llamadas al mismo
+  generador; la vista previa no deja un ZIP a medias en ningún sitio.
+- **No colorea la sintaxis.** Un resaltador para Java, XML, SQL y `.properties`
+  son cuatro gramáticas y una dependencia nueva para que un fichero que se lee
+  una vez salga en colores. Se lee igual en monoespaciada.
+- **No permite editar el código generado.** Lo que hay que corregir es el
+  diagrama; editar la salida es perder el cambio en la siguiente generación.
+
+### Dónde está esto en el código
+
+| Fichero | Qué hace |
+|---|---|
+| `frontend/src/components/PrevisualizarGeneracion.tsx` | La pantalla |
+| `frontend/src/components/generacion.ts` | Capas, carpetas, prefijo común y tamaños |
+| `frontend/src/components/generacion.test.ts` | Sus pruebas, con rutas reales del generador |
+| `GET /api/proyectos/:id/generacion/previsualizacion` | Devuelve cada fichero con su contenido |
+
+---
+
+## 5.9 Seguridad
 
 ### Permisos
 
@@ -1291,7 +1361,7 @@ gasta nada y **el texto de las preguntas no sale del equipo**.
 
 ---
 
-## 5.9 Pruebas
+## 5.10 Pruebas
 
 **543 pruebas en 24 ficheros, todas en verde.** Se ejecutan con `npx vitest run`.
 
@@ -1359,7 +1429,7 @@ modelo**.
 
 ---
 
-## 5.10 Problemas frecuentes
+## 5.11 Problemas frecuentes
 
 | Síntoma | Causa | Solución |
 |---|---|---|
