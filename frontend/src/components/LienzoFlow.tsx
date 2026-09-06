@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import {
   Background,
   BackgroundVariant,
+  ConnectionMode,
   Controls,
   Handle,
   MiniMap,
@@ -228,6 +229,15 @@ function NodoClaseUml({ data, selected }: NodeProps<NodoClase>): JSX.Element {
         trazar una relación arrastrando. Se quedan invisibles hasta que se pasa
         por encima: un diagrama de clases con cuatro puntos por caja siempre
         visibles se lee peor, y lo que tiene que destacar es el modelo.
+
+        Los cuatro son `source`, y por eso el lienzo va en `ConnectionMode.Loose`
+        —ver el `connectionMode` de más abajo, que es la mitad que falta de esta
+        decisión y sin la cual no se puede relacionar nada—. La alternativa era
+        poner ocho conectores, un `source` y un `target` solapados por lado, y no
+        se hace porque en UML el lado por el que sale la línea no dice nada del
+        sentido de la relación: la dirección la lleva el modelo, no la geometría.
+        Ocho conectores serían ocho blancos de ratón donde el usuario ve cuatro
+        puntos, y acertar el de debajo o el de encima cambiaría el resultado.
       */}
       {LADOS.map((lado) => (
         <Handle
@@ -626,6 +636,25 @@ function LienzoInterno({
         edgeTypes={TIPOS_ARISTA}
         onNodesChange={alCambiarNodos}
         onConnect={alConectar}
+        /*
+          Sin esto no se puede relacionar ni una sola clase.
+
+          Las cuatro asas de la caja son `type="source"`, y el modo por defecto
+          de React Flow es `Strict`, que solo da por buena una conexión que
+          **termine** en un `target`. Como no hay ninguno en todo el lienzo, se
+          podía empezar a tirar de un conector —la línea se veía seguir al
+          ratón— pero no había dónde soltarla: la conexión se descartaba siempre
+          al levantar el dedo y `onConnect` no llegaba a ejecutarse nunca. El
+          fallo no daba error en consola ni dejaba rastro; simplemente no pasaba
+          nada, que es la forma más cara de romperse.
+
+          `Loose` da por válida cualquier pareja de asas que no sea la misma asa
+          de la misma caja. Eso habilita las dos cosas que el lienzo ya sabía
+          dibujar pero no dejaba crear: la relación entre dos clases, y la
+          reflexiva —de un lado de una caja a otro lado de esa misma caja—, que
+          `AristaRelacionUml` resuelve con un lazo desde que existe.
+        */
+        connectionMode={ConnectionMode.Loose}
         onNodeClick={(_, nodo) => onSeleccionar(nodo.id)}
         onPaneClick={() => onSeleccionar(null)}
         onPointerMove={(evento) => {
