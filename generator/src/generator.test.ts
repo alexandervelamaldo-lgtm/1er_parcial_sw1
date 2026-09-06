@@ -75,6 +75,141 @@ describe('validación previa', () => {
   });
 });
 
+/*
+ * La firma de un método es entrada no confiable igual que el nombre de una clase
+ * (RNF-SEG-06), y además es el único punto del generador donde una cadena del
+ * diagrama se interpola SIN escapar: `{{{signature}}}` en las plantillas
+ * `interface`, `entity`, `service` y `service-impl`. Estas pruebas existen
+ * porque durante un tiempo se validó el nombre del método pero no el resto de
+ * la firma, y un parámetro con paréntesis y llaves salía como Java roto sin que
+ * la validación dijera nada.
+ */
+describe('la firma del método es entrada no confiable', () => {
+  const conMetodo = (metodo: ReturnType<typeof createMethod>) =>
+    createDiagram({
+      id: 'DF',
+      name: 'Firma',
+      meta: { basePackage: 'com.firma', artifactId: 'firma', description: 'Firma' },
+      classes: {
+        C1: createClass({
+          id: 'C1',
+          name: 'Factura',
+          attributes: [createAttribute({ id: 'A1', name: 'id', type: 'Long', isIdentifier: true })],
+          methods: [metodo],
+        }),
+      },
+    });
+
+  it('rechaza un parámetro que cerraría el método e inyectaría código', () => {
+    const diagram = conMetodo(
+      createMethod({
+        id: 'M1',
+        name: 'marcar',
+        returnType: null,
+        parameters: [
+          { name: 'a) { } public static void danio(', type: { name: 'String', collection: false } },
+        ],
+      }),
+    );
+
+    const resultado = validateDiagram(diagram);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.errors.map((e) => e.code)).toContain('INVALID_PARAMETER_NAME');
+  });
+
+  it('rechaza un tipo de retorno que no existe', () => {
+    const diagram = conMetodo(
+      createMethod({
+        id: 'M2',
+        name: 'obtener',
+        returnType: { name: 'String { } public static void otro() { } String', collection: false },
+        parameters: [],
+      }),
+    );
+
+    const resultado = validateDiagram(diagram);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.errors.map((e) => e.code)).toContain('UNKNOWN_RETURN_TYPE');
+  });
+
+  it('rechaza un tipo de parámetro que no existe', () => {
+    const diagram = conMetodo(
+      createMethod({
+        id: 'M3',
+        name: 'guardar',
+        returnType: null,
+        parameters: [{ name: 'dato', type: { name: 'NoExisteEsteTipo', collection: false } }],
+      }),
+    );
+
+    const resultado = validateDiagram(diagram);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.errors.map((e) => e.code)).toContain('UNKNOWN_PARAMETER_TYPE');
+  });
+
+  it('rechaza dos parámetros que colisionan al convertirse a Java', () => {
+    // «fecha alta» y «fechaAlta» son distintos en el diagrama y el mismo
+    // `fechaAlta` en Java: el proyecto generado no compilaría.
+    const diagram = conMetodo(
+      createMethod({
+        id: 'M4',
+        name: 'programar',
+        returnType: null,
+        parameters: [
+          { name: 'fecha alta', type: { name: 'String', collection: false } },
+          { name: 'fechaAlta', type: { name: 'String', collection: false } },
+        ],
+      }),
+    );
+
+    const resultado = validateDiagram(diagram);
+    expect(resultado.ok).toBe(false);
+    expect(resultado.errors.map((e) => e.code)).toContain('DUPLICATE_PARAMETER_NAME');
+  });
+
+  it('acepta una firma legítima, incluida la que necesita convertirse', () => {
+    // La validación mira lo que se emite, no lo que se escribió: «fecha alta»
+    // es un nombre razonable en un diagrama y produce un `fechaAlta` válido.
+    const diagram = conMetodo(
+      createMethod({
+        id: 'M5',
+        name: 'programar',
+        returnType: { name: 'String', collection: false },
+        parameters: [
+          { name: 'fecha alta', type: { name: 'String', collection: false } },
+          { name: 'importe', type: { name: 'Long', collection: false } },
+        ],
+      }),
+    );
+
+    const resultado = validateDiagram(diagram);
+    expect(resultado.errors).toEqual([]);
+    expect(resultado.ok).toBe(true);
+  });
+
+  it('nada hostil llega a la plantilla: el generador nunca ve la firma rota', () => {
+    // La prueba de arriba comprueba que se rechaza; esta comprueba lo que
+    // importa de verdad, que es que el Java emitido para una firma válida no
+    // contiene estructura inyectada.
+    const diagram = conMetodo(
+      createMethod({
+        id: 'M6',
+        name: 'marcar',
+        returnType: null,
+        parameters: [{ name: 'estado', type: { name: 'String', collection: false } }],
+      }),
+    );
+
+    expect(validateDiagram(diagram).ok).toBe(true);
+    const servicio = fileNamed(
+      generateProject(normalize(diagram)),
+      'service/FacturaService.java',
+    ).content;
+    expect(servicio).toContain('void marcar(String estado);');
+    expect(servicio).not.toMatch(/\{\s*\}\s*[Pp]ublic/);
+  });
+});
+
 describe('normalización a IR', () => {
   const ir = normalize(tiendaDiagram());
 

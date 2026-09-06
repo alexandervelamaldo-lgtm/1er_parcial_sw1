@@ -54,6 +54,7 @@ export function validateDiagram(diagram: ClassDiagram): ValidationResult {
   validateNameCollisions(diagram, issues);
   validateIdentifiers(diagram, issues);
   validateAttributeTypes(diagram, issues);
+  validateMethodSignatures(diagram, issues);
   validateEnums(diagram, issues);
   validateRelationEndpoints(diagram, issues);
   validateInheritance(diagram, issues);
@@ -343,6 +344,92 @@ function validateAttributeTypes(diagram: ClassDiagram, issues: ValidationIssue[]
             message:
               `El identificador «${cls.name}.${attr.name}» es de tipo «${typeName}». ` +
               `Use Long, Integer, UUID o String.`,
+            elementId: cls.id,
+            elementName: cls.name,
+          });
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Regla 2b: la firma completa de cada método —parámetros y tipo de retorno—.
+ *
+ * SEGURIDAD (RNF-SEG-06). La regla 5 valida el *nombre* del método, y la regla 2
+ * los tipos de los *atributos*. Entre las dos quedaba un hueco por el que pasaba
+ * todo lo demás de la firma: el nombre de cada parámetro, su tipo y el tipo de
+ * retorno. Ese hueco importa porque `normalize.ts` compone con esos tres valores
+ * la cadena `signature`, y las plantillas la interpolan sin escapar
+ * (`{{{signature}}}` en `interface`, `entity`, `service` y `service-impl`). Un
+ * parámetro llamado `a) { } public static void otro(` se colaba con la
+ * validación en verde y salía como Java que no compila.
+ *
+ * Se valida **la forma que se emite**, no la que se escribió. `toCamelCase` es
+ * lo que acaba en la plantilla, así que es lo que tiene que encajar con la lista
+ * blanca; comprobar el original dejaría pasar lo que la conversión estropee y
+ * rechazaría un `fecha alta` que es perfectamente legítimo.
+ *
+ * Los tipos se comprueban contra el catálogo o contra las clases del diagrama,
+ * igual que en la regla 2, en lugar de con un patrón de identificador: un tipo
+ * que no existe tampoco compila, aunque se escriba con letras.
+ */
+function validateMethodSignatures(diagram: ClassDiagram, issues: ValidationIssue[]): void {
+  const classNames = new Set(listClasses(diagram).map((c) => toPascalCase(c.name)));
+  const tipoConocido = (nombre: string): boolean =>
+    isPrimitiveType(nombre) || classNames.has(toPascalCase(nombre));
+
+  for (const cls of listClasses(diagram)) {
+    for (const method of cls.methods) {
+      const donde = `${cls.name}.${method.name}()`;
+
+      if (method.returnType && !tipoConocido(method.returnType.name)) {
+        issues.push({
+          severity: 'error',
+          code: 'UNKNOWN_RETURN_TYPE',
+          message:
+            `${donde} devuelve «${method.returnType.name}», que no está en el catálogo ` +
+            `soportado ni corresponde a una clase del diagrama.`,
+          elementId: cls.id,
+          elementName: cls.name,
+        });
+      }
+
+      const vistos = new Set<string>();
+      for (const param of method.parameters) {
+        const javaName = toCamelCase(param.name);
+
+        if (!isValidJavaIdentifier(javaName)) {
+          issues.push({
+            severity: 'error',
+            code: 'INVALID_PARAMETER_NAME',
+            message:
+              `El parámetro «${param.name}» de ${donde} no produce un identificador Java ` +
+              `válido. Use solo letras, dígitos y guion bajo, y evite palabras reservadas.`,
+            elementId: cls.id,
+            elementName: cls.name,
+          });
+        } else if (vistos.has(javaName)) {
+          // Dos parámetros que se llamen igual tras la conversión no compilan,
+          // y el diagrama puede distinguirlos («fecha alta» y «fechaAlta»)
+          // aunque el Java resultante ya no.
+          issues.push({
+            severity: 'error',
+            code: 'DUPLICATE_PARAMETER_NAME',
+            message: `${donde} tiene dos parámetros que se llamarían «${javaName}» en Java.`,
+            elementId: cls.id,
+            elementName: cls.name,
+          });
+        }
+        vistos.add(javaName);
+
+        if (!tipoConocido(param.type.name)) {
+          issues.push({
+            severity: 'error',
+            code: 'UNKNOWN_PARAMETER_TYPE',
+            message:
+              `El parámetro «${param.name}» de ${donde} es de tipo «${param.type.name}», que ` +
+              `no está en el catálogo soportado ni corresponde a una clase del diagrama.`,
             elementId: cls.id,
             elementName: cls.name,
           });
