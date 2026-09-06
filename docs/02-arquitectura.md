@@ -197,6 +197,18 @@ No todo el estado va al CRDT.
 
 Meter la selección o el zoom en el documento colaborativo es un error frecuente: genera tráfico constante, contamina el historial y hace que el deshacer de un usuario mueva la vista de otro.
 
+Que la separación se respete no se deja a la disciplina de quien edite el código: está comprobado en `backend-tool/src/collab/collab.test.ts` («el cursor no entra en el documento, ni en el historial, ni en el disco»). Dos clientes mueven cien posiciones cada uno sobre una sala real y el documento no emite ni un evento de actualización, sus bytes no cambian y el fichero no se reescribe. Un refactor que decidiera guardar la presencia en el documento —que es la forma natural de romper esto— falla ahí.
+
+### 2.4.4 El color de cada participante se deriva, no se transmite
+
+Cada persona conectada se ve en el lienzo como una flecha de su color con su nombre. El color **no** viaja por el canal de conciencia: cada navegador lo calcula por su cuenta con `repartirColores` (`frontend/src/hooks/usePresencia.ts`), una función pura que ordena las identidades, les asigna un color de la paleta por huella FNV-1a y avanza al siguiente libre si dos coinciden.
+
+Un dato que se puede derivar y además se transmite es un dato que puede llegar en desacuerdo consigo mismo. Al derivarlo, todos los navegadores llegan a la misma asignación con cero mensajes de coordinación, y el color se ata a la **identidad** y no a la conexión: al recargar la página sigue siendo el mismo, que es la única razón por la que poner colores sirve de algo. La versión anterior usaba el identificador aleatorio de la conexión, con dos consecuencias que ninguna inspección visual detecta: el color cambiaba en cada recarga y, con cuatro personas sobre ocho colores, dos compartían color en una de cada tres salas.
+
+El cursor además caduca a los quince segundos de no moverse (`podarCursoresParados`). Caducar no expulsa a nadie: la persona sigue contando en la barra de estado y su selección sigue resaltada, porque lo único que ha dejado de ser cierto es dónde está su ratón.
+
+**Cómo demostrarlo en la defensa.** Hacen falta **dos cuentas distintas**, no dos pestañas. Una misma cuenta abierta dos veces recibe un solo color a propósito —es la respuesta correcta— y parece que la función no va. Con dos navegadores y dos cuentas, se abre el mismo proyecto en ambos, se mueve el ratón en uno y la flecha aparece en el otro; recargando una de las dos ventanas se comprueba que el color no cambia.
+
 ---
 
 ## 2.5 Sincronización y modo offline
