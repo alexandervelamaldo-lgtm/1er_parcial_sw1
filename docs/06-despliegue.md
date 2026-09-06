@@ -175,16 +175,48 @@ meter la foto en el mismo saco: la importación desde imagen usa un
 no `getUserMedia`, y los selectores funcionan igual sin origen seguro. Sobre
 `http://` se pierde la voz, no la cámara.
 
+### La región no es un detalle: `us-east-1`
+
+Los ejemplos de más abajo usaban `eu-west-1` (Irlanda) por inercia. Es mala
+elección para este proyecto y conviene explicar por qué, porque la región suele
+tratarse como algo que se rellena sin pensar.
+
+Esto no es una web que se carga una vez. Es una herramienta colaborativa: cada
+movimiento de cursor y cada cambio del diagrama es un mensaje que sube al
+servidor y baja a los demás. Ese ida y vuelta paga la latencia **entera, y en
+cada gesto**. Desde Bolivia hasta Irlanda son del orden de 200 ms, así que
+arrastrar una clase se vería a un quinto de segundo de retraso en la otra
+pantalla: exactamente lo que un tribunal interpreta como «va lento».
+
+La región natural sería São Paulo (`sa-east-1`), a unos 40 ms, pero **App Runner
+no existe en Sudamérica**. De las regiones donde sí está, la más cercana es
+`us-east-1` (Virginia), en torno a 100 ms. Es la que hay que usar: la mitad de
+retraso que Irlanda, y además es la más barata y donde antes aparece todo.
+
+Da igual la región mientras la defensa sea en `localhost`; importa el día que se
+enseñe la versión de la nube, que es justo el día en que no se puede cambiar.
+RDS, ECR y App Runner tienen que estar **los tres en la misma región**: si no, ni
+se ven entre ellos y encima se paga la transferencia entre regiones.
+
 1. **RDS PostgreSQL.** Instancia mínima (`db.t4g.micro`), en la misma región.
    No hacerla pública: se conecta por VPC. No hay que crear tablas a mano: el
    servicio aplica su esquema al arrancar (§6.5).
 2. **ECR.** Crear el repositorio y subir la imagen:
    ```bash
-   aws ecr get-login-password --region eu-west-1 \
-     | docker login --username AWS --password-stdin <cuenta>.dkr.ecr.eu-west-1.amazonaws.com
-   docker tag uml-tool <cuenta>.dkr.ecr.eu-west-1.amazonaws.com/uml-tool:v1
-   docker push <cuenta>.dkr.ecr.eu-west-1.amazonaws.com/uml-tool:v1
+   aws ecr create-repository --repository-name uml-tool --region us-east-1
+
+   # El número de cuenta no hay que buscarlo ni copiarlo a mano:
+   CUENTA=$(aws sts get-caller-identity --query Account --output text)
+   REGISTRO=$CUENTA.dkr.ecr.us-east-1.amazonaws.com
+
+   aws ecr get-login-password --region us-east-1 \
+     | docker login --username AWS --password-stdin $REGISTRO
+   docker tag uml-tool $REGISTRO/uml-tool:v1
+   docker push $REGISTRO/uml-tool:v1
    ```
+   `get-login-password` devuelve un testigo temporal que va por la tubería
+   directo a `docker login`: no se escribe en ningún fichero ni queda en el
+   historial del shell.
 3. **App Runner** apuntando a esa imagen. Puerto 3001, comprobación de salud en
    `/salud`, y un *VPC connector* para poder hablar con RDS.
 4. **Variables de entorno**, con los secretos en Secrets Manager y no en texto
