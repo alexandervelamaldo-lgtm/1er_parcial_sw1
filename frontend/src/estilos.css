@@ -1295,6 +1295,13 @@ select:focus {
   flex: none;
 }
 
+/*
+  El nombre lo escribe otro participante, así que su largo no lo decidimos
+  nosotros. `nowrap` sin tope convertía un nombre largo en una cinta que cruza
+  el diagrama por encima de las clases. `usePresencia` ya lo corta a 40
+  caracteres al recibirlo; esto es el segundo tope, el visual, para los nombres
+  simplemente largos y no absurdos.
+*/
 .lienzo__cursor span {
   padding: 1px 5px;
   border-radius: 2px;
@@ -1302,6 +1309,9 @@ select:focus {
   font-weight: 600;
   color: var(--sobre-acento);
   white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* --- El cromo: controles, minimapa, fondo y atribución ------------------- */
