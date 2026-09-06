@@ -139,18 +139,61 @@ export function cargarEnv(ruta?: string): void {
   const encontrado = candidatos.find((c) => existsSync(c));
   if (!encontrado) return;
 
+  /*
+    Las claves repetidas dentro del mismo fichero se avisan.
+
+    `process.env[clave] !== undefined` mezcla dos situaciones que no se parecen
+    en nada. Una es que la variable venga del entorno real, y ahí saltársela es
+    justo lo que se quiere: el entorno manda sobre el fichero. La otra es que la
+    haya puesto una línea anterior de este mismo `.env`, y eso no es una
+    política, es una errata.
+
+    Callarse la segunda sale caro, y no en teoría: alguien pegó un bloque nuevo
+    de configuración al final de su `.env` sin borrar el viejo, y el backend
+    siguió usando el viejo sin decir nada. Lo que veía en la pantalla al abrir
+    el fichero —el bloque nuevo, treinta líneas más abajo— no era lo que el
+    programa estaba usando. Tardó una tarde y dos errores del proveedor en
+    aparecer, y el segundo apuntaba al modelo, que era lo único que estaba bien.
+
+    No se aborta el arranque. Una clave repetida tiene un ganador definido y
+    predecible —la primera—, así que el programa puede seguir; lo que no puede
+    es dejar creer que se está aplicando la última.
+
+    Se avisa del nombre y **nunca del valor**: en este fichero viven las claves
+    de API y la cadena de conexión con su contraseña. Un aviso que las imprimiera
+    en el registro las publicaría en cualquier sitio donde se recojan los
+    registros, que es de las formas más tontas de filtrar un secreto.
+  */
+  const vistas = new Set<string>();
+  const repetidas = new Set<string>();
+
   for (const linea of readFileSync(encontrado, 'utf8').split('\n')) {
     const limpia = linea.trim();
     if (!limpia || limpia.startsWith('#')) continue;
     const corte = limpia.indexOf('=');
     if (corte <= 0) continue;
     const clave = limpia.slice(0, corte).trim();
+
+    if (vistas.has(clave)) {
+      repetidas.add(clave);
+      continue;
+    }
+    vistas.add(clave);
+
     if (process.env[clave] !== undefined) continue;
     // Las comillas son un artefacto de escritura, no parte del valor.
     process.env[clave] = limpia
       .slice(corte + 1)
       .trim()
       .replace(/^(['"])(.*)\1$/, '$2');
+  }
+
+  if (repetidas.size > 0) {
+    console.warn(
+      `Aviso: ${encontrado} define ${[...repetidas].join(', ')} más de una vez. ` +
+        'Vale la primera aparición y se descartan las siguientes: si acabas de añadir ' +
+        'configuración al final del fichero, no se está aplicando. Borra la vieja.',
+    );
   }
 }
 
