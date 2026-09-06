@@ -1695,6 +1695,7 @@ modelo**.
 | «no tiene la forma esperada: `columnas: Array must contain at least 1`» | Versión antigua del mismo caso anterior | Ya no ocurre; actualiza y relee el mensaje nuevo |
 | `LECTURA_FALLIDA: Insufficient Balance` | Saldo agotado en DeepSeek | Recarga la cuenta |
 | `404` … «This model … is no longer available» | El nombre de `LLM_VISION_MODEL` lo ha retirado el proveedor | El propio error dice el sustituto; ponlo en `.env` y reinicia. La clave está bien: te contestó |
+| `404` con una **página HTML** (`<title>Error 404 (Not Found)!!1</title>`) | `LLM_VISION_BASE_URL` no apunta a la API. Es el 404 de un servidor web, no el de un proveedor de modelos: la petición nunca llegó a Gemini. Caso típico: `https://googleapis.com`, que es el dominio paraguas de Google y no la API | Ponla en `https://generativelanguage.googleapis.com/v1beta/openai` y reinicia. **El nombre del modelo no tiene nada que ver**: con el correcto habría fallado igual |
 | `404` al llamar a `/models` a mano para probar la clave | La capa compatible con OpenAI de Google sirve `/chat/completions`, no el listado | Prueba con `/chat/completions`, que es lo que usa el backend |
 | `IMAGEN_DEMASIADO_GRANDE` | Foto por encima de 4 MiB | Recórtala; se lee mejor además |
 | «Ya hay una clase X» | El diagrama ya tiene esa tabla | Cambia el nombre en la revisión, o borra la existente |

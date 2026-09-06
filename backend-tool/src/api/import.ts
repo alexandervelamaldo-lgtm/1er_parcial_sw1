@@ -156,11 +156,33 @@ function explicarFalloDeLectura(error: ErrorDeModelo): string {
         return 'El proveedor ha rechazado la clave. Revisa LLM_VISION_API_KEY en el .env del servidor.';
       case 402:
         return 'La cuenta del proveedor se ha quedado sin saldo.';
+      /*
+        Un 404 son dos averías distintas, y confundirlas cuesta una tarde.
+
+        Si el 404 viene en JSON, la petición llegó a la API del proveedor y lo
+        que no reconoce es el nombre del modelo: retiran versiones sin avisar y
+        la respuesta nombra el sustituto.
+
+        Si viene en HTML, la petición no llegó a ninguna API. Es la página de
+        error genérica del servidor web, que se sirve cuando la ruta no existe
+        —`LLM_VISION_BASE_URL` apuntando a un host que no es el del proveedor, o
+        al host bueno sin el prefijo de la API—. Mandar a mirar el modelo aquí
+        es mandar a mirar donde no hay nada: el nombre puede ser perfecto y el
+        error sería idéntico.
+
+        Se distingue por el cuerpo y no por el código porque es lo único que los
+        separa: los dos son 404. `pedirAlModelo` adjunta los primeros 300
+        caracteres de la respuesta al mensaje, y una página de error abre por el
+        doctype o por la etiqueta raíz dentro de ese margen.
+      */
       case 404:
-        return (
-          'El proveedor no conoce ese modelo; suele pasar cuando retiran una versión. ' +
-          'Revisa LLM_VISION_MODEL en el .env del servidor: el detalle de abajo nombra el sustituto.'
-        );
+        return /<!doctype html|<html[\s>]/i.test(error.message)
+          ? 'La dirección del proveedor de visión no existe: ha contestado una página de error ' +
+              'en HTML, no la API. Revisa LLM_VISION_BASE_URL en el .env del servidor —el nombre ' +
+              'del modelo no tiene nada que ver—. Para Gemini el valor es ' +
+              'https://generativelanguage.googleapis.com/v1beta/openai'
+          : 'El proveedor no conoce ese modelo; suele pasar cuando retiran una versión. ' +
+              'Revisa LLM_VISION_MODEL en el .env del servidor: el detalle de abajo nombra el sustituto.';
       default:
         return null;
     }

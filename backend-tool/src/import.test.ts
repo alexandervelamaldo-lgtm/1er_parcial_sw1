@@ -575,6 +575,45 @@ describe('lectura de un diagrama de clases fotografiado', () => {
     expect(response.body.error).toMatch(/models\/otro/);
   });
 
+  it('un 404 en HTML manda a mirar la URL, que es otra avería distinta', async () => {
+    /*
+      Este caso se descubrió sufriéndolo. Con `LLM_VISION_BASE_URL` puesta a
+      `https://googleapis.com` —el dominio paraguas de Google, no el de la API—
+      la petición acaba en `https://googleapis.com/chat/completions`, que no
+      existe, y el servidor web devuelve su página de error genérica. Es un 404
+      como el del modelo retirado, así que el mensaje mandaba a revisar
+      `LLM_VISION_MODEL`. El nombre del modelo era irrelevante: con el correcto
+      habría fallado igual, y quien lo sufrió estuvo cambiando la variable que
+      no era.
+
+      Lo que los separa es el cuerpo. La API contesta JSON; un servidor web que
+      no encuentra la ruta contesta HTML. La prueba usa el HTML literal de
+      Google, recortado como llega —`pedirAlModelo` se queda con los primeros
+      300 caracteres—, para que sea el caso real y no una versión de laboratorio
+      que casaría con cualquier cosa.
+    */
+    const token = await registrar('urlmala@ejemplo.com');
+    const proyectoId = await crearProyecto(token);
+    vision.respuestaDiagrama = new ErrorDeModelo(
+      '404 <!DOCTYPE html> <html lang=en> <meta charset=utf-8> ' +
+        '<title>Error 404 (Not Found)!!1</title>',
+      404,
+    );
+
+    const response = await leerDiagrama(token, proyectoId, {
+      imagen: PNG_1X1,
+      mimeType: 'image/png',
+    });
+
+    expect(response.body.error).toMatch(/LLM_VISION_BASE_URL/);
+    expect(response.body.error).toMatch(/generativelanguage\.googleapis\.com/);
+    // Y sobre todo: que no vuelva a mandar a la variable que no toca.
+    expect(
+      response.body.error,
+      'un 404 en HTML no dice nada del nombre del modelo',
+    ).not.toMatch(/LLM_VISION_MODEL/);
+  });
+
   it('devuelve las clases y las relaciones, sin tocar el diagrama', async () => {
     const token = await registrar('ana@ejemplo.com');
     const proyectoId = await crearProyecto(token);
