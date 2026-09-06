@@ -84,18 +84,41 @@ La clave vive **solo** en `.env`, en la raíz del proyecto, que está en
 `.gitignore`:
 
 ```env
-# Texto: interpretar órdenes de voz. DeepSeek va bien y es barato.
+# Un solo proveedor para las dos cosas. LLM_PROVIDER es el protocolo, no la
+# marca: cualquier valor que no sea «anthropic» se trata como compatible con
+# OpenAI, que es lo que sirve Gemini.
+LLM_PROVIDER=gemini
+LLM_API_KEY=...
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+LLM_MODEL=gemini-3.6-flash
+
+# Hace falta declararlo aunque repita el modelo de arriba: sin él la lectura por
+# foto se desactiva. La clave y la URL se heredan de las de texto.
+LLM_VISION_MODEL=gemini-3.6-flash
+```
+
+Eso es lo recomendado: **una clave que rotar, una cuenta que vigilar y una
+factura**. La alternativa —texto en un proveedor y visión en otro— también
+funciona y está soportada, pero obliga a declarar `LLM_VISION_BASE_URL` y
+`LLM_VISION_API_KEY` aparte:
+
+```env
+# Texto en DeepSeek, que es barato...
 LLM_PROVIDER=deepseek
 LLM_API_KEY=sk-...
 LLM_BASE_URL=https://api.deepseek.com
 LLM_MODEL=deepseek-chat
 
-# Visión: leer un diagrama de una foto. DeepSeek NO sirve visión (ver más abajo),
-# así que esto apunta a otro proveedor.
+# ...y visión en Gemini, porque DeepSeek NO sirve visión en ningún modelo suyo.
 LLM_VISION_MODEL=gemini-3.6-flash
 LLM_VISION_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 LLM_VISION_API_KEY=...
 ```
+
+> `LLM_VISION_BASE_URL` es la **raíz de la API**, no el dominio del fabricante:
+> el código le añade `/chat/completions`. Apuntarla a `https://googleapis.com`
+> —el dominio paraguas de Google— produce un 404 en HTML que parece un modelo
+> retirado y no lo es.
 
 | Variable | Para qué | Si falta |
 |---|---|---|

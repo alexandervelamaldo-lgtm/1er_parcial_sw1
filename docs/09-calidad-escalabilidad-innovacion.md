@@ -190,10 +190,10 @@ Y una decisión de la que se puede hablar en la defensa: **solo se guardan las r
 
 Ordenado por lo que cuesta, no por lo que luce:
 
-1. **Arreglar el `.env`** — `LLM_VISION_MODEL` apuntaba a un modelo que no existe y la importación desde foto devolvía 404. Ya corregido a `gemini-2.0-flash`. *(Hecho.)*
-2. **Rotar las dos claves quemadas** (tarea #48). Aparecieron en una conversación y en una captura. Una clave expuesta no se arregla borrándola del fichero: se rota.
+1. **Rotar las dos claves quemadas** (tarea #48). Aparecieron en una conversación y en una captura. Una clave expuesta no se arregla borrándola del fichero: se rota. Sube de prioridad desde que la cuenta de Google tiene saldo: una clave publicada sobre una cuenta con dinero se gasta sola.
+2. **Arreglar el `.env`** — la importación desde foto devolvía 404. La causa **no era el modelo**, como se creyó al principio y llegó a escribirse aquí: era `LLM_VISION_BASE_URL` apuntando a `https://googleapis.com`, el dominio paraguas de Google y no la raíz de la API. El nombre del modelo era correcto. El diagnóstico del programa ya distingue los dos 404 (§ `docs/05`), pero el `.env` de cada instalación hay que revisarlo a mano.
 3. **Instalar Maven y compilar un proyecto generado.** Convierte el hueco de calidad más serio en una prueba.
-4. **`npm install -D eslint typescript-eslint`** y un `eslint.config.js`. Desbloquea RNF-MAN-05.
+4. **Un `eslint.config.js`.** `eslint` y `typescript-eslint` ya están instalados; falta la configuración, obligatoria desde eslint 9. Desbloquea RNF-MAN-05.
 5. **`npm install -D jsdom @testing-library/react`.** Desbloquea la tarea #15.
 6. **Construir la imagen Docker y desplegar en AWS.** Convierte el documento 6 en un hecho.
 7. **Sesiones pegajosas por sala** en el balanceador. Es la forma barata de cumplir RNF-ESC-03 sin montar Redis.
