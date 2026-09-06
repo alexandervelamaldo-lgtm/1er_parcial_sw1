@@ -85,6 +85,26 @@ ENV HOST=0.0.0.0 \
 
 EXPOSE 3001
 
+# Las autoridades de certificación de RDS, para poder usar `sslmode=verify-full`.
+#
+# Sin esto, la conexión a la base de datos se cifra pero no se comprueba de quién
+# es el certificado: protege de quien escucha el cable, no de quien se hace pasar
+# por la base de datos. Con la instancia accesible desde internet —que es como
+# está montada, porque App Runner necesita salida a internet para la IA y un NAT
+# cuesta más que el resto del despliegue junto— esa diferencia deja de ser
+# teórica.
+#
+# El fichero viaja en el repositorio y no se descarga durante el build: son
+# certificados públicos, no un secreto, y así la imagen se puede reconstruir sin
+# depender de que un servidor de Amazon conteste. Va al final del Dockerfile
+# para no invalidar la caché del `npm ci`, que es la capa cara.
+#
+# Se renueva cada pocos años. Si un día la conexión empieza a fallar con
+# `unable to get issuer certificate`, es esto: hay que volver a bajarlo de
+# https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+COPY rds-global-bundle.pem /app/rds-global-bundle.pem
+ENV NODE_EXTRA_CA_CERTS=/app/rds-global-bundle.pem
+
 # Comprobación de vida contra la ruta que ya existía. El balanceador de AWS usa
 # esta misma ruta; tenerla también aquí hace que `docker run` falle rápido si el
 # servicio arranca pero no responde.
