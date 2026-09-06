@@ -82,6 +82,36 @@ docker run --rm -p 3001:3001 \
 Comprobar en `http://localhost:3001/salud` antes de subir nada. Esa misma ruta
 es la que usan el `HEALTHCHECK` de la imagen y el balanceador.
 
+### Dos cosas que la imagen hace a propósito y parecen rarezas
+
+**El proceso 1 es `node`, no `npm`.** El `CMD` invoca
+`node --import tsx backend-tool/src/main.ts` en vez del `npm run start` que sería
+natural. El apagado ordenado de `main.ts` vacía a disco los documentos que aún no
+se habían guardado, y para eso tiene que recibir el `SIGTERM` que manda AWS al
+retirar el contenedor. Con npm por delante la señal tendría que atravesar npm, el
+shell que npm abre y el proceso hijo de `tsx` antes de llegar al manejador. El
+síntoma de que se pierda —unos segundos de trabajo ajeno perdidos en cada
+despliegue— no se parece en nada a un problema de señales, y por eso no conviene
+dejarlo al azar.
+
+**`/app/datos` se crea en el Dockerfile.** El servicio corre como el usuario
+`node` y `/app` es de root. `loadConfig` hace un `mkdirSync('./datos')` en cuanto
+falta `SESSION_SECRET`, así que sin ese directorio ya creado y con dueño el
+contenedor muere con un `EACCES` en lugar de decir qué variable falta. En App
+Runner ese directorio es efímero y no debe guardar nada —para eso está
+`DATABASE_URL`—, pero tiene que existir para que el arranque llegue a explicarse.
+
+### La arquitectura de la imagen tiene que ser `linux/amd64`
+
+App Runner ejecuta amd64. Construyendo desde un portátil Intel o AMD sale eso por
+defecto y no hay nada que hacer; desde un Mac con Apple Silicon, no, y el
+despliegue falla con `exec format error`, que no menciona la arquitectura por
+ningún sitio. Para no depender de en qué máquina se construya:
+
+```bash
+docker build --platform linux/amd64 -t uml-tool .
+```
+
 ### `docs/` viaja dentro, y no es documentación
 
 La imagen copia `docs/` a propósito. Dejó de ser documentación cuando la guía de
@@ -115,6 +145,21 @@ usa el servidor, que es lo que hace ya cualquier móvil.
 ### Opción recomendada: App Runner + RDS
 
 Es la que menos piezas tiene y la que menos se puede configurar mal.
+
+**Y hay una razón que pesa más que la comodidad: el HTTPS no es opcional en este
+proyecto.** `SpeechRecognition` solo funciona en un *contexto seguro*, así que
+sobre `http://` el dictado —una de las dos funciones que pide el enunciado— no
+arranca, y no con un error claro sino con un botón de micrófono deshabilitado.
+App Runner termina TLS por su cuenta y da un dominio `https://….awsapprunner.com`
+sin configurar nada. Una EC2 con IP pelada sale más barata, pero para tener
+certificado hace falta un dominio y un Caddy o un nginx delante, y eso es más
+trabajo del que ahorra.
+
+Conviene ser preciso sobre qué se rompe y qué no, porque el error de bulto es
+meter la foto en el mismo saco: la importación desde imagen usa un
+`<input type="file" capture="environment">`, que es un **selector de ficheros** y
+no `getUserMedia`, y los selectores funcionan igual sin origen seguro. Sobre
+`http://` se pierde la voz, no la cámara.
 
 1. **RDS PostgreSQL.** Instancia mínima (`db.t4g.micro`), en la misma región.
    No hacerla pública: se conecta por VPC. No hay que crear tablas a mano: el
@@ -259,9 +304,10 @@ el que conviene quedarse.
 | `Dockerfile` multi-etapa y `.dockerignore` | ✅ |
 | Almacenes contra PostgreSQL y esquema SQL | ✅ 29 pruebas |
 | Migración de los datos de fichero a PostgreSQL | ✅ 12 pruebas |
-| **`pg` instalado** | ❌ **lo tiene que ejecutar el usuario** |
+| **`pg` instalado** | ✅ |
 | Verificación contra una base de datos real | ✅ ejecutada contra PostgreSQL 16 |
-| Imagen construida y probada de verdad | ❌ no verificado |
+| Orden de arranque del contenedor (`node --import tsx …/main.ts`) | ✅ ejecutada fuera de Docker: sirve y responde `/salud` |
+| Imagen construida y probada de verdad | ❌ **no verificado**, falta Docker en la máquina |
 | Escalado horizontal del canal colaborativo | ❌ fuera de alcance |
 
 ### Qué está verificado y qué no
@@ -314,10 +360,18 @@ la conexión, no en las consultas.
 
 ### Lo que sigue pendiente
 
-**Mientras `pg` no esté instalado, desplegar con `DATABASE_URL` no arranca** —con
-un mensaje claro— y desplegar sin ella pierde todos los datos en cada
-despliegue. Con una instancia y disco efímero la aplicación *funciona* —se puede
-registrar, dibujar y generar—, pero no sobrevive a la siguiente versión.
+**La imagen no se ha construido nunca.** Es lo único que queda entre el
+repositorio y App Runner, y es donde va a aparecer el trabajo: un Dockerfile que
+no se ha ejecutado falla casi siempre a la primera. Depurarlo en el portátil
+cuesta minutos; depurarlo en App Runner, leyendo CloudWatch, cuesta la tarde. El
+orden correcto es `docker build`, `docker run` contra un PostgreSQL local,
+`/salud` en verde, y solo entonces `docker push`.
+
+Desplegar **sin** `DATABASE_URL` pierde todos los datos en cada despliegue. Con
+una instancia y disco efímero la aplicación *funciona* —se puede registrar,
+dibujar y generar—, pero no sobrevive a la siguiente versión. En App Runner eso
+no es una degradación aceptable: es perder los usuarios entre el ensayo y la
+defensa.
 
 ---
 

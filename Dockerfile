@@ -60,6 +60,15 @@ COPY --from=build /app/frontend/dist ./frontend/dist
 COPY docs/ docs/
 
 # Node se ejecuta sin privilegios. La imagen base ya trae el usuario `node`.
+#
+# `/app` es de root, así que el directorio de datos hay que crearlo aquí y
+# dárselo a `node`. Sin esto, `loadConfig` intenta un `mkdirSync('./datos')` en
+# cuanto falta `SESSION_SECRET` y el contenedor muere con un `EACCES` que no
+# dice cuál de las dos variables es la que falta. En App Runner el directorio
+# es efímero y no debe guardar nada —para eso está `DATABASE_URL`—, pero tiene
+# que existir y ser escribible para que el arranque llegue a explicarse.
+RUN mkdir -p /app/datos && chown node:node /app/datos
+
 USER node
 
 ENV HOST=0.0.0.0 \
@@ -74,4 +83,16 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3001)+'/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["npm", "run", "start", "--workspace", "@app/backend-tool"]
+# Node es el proceso 1, sin `npm` ni shell por delante.
+#
+# El apagado ordenado de `main.ts` vacía a disco los documentos que aún no se
+# habían guardado, y para eso tiene que recibir el SIGTERM que manda AWS al
+# retirar el contenedor. Con `npm run start` la señal tendría que atravesar npm,
+# el shell que npm abre y el proceso de tsx antes de llegar a los manejadores;
+# cada salto es una ocasión de que se pierda, y el síntoma —unos segundos de
+# trabajo ajeno perdidos en cada despliegue— no se parece a un problema de
+# señales y no habría quien lo diagnosticara.
+#
+# `--import tsx` en vez del binario `tsx` por lo mismo: el binario también abre
+# un proceso hijo. Así solo hay uno, y es el que escucha.
+CMD ["node", "--import", "tsx", "backend-tool/src/main.ts"]
