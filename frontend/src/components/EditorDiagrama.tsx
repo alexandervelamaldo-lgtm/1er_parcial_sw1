@@ -94,10 +94,9 @@ export function EditorDiagrama({
   );
 
   const estado = useDiagrama(proyecto.id, autor);
-  const { participantes, anunciar } = usePresencia(
-    estado.provider,
-    usuario ? { nombre: usuario.displayName || usuario.email } : null,
-  );
+  // Se le pasa `autor` entero, con id: el color de presencia se reparte por
+  // identidad, no por conexión, para que sea el mismo tras recargar.
+  const { participantes, anunciar } = usePresencia(estado.provider, autor);
 
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [herramienta, setHerramienta] = useState<'seleccion' | 'relacion'>('seleccion');
