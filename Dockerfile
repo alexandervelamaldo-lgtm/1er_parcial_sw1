@@ -42,12 +42,20 @@ ENV NODE_ENV=production
 # por eso aquí no se puede usar `--omit=dev`. Compilar a JavaScript en la etapa
 # de build reduciría la imagen, pero exige un `tsconfig` de emisión que hoy no
 # existe y que el proyecto no necesita para nada más.
+#
+# `--include=dev` no es redundante: `NODE_ENV=production`, unas líneas más
+# arriba, hace que `npm ci` omita las devDependencies por su cuenta, sin que
+# nadie escriba `--omit=dev` en ningún sitio. La imagen se construía entera y
+# sin un solo aviso, y luego el contenedor moría al arrancar con
+# «Cannot find package 'tsx'». Se pone la bandera aquí, en la línea que
+# instala, y no moviendo el `ENV`: así el arreglo sigue en pie aunque alguien
+# reordene las variables de entorno más tarde.
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY generator/package.json generator/
 COPY backend-tool/package.json backend-tool/
 COPY frontend/package.json frontend/
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts --include=dev
 
 COPY shared/ shared/
 COPY generator/ generator/

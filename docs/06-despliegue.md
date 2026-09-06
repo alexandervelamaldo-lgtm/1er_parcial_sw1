@@ -82,7 +82,7 @@ docker run --rm -p 3001:3001 \
 Comprobar en `http://localhost:3001/salud` antes de subir nada. Esa misma ruta
 es la que usan el `HEALTHCHECK` de la imagen y el balanceador.
 
-### Dos cosas que la imagen hace a propósito y parecen rarezas
+### Tres cosas que la imagen hace a propósito y parecen rarezas
 
 **El proceso 1 es `node`, no `npm`.** El `CMD` invoca
 `node --import tsx backend-tool/src/main.ts` en vez del `npm run start` que sería
@@ -100,6 +100,20 @@ falta `SESSION_SECRET`, así que sin ese directorio ya creado y con dueño el
 contenedor muere con un `EACCES` en lugar de decir qué variable falta. En App
 Runner ese directorio es efímero y no debe guardar nada —para eso está
 `DATABASE_URL`—, pero tiene que existir para que el arranque llegue a explicarse.
+
+**El `npm ci` de la etapa de ejecución lleva `--include=dev`.** Parece sobrar en
+una imagen de producción, y es justo al revés. El backend ejecuta TypeScript con
+`tsx`, que es una devDependency, así que hay que instalarla. Nadie escribió
+`--omit=dev` en ningún sitio, pero `ENV NODE_ENV=production` está unas líneas más
+arriba y **npm lo lee por su cuenta**: omite las devDependencies sin decir nada.
+La imagen se construía entera, sin un solo aviso, y el contenedor moría al
+arrancar con `Cannot find package 'tsx'`.
+
+La bandera va en la línea que instala y no se arregló moviendo el `ENV`, porque
+la posición de una variable de entorno es una condición invisible: el día que
+alguien agrupe las `ENV` al principio del fichero —que es lo que uno hace al
+ordenar un Dockerfile— el fallo vuelve, y vuelve en el despliegue, no en el
+build.
 
 ### La arquitectura de la imagen tiene que ser `linux/amd64`
 
@@ -306,8 +320,11 @@ el que conviene quedarse.
 | Migración de los datos de fichero a PostgreSQL | ✅ 12 pruebas |
 | **`pg` instalado** | ✅ |
 | Verificación contra una base de datos real | ✅ ejecutada contra PostgreSQL 16 |
-| Orden de arranque del contenedor (`node --import tsx …/main.ts`) | ✅ ejecutada fuera de Docker: sirve y responde `/salud` |
-| Imagen construida y probada de verdad | ❌ **no verificado**, falta Docker en la máquina |
+| Orden de arranque del contenedor (`node --import tsx …/main.ts`) | ✅ dentro de Docker: `docker stop` cierra ordenado en 1 s y sale con 0 |
+| Imagen construida y probada de verdad | ✅ construida para `linux/amd64` y arrancada contra un PostgreSQL 16 en contenedor |
+| `/salud` desde fuera del contenedor | ✅ `200` y `{"estado":"ok"}`; el `HEALTHCHECK` la marca *healthy* |
+| Esquema aplicado al arrancar | ✅ las cuatro tablas (`usuarios`, `proyectos`, `documentos`, `miembros`) se crean solas |
+| El servicio corre sin privilegios | ✅ `id` = `node`; escribe en `/app/datos` gracias al `chown` |
 | Escalado horizontal del canal colaborativo | ❌ fuera de alcance |
 
 ### Qué está verificado y qué no
@@ -360,12 +377,29 @@ la conexión, no en las consultas.
 
 ### Lo que sigue pendiente
 
-**La imagen no se ha construido nunca.** Es lo único que queda entre el
-repositorio y App Runner, y es donde va a aparecer el trabajo: un Dockerfile que
-no se ha ejecutado falla casi siempre a la primera. Depurarlo en el portátil
-cuesta minutos; depurarlo en App Runner, leyendo CloudWatch, cuesta la tarde. El
-orden correcto es `docker build`, `docker run` contra un PostgreSQL local,
-`/salud` en verde, y solo entonces `docker push`.
+**La imagen ya se construyó y arrancó**, y la predicción se cumplió: un
+Dockerfile que no se ha ejecutado falla a la primera. Falló por
+`NODE_ENV=production` comiéndose `tsx` —el apartado 6.3 lo cuenta— y ese fallo no
+aparece en el build, aparece al arrancar. Depurarlo aquí costó un minuto; el
+mismo fallo en App Runner es leer CloudWatch a ciegas, porque desde fuera solo se
+ve un servicio que no pasa el *health check*.
+
+El orden que se siguió, y que conviene repetir si se toca la imagen: `docker
+build`, `docker run` contra un PostgreSQL de usar y tirar, `/salud` en verde, y
+solo entonces `docker push`.
+
+El PostgreSQL de prueba se levantó **en un contenedor y en una red privada**, no
+contra el de la máquina. Dos razones: no hay que tocar el `pg_hba.conf` del
+portátil para dejar entrar a Docker, y la prueba se parece más a RDS, que también
+está al otro lado de la red y no en `localhost`. Ese detalle importa porque
+`opcionesSsl` decide según el nombre del host: contra `localhost` no cifra, y
+contra cualquier otro nombre asume TLS. Por eso el contenedor de prueba necesita
+`?sslmode=disable` en la URL, y por eso **RDS no lo lleva**.
+
+Lo que sigue sin comprobarse de la imagen es lo que necesita claves: con la
+lectura de diagramas por foto desactivada, el arranque dice
+`Lectura de diagramas fotografiados: desactivada`. Eso es correcto, pero
+significa que el camino de visión dentro del contenedor no se ha ejercitado.
 
 Desplegar **sin** `DATABASE_URL` pierde todos los datos en cada despliegue. Con
 una instancia y disco efímero la aplicación *funciona* —se puede registrar,
