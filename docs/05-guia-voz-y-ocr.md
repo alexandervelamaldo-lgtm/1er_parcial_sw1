@@ -107,9 +107,9 @@ funciona y está soportada, pero obliga a declarar `LLM_VISION_BASE_URL` y
 LLM_PROVIDER=deepseek
 LLM_API_KEY=sk-...
 LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-chat
+LLM_MODEL=deepseek-v4-flash
 
-# ...y visión en Gemini, porque DeepSeek NO sirve visión en ningún modelo suyo.
+# ...y visión en Gemini, que es la que tenemos comprobada.
 LLM_VISION_MODEL=gemini-3.6-flash
 LLM_VISION_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
 LLM_VISION_API_KEY=...
@@ -123,7 +123,7 @@ LLM_VISION_API_KEY=...
 | Variable | Para qué | Si falta |
 |---|---|---|
 | `LLM_API_KEY` | Autenticación con el proveedor de texto | El asistente funciona solo con la gramática local; el OCR se desactiva |
-| `LLM_MODEL` | Interpretación de órdenes de voz y texto | Igual que arriba |
+| `LLM_MODEL` | Interpretación de órdenes de voz y texto | Igual que arriba, y la guía del manual contesta buscando en `docs/` sin pasar por el modelo, diciendo que falta esta variable |
 | `LLM_VISION_MODEL` | Lectura de fotografías | La ruta de OCR responde `SIN_MODELO_VISION` y explica qué definir |
 | `LLM_VISION_BASE_URL` | Proveedor de visión, si es distinto del de texto | Se hereda `LLM_BASE_URL` |
 | `LLM_VISION_API_KEY` | Clave de visión, si es distinta | Se hereda `LLM_API_KEY` **solo si la visión apunta al mismo proveedor**; si apunta a otro, la lectura de fotos se queda desactivada |
@@ -137,11 +137,22 @@ LLM_VISION_API_KEY=...
 
 ### Qué modelo usar para leer fotos
 
-**DeepSeek no sirve ningún modelo con visión en su API.** Sus modelos
-(`deepseek-chat`, `deepseek-reasoner`) son de texto. Si se le manda una imagen,
-en el mejor de los casos la ignora: responde que no ve ninguna tabla, y la
-importación falla sin que quede claro por qué. Es un error real que estuvo en
-este `.env` durante un tiempo, con un `deepseek-...-vision-exp` que no existe.
+La recomendación es Gemini, y es la única opción que este proyecto tiene
+comprobada de punta a punta contra fotos de pizarra.
+
+> **Corrección.** Este apartado afirmaba que DeepSeek no servía visión en
+> ningún modelo, y que un `deepseek-...-vision-exp` era un nombre inventado.
+> Ya no es cierto. Preguntado por un modelo que no conoce, DeepSeek contesta
+> con un 400 que enumera los que sí, y hoy son `deepseek-v4-pro`,
+> `deepseek-v4-flash` y `deepseek-v4-flash-vision-exp`. Existe, y el `-exp` es
+> suyo, no nuestro. Lo que no hemos hecho es probarlo: sirve para saber que la
+> puerta está abierta, no para recomendarlo todavía.
+>
+> De paso, `deepseek-chat` y `deepseek-reasoner`, que era lo que este documento
+> daba por bueno, están retirados. Esa es la lección que conviene llevarse: un
+> nombre de modelo escrito en la documentación caduca solo y sin avisar, y la
+> forma barata de comprobarlo es pedirle al proveedor uno que no exista y leer
+> la lista que devuelve en el error.
 
 El código habla el protocolo compatible con OpenAI, así que sirve cualquier
 proveedor que lo hable. Por orden de recomendación para este proyecto:

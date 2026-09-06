@@ -99,6 +99,39 @@ describe('responder sin modelo', () => {
     expect(r.fuentes.some((f) => /xmi|export/i.test(f.fragmento.ruta.join(' ')))).toBe(true);
   });
 
+  it('con clave pero sin modelo no inventa un proveedor: no llama a nadie', async () => {
+    /*
+      Aquí había un `deepseek-chat` por defecto, y no dejaba a la guía sin
+      servicio: la dejaba mandando el modelo de un proveedor a la URL de otro.
+      Quien tenía puesta la clave y la URL de Gemini y se olvidaba de
+      `LLM_MODEL` recibía un 404 que nombraba un modelo que él no había
+      escrito en ninguna parte.
+
+      Lo que se comprueba no es el aviso, es que `recibidos` sigue vacío: la
+      prueba de que no se ha adivinado nada es que no ha salido la petición.
+    */
+    const guia = await GuiaDelManual.abrir(DOCS, { apiKey: 'de-mentira', baseUrl, timeoutMs: 2000 });
+    const r = await guia.responder('¿cómo exporto el diagrama a Enterprise Architect?');
+
+    expect(recibidos).toHaveLength(0);
+    expect(r.motor).toBe('busqueda-en-el-manual');
+    expect(r.fuentes.length).toBeGreaterThan(0);
+    expect(r.aviso).toContain('LLM_MODEL');
+  });
+
+  it('con clave y modelo pero sin URL tampoco supone a quién preguntar', async () => {
+    const guia = await GuiaDelManual.abrir(DOCS, {
+      apiKey: 'de-mentira',
+      model: 'modelo-falso',
+      timeoutMs: 2000,
+    });
+    const r = await guia.responder('¿cómo exporto el diagrama a Enterprise Architect?');
+
+    expect(recibidos).toHaveLength(0);
+    expect(r.motor).toBe('busqueda-en-el-manual');
+    expect(r.aviso).toContain('LLM_BASE_URL');
+  });
+
   it('encuentra en el manual con qué base de datos trabaja el proyecto', async () => {
     const guia = await soloBusqueda();
     const r = await guia.responder('¿qué base de datos usa?');

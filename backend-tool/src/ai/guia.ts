@@ -129,11 +129,40 @@ export class GuiaDelManual {
       return { texto: null, fuentes, motor: 'busqueda-en-el-manual' };
     }
 
-    const modelo = this.opciones.model ?? 'deepseek-chat';
+    /*
+      Aquí había un modelo y una URL de DeepSeek por defecto, y era una trampa.
+
+      Quien configuraba `LLM_API_KEY` y `LLM_BASE_URL` para Gemini pero se
+      dejaba `LLM_MODEL` sin poner no se quedaba sin guía: se quedaba con una
+      guía que le mandaba `deepseek-chat` a Google. El 404 que volvía no
+      hablaba de configuración, hablaba de un modelo que el usuario no había
+      escrito en ninguna parte y que no podía reconocer como suyo.
+
+      Un valor por defecto solo vale cuando acierta más veces de las que falla.
+      Este dejó de acertar el día que el proyecto pasó a Gemini, y encima
+      envejeció por su cuenta: DeepSeek retiró `deepseek-chat`, así que la
+      cadena que quedaba escrita aquí ya no nombraba nada en ningún proveedor.
+
+      Sin modelo o sin URL no se adivina: se contesta con el manual, que es el
+      mismo camino degradado de la clave que falta, y se dice por qué. Es peor
+      respuesta y mejor diagnóstico.
+    */
+    const modelo = this.opciones.model;
+    const baseUrl = this.opciones.baseUrl;
+    if (!modelo || !baseUrl) {
+      return {
+        texto: null,
+        fuentes,
+        motor: 'busqueda-en-el-manual',
+        aviso: `Hay clave pero falta ${!modelo ? 'LLM_MODEL' : 'LLM_BASE_URL'}: la guía contesta con el manual sin pasar por el modelo.`,
+      };
+    }
 
     try {
       const respuesta = await pedirAlModelo<RespuestaOpenAI>({
-        url: `${this.opciones.baseUrl ?? 'https://api.deepseek.com'}/chat/completions`,
+        // La barra final se quita como en `assistant.ts` y `vision.ts`: pegada
+        // sin más da `//chat/completions`, que hay proveedores que no perdonan.
+        url: `${baseUrl.replace(/\/+$/, '')}/chat/completions`,
         headers: { authorization: `Bearer ${apiKey}` },
         timeoutMs: this.opciones.timeoutMs ?? 20_000,
         reintentos: 1,
