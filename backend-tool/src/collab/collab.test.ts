@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -10,6 +10,7 @@ import * as Y from 'yjs';
 import {
   CollabProvider,
   applyOperation,
+  getHistorialArray,
   readDiagram,
   type EstadoConexion,
   type SocketFactory,
@@ -357,6 +358,98 @@ describe('presencia', () => {
     abiertos.splice(abiertos.indexOf(beto), 1);
 
     await esperarA(() => !veABeto(), 'la presencia de Beto se retira al desconectarse');
+  });
+
+  it('el cursor no entra en el documento, ni en el historial, ni en el disco', async () => {
+    /*
+      La separación que sostiene el rendimiento de la sala.
+
+      Mover el ratón produce muchísimos más mensajes que editar: el lienzo
+      manda una posición cada 50 ms mientras la mano se mueve, y una tarde de
+      trabajo son cientos de miles. Si esa riada entrara en el documento CRDT,
+      cada movimiento quedaría registrado para siempre, se guardaría en disco,
+      viajaría en la sincronización inicial de quien llegara después y engordaría
+      el historial de cambios con ruido que no es un cambio. El documento crecería
+      con el tiempo que la gente pasa mirándolo, no con lo que contiene.
+
+      Por eso la presencia va por el canal de awareness, que es efímero y no se
+      persiste. Es una afirmación sobre algo que NO ocurre, así que se comprueba
+      por partida triple —el documento no emite ni una actualización, sus bytes
+      no cambian, el fichero no se reescribe— porque cada una fallaría por un
+      motivo distinto si la separación se rompiera.
+
+      Se mueve además el cursor del usuario de solo lectura. Es la otra cara de
+      RNF-SEG-04: a un lector se le permite publicar presencia precisamente
+      porque la presencia no puede alcanzar el documento. Si alguna vez lo
+      alcanzara, esta prueba caería a la vez que se abriría un hueco de permisos.
+    */
+    const tokenAna = await registrar('ana@ejemplo.com');
+    const tokenLector = await registrar('lector@ejemplo.com');
+    const proyectoId = await crearProyecto(tokenAna);
+    await invitar(tokenAna, proyectoId, 'lector@ejemplo.com', 'viewer');
+
+    const ana = await conectar('ana', proyectoId, tokenAna);
+    const lector = await conectar('lector', proyectoId, tokenLector);
+    await esperarA(() => ana.sincronizado, 'sincronización de Ana');
+    await esperarA(() => lector.sincronizado, 'sincronización del lector');
+
+    // Una edición de verdad primero: deja el documento en un estado no trivial y
+    // fuerza la primera escritura, para que el «no se ha tocado el fichero» de
+    // después compare contra un fichero que existe.
+    const sala = await deps.rooms.open(proyectoId);
+    applyOperation(ana.doc, { op: 'addClass', name: 'Cliente', kind: 'class' });
+    await esperarA(
+      () => Object.values(readDiagram(sala.doc).classes).some((c) => c.name === 'Cliente'),
+      'el servidor recibe la edición',
+    );
+    await sala.save();
+
+    const fichero = join(dataDir, 'documentos', `${proyectoId}.bin`);
+    const bytesAntes = await readFile(fichero);
+    const escrituraAntes = (await stat(fichero)).mtimeMs;
+    const estadoAntes = [...Y.encodeStateAsUpdate(sala.doc)];
+    const historialAntes = getHistorialArray(sala.doc).length;
+
+    let actualizaciones = 0;
+    sala.doc.on('update', () => {
+      actualizaciones += 1;
+    });
+
+    // Cien posiciones cada uno: unos cinco segundos de mano moviéndose al ritmo
+    // que impone el estrangulador del lienzo.
+    for (let i = 0; i < 100; i += 1) {
+      ana.awareness.setLocalStateField('cursor', { x: i, y: i * 2 });
+      lector.awareness.setLocalStateField('cursor', { x: 400 - i, y: i });
+    }
+    ana.awareness.setLocalStateField('usuario', { id: 'u-ana', nombre: 'Ana' });
+    lector.awareness.setLocalStateField('usuario', { id: 'u-lector', nombre: 'Lector' });
+
+    const cursorAjenoEn = (cliente: ClienteColaborativo, quien: string) =>
+      ([...cliente.awareness.getStates().values()] as {
+        usuario?: { id: string };
+        cursor?: { x: number; y: number };
+      }[]).find((e) => e.usuario?.id === quien)?.cursor;
+
+    // Que haya llegado el último cursor es lo que da sentido a las negaciones de
+    // abajo: sin esto, un canal de presencia averiado las cumpliría todas.
+    await esperarA(() => cursorAjenoEn(lector, 'u-ana')?.x === 99, 'el lector ve el cursor de Ana');
+    await esperarA(
+      () => cursorAjenoEn(ana, 'u-lector')?.x === 301,
+      'Ana ve el cursor del usuario de solo lectura',
+    );
+    await margen();
+
+    // 1. El documento no se ha enterado de nada.
+    expect(actualizaciones).toBe(0);
+    expect([...Y.encodeStateAsUpdate(sala.doc)]).toEqual(estadoAntes);
+    expect(getHistorialArray(sala.doc).length).toBe(historialAntes);
+
+    // 2. Y por tanto no hay nada que guardar: `save()` sale sin escribir porque
+    // el documento no quedó sucio. Se comprueba con el fichero y no con la
+    // bandera interna, que es un detalle de implementación.
+    await sala.save();
+    expect((await stat(fichero)).mtimeMs).toBe(escrituraAntes);
+    expect([...(await readFile(fichero))]).toEqual([...bytesAntes]);
   });
 });
 
