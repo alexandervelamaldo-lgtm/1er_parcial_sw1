@@ -25,6 +25,18 @@
  * puente no existe y no hay nada que elegir.
  */
 
+import {
+  ALTERNATIVAS_PEDIDAS,
+  MS_MAXIMO_ESCUCHANDO,
+  MS_SILENCIO_ANTES_DE_HABLAR,
+  MS_SILENCIO_TRAS_HABLAR,
+  errorQueTermina,
+  idiomaDeDictado,
+  mejorAlternativa,
+  mensajeDeError,
+  unirDictado,
+} from './dictado';
+
 /* -------------------------------------------------------------------------- */
 /* El puente con Flutter                                                       */
 /* -------------------------------------------------------------------------- */
@@ -79,9 +91,18 @@ function enviarAlPuente(p: PuenteNativo, mensaje: Record<string, unknown>): void
 /* La API del navegador                                                        */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Un resultado del motor: la misma frase oída de varias formas.
+ *
+ * Se indexa como un array —`resultado[0]` es la hipótesis en la que el motor más
+ * confía— y `length` dice cuántas hay. Antes esta interfaz solo declaraba la
+ * posición `0`, y esa declaración a medias era la razón de que el resto del
+ * código no pudiera mirar las otras aunque llegaran.
+ */
 interface ResultadoReconocimiento {
   isFinal: boolean;
-  0: { transcript: string };
+  length: number;
+  [indice: number]: { transcript: string } | undefined;
 }
 
 interface EventoReconocimiento {
@@ -93,8 +114,10 @@ interface Reconocedor {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
+  maxAlternatives: number;
   start(): void;
   stop(): void;
+  abort?(): void;
   onresult: ((evento: EventoReconocimiento) => void) | null;
   onerror: ((evento: { error: string }) => void) | null;
   onend: (() => void) | null;
@@ -156,6 +179,19 @@ interface OyentesDictado {
   onFinal: (texto: string) => void;
   onError: (mensaje: string) => void;
   onFin: () => void;
+  /**
+   * Con qué decidir entre las hipótesis que devuelve el motor.
+   *
+   * El motor las ordena por confianza acústica y no sabe nada de esta
+   * herramienta: para él «crea la plaza pedido» y «crea la clase pedido» son la
+   * misma frase con dos sonidos parecidos. Quien llama sí sabe cuál de las dos
+   * tiene sentido aquí, y el asistente lo sabe mejor que nadie porque tiene una
+   * gramática que puede probar a interpretarlas.
+   *
+   * Es opcional porque el criterio de serie —el vocabulario de la herramienta—
+   * ya sirve para la guía, donde no hay ninguna gramática que consultar.
+   */
+  puntuar?: (texto: string) => number;
   /**
    * Algo que hay que saber pero que no ha impedido dictar.
    *
@@ -239,12 +275,41 @@ function instalarReceptor(): void {
   };
 }
 
+/** Los idiomas que declara el aparato, del más querido al menos. */
+function idiomasDelAparato(): string[] {
+  if (typeof navigator === 'undefined') return [];
+  const nav = navigator as Navigator & { languages?: readonly string[] };
+  if (nav.languages && nav.languages.length > 0) return [...nav.languages];
+  return nav.language ? [nav.language] : [];
+}
+
+/** Todas las hipótesis de un resultado, en el orden que las da el motor. */
+function hipotesis(resultado: ResultadoReconocimiento): string[] {
+  const todas: string[] = [];
+  const cuantas = Math.max(1, resultado.length ?? 1);
+  for (let i = 0; i < cuantas; i += 1) {
+    const transcripcion = resultado[i]?.transcript;
+    if (typeof transcripcion === 'string') todas.push(transcripcion);
+  }
+  return todas;
+}
+
 /**
- * Escucha hasta que se llama a `detener` o hasta que la otra parte corta.
+ * Escucha hasta que se llama a `detener`, hasta un silencio largo o hasta el tope.
  *
- * `onParcial` recibe la transcripción provisional para poder mostrarla mientras
- * se habla: sin esa realimentación no hay forma de saber si el micrófono está
- * captando algo, y el usuario repite la frase entera pensando que falló.
+ * **Una pausa ya no termina el dictado.** El motor del navegador corta solo a la
+ * primera pausa —no hay forma de pedirle que no lo haga— así que aquí se vuelve a
+ * arrancar cada vez que corta y se van juntando los trozos. Lo que decide que la
+ * frase acabó es un temporizador de varios segundos, no el motor, y por eso se
+ * puede pensar en mitad de la orden sin que se envíe a medias.
+ *
+ * `onFinal` se llama **una sola vez**, con la frase entera, cuando la sesión se
+ * cierra. Antes llegaba en cada pausa, y en el asistente eso significaba una
+ * consulta al modelo por cada trozo dictado.
+ *
+ * `onParcial` recibe lo acumulado más lo que se está oyendo ahora: sin esa
+ * realimentación no hay forma de saber si el micrófono está captando algo, y el
+ * usuario repite la frase entera pensando que falló.
  */
 export function dictar(opciones: OyentesDictado): SesionDictado | null {
   const nativo = puente();
@@ -264,34 +329,104 @@ export function dictar(opciones: OyentesDictado): SesionDictado | null {
   }
 
   const reconocedor = new Constructor();
-  reconocedor.lang = 'es-ES';
-  reconocedor.continuous = false;
+  reconocedor.lang = idiomaDeDictado(idiomasDelAparato());
+  // El motor corta igual en la primera pausa, pero con `continuous` corta
+  // bastante más tarde y devuelve varios resultados finales en una misma sesión.
+  // El reinicio de `onend` es lo que cubre el resto.
+  reconocedor.continuous = true;
   reconocedor.interimResults = true;
+  reconocedor.maxAlternatives = ALTERNATIVAS_PEDIDAS;
+
+  /** Los trozos ya dados por definitivos por el motor. */
+  const partes: string[] = [];
+  let cerrada = false;
+  let finAvisado = false;
+  let seHaOido = false;
+  let silencio: ReturnType<typeof setTimeout> | null = null;
+  let tope: ReturnType<typeof setTimeout> | null = null;
+
+  const soltarRelojes = (): void => {
+    if (silencio !== null) clearTimeout(silencio);
+    if (tope !== null) clearTimeout(tope);
+    silencio = null;
+    tope = null;
+  };
+
+  /**
+   * Da la frase por terminada: la entrega y deja de escuchar.
+   *
+   * El aviso de fin se emite aquí y no solo en `onend` porque `stop()` sobre un
+   * motor que ya había terminado no dispara nada, y entonces el botón se quedaría
+   * en «Grabando» para siempre. `finAvisado` hace que llegar por los dos caminos
+   * no avise dos veces.
+   */
+  const cerrar = (): void => {
+    if (cerrada) return;
+    cerrada = true;
+    soltarRelojes();
+    const dicho = unirDictado(partes);
+    try {
+      reconocedor.stop();
+    } catch {
+      // Ya estaba parado. No hay nada que hacer y no es un error que contar.
+    }
+    if (dicho) opciones.onFinal(dicho);
+    if (!finAvisado) {
+      finAvisado = true;
+      opciones.onFin();
+    }
+  };
+
+  const rearmarSilencio = (): void => {
+    if (silencio !== null) clearTimeout(silencio);
+    silencio = setTimeout(cerrar, seHaOido ? MS_SILENCIO_TRAS_HABLAR : MS_SILENCIO_ANTES_DE_HABLAR);
+  };
 
   reconocedor.onresult = (evento) => {
     let parcial = '';
     for (let i = evento.resultIndex; i < evento.results.length; i += 1) {
       const resultado = evento.results[i];
       if (!resultado) continue;
-      if (resultado.isFinal) {
-        opciones.onFinal(resultado[0].transcript.trim());
-        return;
-      }
-      parcial += resultado[0].transcript;
+      const texto = mejorAlternativa(hipotesis(resultado), opciones.puntuar);
+      if (!texto) continue;
+      if (resultado.isFinal) partes.push(texto);
+      else parcial += ` ${texto}`;
     }
-    opciones.onParcial(parcial);
+    seHaOido = true;
+    rearmarSilencio();
+    opciones.onParcial(unirDictado([...partes, parcial]));
   };
 
   reconocedor.onerror = (evento) => {
-    const mensajes: Record<string, string> = {
-      'not-allowed': 'No has dado permiso para usar el micrófono.',
-      'no-speech': 'No se ha oído nada.',
-      network: 'El reconocimiento de voz necesita conexión.',
-    };
-    opciones.onError(mensajes[evento.error] ?? `Error de reconocimiento: ${evento.error}`);
+    // Una pausa larga y el botón de parar llegan por aquí disfrazados de error.
+    // Tratarlos como tal era lo que apagaba el micrófono a media frase.
+    if (!errorQueTermina(evento.error)) return;
+    cerrada = true;
+    soltarRelojes();
+    opciones.onError(mensajeDeError(evento.error));
+    if (!finAvisado) {
+      finAvisado = true;
+      opciones.onFin();
+    }
   };
 
-  reconocedor.onend = () => opciones.onFin();
+  reconocedor.onend = () => {
+    if (cerrada) {
+      if (!finAvisado) {
+        finAvisado = true;
+        opciones.onFin();
+      }
+      return;
+    }
+    // El motor se ha cansado del silencio, pero el usuario no ha terminado: se
+    // vuelve a escuchar. Si el navegador se niega a rearrancar se cierra con lo
+    // que haya, que es mejor que un micrófono apagado con cara de encendido.
+    try {
+      reconocedor.start();
+    } catch {
+      cerrar();
+    }
+  };
 
   try {
     reconocedor.start();
@@ -300,12 +435,45 @@ export function dictar(opciones: OyentesDictado): SesionDictado | null {
     return null;
   }
 
-  return { detener: () => reconocedor.stop() };
+  rearmarSilencio();
+  tope = setTimeout(cerrar, MS_MAXIMO_ESCUCHANDO);
+
+  return { detener: cerrar };
 }
 
 /* -------------------------------------------------------------------------- */
 /* Lectura en voz alta                                                         */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Cuántas lecturas se han empezado. Sirve para saber si el `onend` que llega es
+ * el de la lectura de ahora o el de una que se canceló.
+ *
+ * Hace falta porque `speechSynthesis.cancel()` no calla en silencio: dispara el
+ * final de la locución anterior, y lo hace **después** de que `hablar` haya
+ * devuelto. Sin este contador, pedir una segunda lectura apagaba el indicador de
+ * la primera y dejaba la interfaz diciendo «no está sonando» mientras sonaba.
+ */
+let lecturaEnCurso = 0;
+
+/**
+ * La locución que se está diciendo, guardada solo para que no la recoja el
+ * recolector de basura.
+ *
+ * No es paranoia: Chrome tiene la locución referenciada únicamente desde la cola
+ * interna, y en textos largos se da el caso de que el objeto desaparece antes de
+ * terminar y `onend` no llega nunca. La consecuencia aquí sería un botón que se
+ * queda en «Detener» para siempre.
+ */
+let ultimaLocucion: SpeechSynthesisUtterance | null = null;
+
+/** Desengancha la locución anterior antes de empezar otra o de callar. */
+function soltarLocucion(): void {
+  if (!ultimaLocucion) return;
+  ultimaLocucion.onend = null;
+  ultimaLocucion.onerror = null;
+  ultimaLocucion = null;
+}
 
 /**
  * Lee un texto en voz alta, por donde se pueda.
@@ -314,18 +482,43 @@ export function dictar(opciones: OyentesDictado): SesionDictado | null {
  * encola la segunda lectura detrás de la primera y hay que esperar a que termine
  * un párrafo entero para oír el siguiente, que no es lo que nadie espera de un
  * botón que ya está sonando.
+ *
+ * Devuelve **si se va a avisar del final**, y esa es toda la promesa: `true`
+ * significa que `alTerminar` se llamará una vez, y `false` significa que nadie
+ * dirá nada aunque el altavoz esté sonando. El segundo caso es el puente nativo,
+ * donde el lado Dart llama a `speak` y no devuelve nada al terminar. Se dice con
+ * un valor de retorno en vez de callarse porque una interfaz que muestre
+ * «sonando» a partir de esto tiene que saber si alguna vez podrá quitarlo: sin
+ * este `false`, el móvil se quedaría con un «Detener» permanente.
  */
-export function hablar(texto: string): void {
+export function hablar(texto: string, alTerminar?: () => void): boolean {
   const nativo = puente();
   if (nativo) {
     enviarAlPuente(nativo, { tipo: 'hablar', texto });
-    return;
+    return false;
   }
-  if (!sintesisDelNavegador()) return;
+  if (!sintesisDelNavegador()) return false;
+
+  lecturaEnCurso += 1;
+  const mia = lecturaEnCurso;
+  soltarLocucion();
   speechSynthesis.cancel();
+
   const locucion = new SpeechSynthesisUtterance(texto);
   locucion.lang = 'es-ES';
+  if (alTerminar) {
+    const avisar = (): void => {
+      if (mia === lecturaEnCurso) alTerminar();
+    };
+    // También en el error: una voz que no arranca deja el mismo estado que una
+    // que termina, y no avisar ahí es exactamente el botón atascado que se
+    // quería evitar.
+    locucion.onend = avisar;
+    locucion.onerror = avisar;
+  }
+  ultimaLocucion = locucion;
   speechSynthesis.speak(locucion);
+  return alTerminar !== undefined;
 }
 
 /** Corta la lectura en curso. */
@@ -335,5 +528,11 @@ export function callar(): void {
     enviarAlPuente(nativo, { tipo: 'callar' });
     return;
   }
-  if (sintesisDelNavegador()) speechSynthesis.cancel();
+  if (!sintesisDelNavegador()) return;
+  // Se invalida el aviso antes de cancelar: quien llama a `callar` ya sabe que
+  // ha parado, y el `onend` que provoca `cancel` llegaría después a contarlo
+  // otra vez, encima cuando el componente puede estar ya desmontado.
+  lecturaEnCurso += 1;
+  soltarLocucion();
+  speechSynthesis.cancel();
 }

@@ -40,6 +40,32 @@ dependencies:
   speech_to_text: ^7.4.0
   flutter_tts: ^4.2.5
   path_provider: ^2.1.6
+  share_plus: ^13.3.0
+  image: ^4.9.2
+  # El token de sesion no puede vivir en el localStorage del WebView: eso acaba
+  # siendo un fichero dentro del directorio de datos de la app, legible con root
+  # y arrastrado por cualquier copia de seguridad del sistema. Este paquete lo
+  # deja en el EncryptedSharedPreferences de Android, cifrado con una clave que
+  # genera y custodia el Keystore del aparato y que no sale de el.
+  flutter_secure_storage: ^11.1.1
+  # El desbloqueo por huella es opcional a proposito: hay telefonos sin sensor y
+  # gente que no lo tiene configurado, asi que se comprueba en tiempo de
+  # ejecucion y su ausencia no puede dejar a nadie fuera de su propia sesion.
+  local_auth: ^2.3.0
+  # Los enlaces `umluml://proyecto/<id>`. Hacen falta las dos mitades y por eso
+  # no vale con leer el Intent a mano: la app apagada recibe el enlace en el
+  # `getIntent()` de arranque, y la app ya abierta lo recibe en
+  # `onNewIntent`, que con `launchMode="singleTop"` ni siquiera recrea la
+  # actividad. Atender solo la primera deja un enlace que funciona la primera
+  # vez del dia y despues no hace nada.
+  app_links: ^6.4.1
+  # El permiso de micrófono en tiempo de ejecución, que hace falta desde que el
+  # tablón del proyecto graba notas de voz **dentro** del WebView. Hasta ahora
+  # ninguna pantalla lo necesitaba por esta vía: la cámara la abre `image_picker`
+  # y el dictado lo hace `speech_to_text`, y ambos piden su permiso por su
+  # cuenta. `getUserMedia` no; ahí el permiso tiene que pedirlo la app, porque el
+  # WebView no abre el diálogo de Android por nosotros.
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:

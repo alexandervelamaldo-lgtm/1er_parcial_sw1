@@ -5,6 +5,15 @@ import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import 'idioma_dictado.dart';
+
+/// Las decisiones sobre idioma y tiempos se reexportan desde aquí.
+///
+/// Viven en su propio fichero porque son puras y se prueban solas, pero quien
+/// usa el puente no tiene por qué saber que están repartidas en dos sitios: este
+/// fichero sigue siendo la puerta única de la voz nativa.
+export 'idioma_dictado.dart';
+
 /// El puente de voz entre la página y el sistema Android.
 ///
 /// Existe porque **el WebView de Android no implementa la Web Speech API**: ni
@@ -57,16 +66,6 @@ String mensajeDeError(String codigo) {
   }
 }
 
-/// Si el fallo es «no tengo ese idioma para reconocer aquí dentro».
-///
-/// Es la única familia de errores que no significa que el dictado no funcione:
-/// significa que no funciona **sin salir a la red**, que es otra cosa y tiene
-/// otra salida. De ahí que se distinga en vez de tratarla como un fallo más.
-bool sinIdiomaEnElAparato(String codigo) {
-  return codigo == 'error_language_unavailable' ||
-      codigo == 'error_language_not_supported';
-}
-
 /// Qué contar cuando el español no está descargado para dictar sin conexión.
 ///
 /// Dice las tres cosas que hacen falta para no quedarse atascado: qué ha
@@ -89,6 +88,20 @@ const String avisoSinIdiomaLocal =
 const String avisoDictadoPorInternet =
     'Esta orden y las siguientes se dictan por internet: el reconocimiento sin '
     'conexión no está disponible en este teléfono.';
+
+/// Qué contar cuando el reconocimiento local ha oído algo y no lo ha entendido.
+///
+/// Es el caso de «no se me entiende». El modelo que cabe dentro del teléfono es
+/// bastante peor que el de la red, y sin esta frase la salida del usuario es
+/// repetir la misma orden más alto y más despacio contra el mismo modelo que ya
+/// falló. Se dice qué ha pasado, qué hacer ahora —volver a pulsar— y qué cambia
+/// a partir de entonces, que es lo que no se puede callar: el audio empieza a
+/// salir del teléfono.
+const String avisoNoSeEntendioEnElAparato =
+    'No se ha entendido lo dicho con el reconocimiento sin conexión, que entiende '
+    'menos que el de internet.\n'
+    'Al volver a pulsar el micrófono se intentará otra vez, esta vez enviando el '
+    'audio a internet.';
 
 /// El JavaScript que entrega un mensaje a la página.
 ///
@@ -147,6 +160,14 @@ class PuenteVoz {
   /// orden.
   bool _avisadoDeLaRed = false;
 
+  /// La variante del castellano que se le pide al reconocedor.
+  ///
+  /// Se resuelve una vez, tras `initialize`, porque hasta entonces el teléfono no
+  /// sabe decir qué idiomas tiene. `null` significa «no se ha encontrado ninguno
+  /// del que fiarse»: entonces no se pide nada y decide el sistema, que acierta
+  /// más que una región inventada desde aquí.
+  String? _idioma;
+
   /// Registra el canal en el controlador. Llamar antes de `loadRequest`.
   void registrar(WebViewController web) {
     _web = web;
@@ -204,6 +225,7 @@ class PuenteVoz {
         _responder({'tipo': 'fin'});
         return;
       }
+      await _resolverIdioma();
     }
 
     // Hablar mientras el teléfono lee la respuesta anterior haría que el
@@ -224,14 +246,21 @@ class PuenteVoz {
         });
       },
       listenOptions: SpeechListenOptions(
-        // Mismo idioma que fija `voz.ts` para el navegador. Va aquí dentro y no
-        // como argumento suelto de `listen` porque el argumento está obsoleto
-        // desde speech_to_text 7.
-        localeId: 'es-ES',
+        // Cuánto se aguanta callado antes de dar la frase por terminada. Es lo
+        // que faltaba: con el valor de Android, una orden dicha pensando se
+        // enviaba partida en tres. Van aquí dentro y no como argumentos sueltos
+        // de `listen` porque ahí están obsoletos desde speech_to_text 7.4.
+        listenFor: duracionMaximaDelDictado,
+        pauseFor: pausaQueTerminaElDictado,
+        // La variante que tenga el teléfono, no la de España a mano. Va aquí
+        // dentro y no como argumento suelto de `listen` porque el argumento está
+        // obsoleto desde speech_to_text 7.
+        localeId: _idioma,
         // Lo que hace que «funciona sin internet» sea cierto también para el
         // dictado. Sin esto el reconocedor de Android manda el audio fuera,
         // igual que hace Chrome, y la única parte offline de la voz sería la
-        // lectura en voz alta.
+        // lectura en voz alta. Deja de estar activo en cuanto se demuestra que
+        // el modelo local no entiende lo que se le dice.
         onDevice: _enElAparato,
         // Los parciales son la única señal de que el micrófono está captando
         // algo. Sin ellos el usuario repite la frase entera creyendo que falló.
@@ -245,6 +274,24 @@ class PuenteVoz {
     );
   }
 
+  /// Pregunta al teléfono qué castellanos tiene y se queda con uno.
+  ///
+  /// Se hace una sola vez y después de `initialize`, que es cuando el plugin
+  /// puede contestar. Si la consulta falla no se cae el dictado: se escucha sin
+  /// pedir idioma, que es exactamente lo que se hacía antes de todo esto.
+  Future<void> _resolverIdioma() async {
+    try {
+      final disponibles = await _reconocedor.locales();
+      final sistema = await _reconocedor.systemLocale();
+      _idioma = elegirIdiomaDeDictado(
+        disponibles: disponibles.map((local) => local.localeId).toList(),
+        delSistema: sistema?.localeId,
+      );
+    } on Exception {
+      _idioma = sinIdiomaPreferido;
+    }
+  }
+
   void _alFallar(SpeechRecognitionError error) {
     // Que falte el idioma descargado no es que el dictado no funcione: es que no
     // funciona sin salir a la red. Se apunta para no volver a intentarlo y se
@@ -255,9 +302,17 @@ class PuenteVoz {
     // y ese «fin» llega por otro camino y sin orden garantizado: acertar a veces
     // dejaría el punto rojo encendido escuchando a nadie. Un toque más, una vez
     // en la vida del teléfono, es más barato que ese fallo.
-    if (_enElAparato && sinIdiomaEnElAparato(error.errorMsg)) {
+    if (_enElAparato && dejarDeReconocerEnElAparato(error.errorMsg)) {
       _enElAparato = false;
-      _responder({'tipo': 'error', 'motivo': avisoSinIdiomaLocal});
+      // Los dos casos acaban en el mismo sitio —el audio empieza a salir— pero
+      // llegan por motivos distintos, y decir el que no es manda al usuario a
+      // Ajustes a descargar un idioma que ya tenía.
+      _responder({
+        'tipo': 'error',
+        'motivo': sinIdiomaEnElAparato(error.errorMsg)
+            ? avisoSinIdiomaLocal
+            : avisoNoSeEntendioEnElAparato,
+      });
       return;
     }
     _responder({'tipo': 'error', 'motivo': mensajeDeError(error.errorMsg)});

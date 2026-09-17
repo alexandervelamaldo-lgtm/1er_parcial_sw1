@@ -49,7 +49,14 @@ try {
     Write-Host 'adb reverse no se pudo hacer (¿hay un móvil conectado?)' -ForegroundColor Yellow
 }
 
-$argumentos = if ($args.Count -gt 0) { $args } else { @('run', '--dart-define=APP_URL=http://localhost:3001') }
+# 4. Los argumentos.
+#
+#    Sin argumentos hace `flutter run` contra la interfaz táctil. El `/movil` del
+#    final no es decorativo: sin él la app entra por el layout de escritorio, que
+#    en un teléfono son tres columnas de las que dos no caben. Igual que en el
+#    `defaultValue` de `main.dart`, y a propósito repetido: quien compile a mano
+#    con `--dart-define` tiene aquí el ejemplo de la ruta correcta delante.
+$argumentos = if ($args.Count -gt 0) { $args } else { @('run', '--dart-define=APP_URL=http://localhost:3001/movil') }
 Write-Host "flutter $($argumentos -join ' ')" -ForegroundColor Cyan
 & flutter @argumentos
 exit $LASTEXITCODE

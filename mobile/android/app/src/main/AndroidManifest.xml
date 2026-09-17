@@ -20,6 +20,20 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!--
+      El desbloqueo por huella de la sesión guardada. No se pide al usuario
+      —`USE_BIOMETRIC` es de instalación, no de tiempo de ejecución—, pero sin
+      declararlo el `BiometricPrompt` no llega a abrirse y `local_auth`
+      contesta que el aparato no puede, que es exactamente lo mismo que dice un
+      teléfono sin sensor. Ese es el fallo que evita esta línea: uno que se lee
+      como «este móvil no tiene huella» en móviles que sí la tienen.
+
+      No hay `uses-feature` de huella a propósito: la app funciona entera sin
+      sensor —el desbloqueo es opcional y se comprueba en ejecución— y
+      declararlo la escondería en la tienda para los aparatos que no lo llevan.
+    -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <application
         android:label="Diagramas UML"
         android:name="${applicationName}"
@@ -45,6 +59,37 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!--
+              Los enlaces `umluml://proyecto/<id>`, que son la forma de compartir
+              un proyecto por un chat y que se abra la app en vez de Chrome. Un
+              `http://` lo atiende el navegador, y quien lo recibe acaba
+              escribiendo la contraseña otra vez en un sitio que no tiene ni el
+              token en el Keystore ni el diagrama guardado en local.
+
+              Las tres líneas de dentro son obligatorias y cada una arregla un
+              fallo distinto: sin `VIEW` el sistema no asocia el esquema a nada;
+              sin `DEFAULT` el enlace solo llega si alguien lo lanza con nuestro
+              nombre de paquete escrito a mano; y sin `BROWSABLE` no lo puede
+              lanzar una página web, que es de donde va a venir casi siempre.
+
+              El `<data>` declara el esquema y el anfitrión, y eso es todo lo que
+              Android comprueba: el identificador que venga detrás no lo mira
+              nadie. Quien lo valida es `proyectoDeEnlace` en
+              `lib/enlaces/destino.dart`, y ahí está escrito por qué eso es
+              código de seguridad y no de navegación.
+
+              La actividad ya es `singleTop` más arriba, lo que significa que con
+              la app abierta el enlace llega por `onNewIntent` sin recrear nada.
+              Por eso el lado de Dart escucha las dos vías con `app_links`:
+              atender solo la de arranque deja un enlace que funciona la primera
+              vez del día y después no hace nada.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="umluml" android:host="proyecto"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

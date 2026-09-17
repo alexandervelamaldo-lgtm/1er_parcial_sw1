@@ -1,0 +1,733 @@
+/*
+  La interfaz de móvil.
+
+  Fichero aparte y no un bloque `@media` al final de `estilos.css`, y la diferencia
+  no es de orden sino de naturaleza. Un `@media` esconde piezas del layout de
+  escritorio: el resultado es una pantalla con tres columnas de las que dos están
+  en `display: none`, que sigue montando esos componentes, sigue suscribiéndolos al
+  documento y sigue calculando sus anchos. Esto es otra pantalla, con sus propios
+  elementos y ninguno de los de allí.
+
+  Las variables de color, tipografía y radios **sí** se comparten con
+  `estilos.css`: el tema claro y oscuro tiene que ser el mismo en los dos sitios, y
+  una segunda paleta significaría dos sitios donde arreglar un contraste.
+
+  Las medidas táctiles no se repiten aquí como números sueltos: los 48 px de alto
+  mínimo y los 44 de lado salen de `barra-pulgar.ts` y de `movil-reparto.ts`, que
+  son los que están probados. Lo que hay abajo es lo que no se puede probar sin un
+  navegador.
+*/
+
+.movil {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--fondo);
+  color: var(--texto);
+  /*
+    El texto no se reescala al girar el teléfono ni al hacer doble toque. Sin esto,
+    Android agranda el tipo de los bloques que considera «texto principal» y las
+    cajas del diagrama dejan de medir lo que el lienzo cree que miden.
+  */
+  -webkit-text-size-adjust: 100%;
+}
+
+/* -------------------------------------------------------------------------- */
+/* La barra de arriba                                                          */
+/* -------------------------------------------------------------------------- */
+
+.barra-movil {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--borde);
+  background: var(--fondo-2);
+  flex: 0 0 auto;
+}
+
+.barra-movil__cajon {
+  display: grid;
+  place-items: center;
+  /* 44 px de lado: el objetivo táctil mínimo de `barra-pulgar.ts`. */
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--texto);
+}
+
+.barra-movil__nombre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  /* Una sola línea: si el nombre pudiera repartirse en dos, la barra crecería y le
+     quitaría altura al diagrama por un nombre largo. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Las fichas de quién está dentro, con tope.
+
+   Es un botón y no un adorno: en una pantalla táctil el nombre completo de un
+   participante no se puede leer de ninguna otra forma, porque el `title` del
+   escritorio necesita un ratón encima que aquí no existe.
+
+   `flex: 0 0 auto` además de la altura: sin esto el grupo cedería antes que el
+   nombre del proyecto y las fichas se aplastarían unas contra otras hasta dejar
+   de leerse las iniciales, que es justo el sitio donde no hay nada que ceder. */
+.barra-movil__presentes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+
+.barra-movil__ficha {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--sobre-acento);
+  font-size: 11px;
+  font-weight: 700;
+  /* El color de fondo lo pone `usePresencia`, que es quien reparte los ocho
+     colores sin repetir. Aquí no se elige ninguno. */
+}
+
+.barra-movil__sobran {
+  padding: 0 4px;
+  color: var(--texto-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------------------- */
+/* El cuerpo: lienzo y, si cabe, panel al lado                                 */
+/* -------------------------------------------------------------------------- */
+
+.movil__cuerpo {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+.movil__lienzo {
+  position: relative;
+  height: 100%;
+  /*
+    `pan-x pan-y pinch-zoom` y no `none`: el desplazamiento y el pellizco los
+    gestiona React Flow, y hay que dejar que le lleguen los eventos. Lo que sí se
+    desactiva es el doble toque para acercar del navegador, que se solapaba con el
+    zoom del lienzo y daba dos escalas distintas a la vez.
+  */
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+.movil__panel {
+  height: 100%;
+  overflow-y: auto;
+  border-left: 1px solid var(--borde);
+  background: var(--fondo-2);
+  flex: 0 0 auto;
+}
+
+/* Lo mismo que `.hoja-movil__cuerpo--fijo` pero en apaisado y en tablet, donde
+   la ficha es una columna al lado del lienzo en vez de una hoja por encima. El
+   contenido —hoy solo el tablón— se desplaza por dentro, así que el panel no
+   debe desplazarse también. */
+.movil__panel--fijo {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* La cabecera mide lo que mide y el contenido se queda con el resto. El
+   `min-height: 0` es el de siempre: sin él, un hijo con su propia barra de
+   desplazamiento estira la columna en vez de recortarse. */
+.movil__panel--fijo > :last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.movil__panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.movil__panel-titulo {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.movil__panel-cabecera button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--texto);
+}
+
+/* -------------------------------------------------------------------------- */
+/* La hoja inferior                                                            */
+/* -------------------------------------------------------------------------- */
+
+.hoja-movil {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo-2);
+  border-top: 1px solid var(--borde);
+  border-radius: 16px 16px 0 0;
+  /* La sombra es la que dice «esto está por encima del diagrama». Sin ella, con el
+     tema oscuro, la hoja y el lienzo tienen fondos parecidos y no se ve dónde
+     acaba una y empieza el otro. */
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 35%);
+  overflow: hidden;
+}
+
+.hoja-movil__asidero {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  /* El cursor es para la tablet con ratón; en el teléfono no se ve nunca. */
+  cursor: grab;
+}
+
+.hoja-movil__tirador {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--texto-2);
+  opacity: 0.5;
+}
+
+.hoja-movil__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px 8px;
+  flex: 0 0 auto;
+}
+
+.hoja-movil__titulo {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.hoja-movil__cerrar,
+.cajon__cerrar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--texto);
+}
+
+.hoja-movil__cuerpo {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 12px 16px;
+  /* El desplazamiento por el teclado se hace con `transform`, que no provoca
+     recálculo de layout: en mitad de la animación del teclado, un cambio de
+     `padding` o de `top` sí se nota. */
+  transition: transform 140ms ease;
+  /* Que el impulso del dedo no arrastre la página de detrás al llegar al final de
+     la lista. */
+  overscroll-behavior: contain;
+}
+
+/* El contenido manda: la hoja deja de desplazarse y le presta su altura entera.
+   Lo usa el tablón, que tiene el hilo arriba y el cuadro de escribir anclado
+   abajo. Sin esto son dos desplazamientos encajados y el cuadro de escribir,
+   que debería estar siempre a mano, se va por debajo del borde al leer los
+   mensajes de ayer. */
+.hoja-movil__cuerpo--fijo {
+  overflow: hidden;
+  /* Un hijo con `height: 100%` necesita que el padre tenga altura definida. La
+     tiene por el `flex: 1 1 auto` dentro de una hoja de altura fija, pero el
+     mínimo automático de flexbox la dejaría crecer con el contenido; el cero lo
+     impide. */
+  min-height: 0;
+  /* Sin el hueco de abajo, que aquí lo pone el propio contenido, y con los
+     lados algo más estrechos: en una columna de teléfono cada píxel de ancho es
+     una palabra más por línea. */
+  padding: 0 10px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* El botón flotante                                                           */
+/* -------------------------------------------------------------------------- */
+
+.fab {
+  position: fixed;
+  right: 16px;
+  /* Por encima del borde inferior del sistema: en un teléfono con gestos, los
+     últimos píxeles de abajo son de la barra de navegación de Android y un botón
+     ahí se pulsa sin querer al volver atrás. */
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.fab__principal {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--acento);
+  color: var(--sobre-acento);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 35%);
+}
+
+.fab__lista {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fab__accion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 48 px de alto mínimo, que es la medida del encargo. */
+  min-height: 48px;
+  max-width: 78vw;
+  padding: 8px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 24px;
+  background: var(--fondo-2);
+  color: var(--texto);
+  text-align: left;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+
+.fab__accion:disabled {
+  /* Apagado pero legible. Un botón al 40 % de opacidad con su motivo escrito
+     dentro es un botón cuyo motivo no se puede leer, y entonces da igual que esté
+     escrito. */
+  opacity: 0.75;
+  background: var(--fondo);
+}
+
+.fab__texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fab__etiqueta {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.fab__motivo,
+.cajon__detalle {
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+/* -------------------------------------------------------------------------- */
+/* El cajón                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.cajon {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.cajon__fondo {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 45%);
+}
+
+.cajon__panel {
+  position: absolute;
+  inset: 0 auto 0 0;
+  /* `min` y no un porcentaje solo: en una tablet el 86 % serían 700 px de cajón
+     para una lista de once entradas. */
+  width: min(86vw, 360px);
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo-2);
+  border-right: 1px solid var(--borde);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cajon__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--borde);
+  position: sticky;
+  top: 0;
+  background: var(--fondo-2);
+}
+
+.cajon__titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.cajon__grupos {
+  padding: 8px 0 calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+.cajon__encabezado {
+  margin: 12px 16px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-2);
+}
+
+.cajon__acciones {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cajon__accion {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--texto);
+  text-align: left;
+}
+
+.cajon__accion:disabled {
+  opacity: 0.75;
+}
+
+.cajon__texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cajon__etiqueta {
+  font-size: 15px;
+}
+
+.cajon__detalle {
+  /* Dos líneas como mucho: un motivo largo empujaría la siguiente acción fuera de
+     la pantalla y el cajón dejaría de poder recorrerse de un vistazo. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Encuadrar, el micrófono y los avisos                                        */
+/* -------------------------------------------------------------------------- */
+
+.movil__encuadrar,
+.movil__voz {
+  position: fixed;
+  left: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 50;
+  /* `grid` con `place-items` y no `font-size`: dentro va un `<Icono>`, que es un
+     SVG. Un tamaño de tipo no centra un SVG —lo alinea por su línea base, que en
+     un botón redondo lo deja un par de píxeles bajo el centro—. */
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--borde);
+  border-radius: 24px;
+  background: var(--fondo-2);
+  color: var(--texto);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+}
+
+.movil__voz {
+  /* Justo encima de «encuadrar»: 16 de margen + 48 de botón + 12 de hueco. Los
+     dos atajos permanentes hacen una columna a la izquierda, lejos del botón
+     flotante de la derecha, que es donde cae el pulgar por accidente al soltar
+     un arrastre. */
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  /* El acento y no el fondo neutro: es el único de los dos que escribe en el
+     diagrama, y conviene que se distinga de un control de vista antes de
+     pulsarlo, no después. */
+  border-color: transparent;
+  background: var(--acento);
+  color: var(--sobre-acento);
+}
+
+.movil__voz:disabled {
+  /* Sin motivo visible a su lado —no hay sitio para texto en un botón redondo—,
+     así que el motivo vive solo en el `aria-label`. A cambio, apagado se ve
+     apagado de verdad: aquí la confusión que hay que evitar es creer que se
+     está grabando cuando no. */
+  opacity: 0.55;
+  background: var(--fondo-2);
+  border-color: var(--borde);
+  color: var(--texto);
+}
+
+/*
+  El asistente del escritorio, metido en la hoja y en el panel lateral.
+
+  Se reutiliza el componente entero, pero no su marco: en el escritorio vive
+  pegado al fondo de una columna, y de ahí le vienen el filete de arriba —que lo
+  separaba del lienzo— y el tope de `40vh` —que impedía que se comiera el
+  diagrama—. Dentro de la hoja las dos cosas estorban: el filete duplica la línea
+  de la cabecera de la hoja, y el tope deja media hoja vacía justo después de
+  haberla arrastrado hacia arriba para poder leer la propuesta. Quien manda sobre
+  el alto aquí es la hoja, y el desplazamiento también es suyo; dos barras de
+  desplazamiento anidadas en un teléfono son una que no se sabe cuál se mueve.
+*/
+.hoja-movil__cuerpo .asistente,
+.movil__panel .asistente {
+  border-top: none;
+  background: none;
+  padding: 0;
+  max-height: none;
+  overflow-y: visible;
+}
+
+.movil__aviso {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* Encima del botón flotante y de la columna de la izquierda, no debajo: un
+     aviso tapado por un botón es un aviso que no existe, y un botón tapado por
+     un aviso es un botón que no se puede pulsar. 16 + 48 + 12 + 48 + 12. */
+  bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--fondo-2);
+  color: var(--texto);
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Lo que han hecho los demás                                                  */
+/* -------------------------------------------------------------------------- */
+
+.movil__novedades {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /*
+    Arriba y no abajo, al contrario que los avisos. Abajo están el botón flotante,
+    el de encuadrar y la hoja, y sobre todo está el teclado: un cartel de
+    novedades que aparece ahí mientras se escribe un atributo tapa el campo o se
+    tapa él, y en los dos casos sale perdiendo algo que sí importaba. Arriba, justo
+    bajo la barra, el sitio está libre siempre.
+  */
+  top: calc(48px + 8px);
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* 48 px de alto mínimo: es un botón, y se pulsa con el pulgar como los demás. */
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  background: var(--fondo-2);
+  color: var(--texto);
+  text-align: left;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
+}
+
+.movil__novedades-texto {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  /* Una línea: el resumen viene de `describeOperation` y puede traer un nombre de
+     clase largo. Si pudiera repartirse en tres líneas, el cartel crecería hacia
+     abajo y acabaría tapando el diagrama que dice que ha cambiado. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.movil__novedades-ver {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--acento);
+}
+
+.movil__ficha-aviso {
+  /* Pegado arriba al desplazar la ficha: se puede haber bajado a mirar un método
+     y la advertencia sigue siendo verdad mientras la ficha esté abierta. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  border-radius: 8px;
+  background: var(--fondo);
+  color: var(--texto);
+  font-size: 13px;
+}
+
+.movil__aviso button {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--texto);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Quién está dentro, con nombre                                               */
+/* -------------------------------------------------------------------------- */
+
+.presentes-movil {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presentes-movil__fila {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* 48 px de alto aunque la fila no sea pulsable entera: la que sí lo es lleva
+     el botón «Ir» dentro, y filas de dos alturas distintas en la misma lista se
+     leen como dos listas. */
+  min-height: 48px;
+  padding: 4px 2px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.presentes-movil__fila:last-child {
+  border-bottom: 0;
+}
+
+.presentes-movil__ficha {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--sobre-acento);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.presentes-movil__quien {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.presentes-movil__nombre {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.presentes-movil__donde {
+  color: var(--texto-2);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.presentes-movil__ir {
+  flex: 0 0 auto;
+  min-width: 48px;
+  min-height: 48px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--acento);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.presentes-movil__nadie {
+  margin: 0;
+  padding: 12px 2px;
+  color: var(--texto-2);
+  font-size: 13px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Respetar lo que el sistema pide                                             */
+/* -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+    Quien ha pedido menos movimiento en los ajustes del teléfono lo ha pedido para
+    todas las aplicaciones, no solo para las que se acuerdan. La hoja sigue
+    subiendo y bajando; lo que desaparece es la animación.
+  */
+  .hoja-movil,
+  .hoja-movil__cuerpo {
+    transition: none !important;
+  }
+}
