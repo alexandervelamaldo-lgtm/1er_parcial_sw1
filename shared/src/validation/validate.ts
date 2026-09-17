@@ -2,22 +2,23 @@ import {
   type ClassDiagram,
   type UmlClass,
   isPersistent,
-  isPrimitiveType,
   isToMany,
-  isValidJavaIdentifier,
-  isValidJavaPackage,
-  isValidJavaPackageSegment,
-  isValidSqlIdentifier,
   listClasses,
   listModules,
   listRelations,
   parseMultiplicity,
+} from '../model/uml.js';
+import { isPrimitiveType, resolveTypeName } from '../model/type-catalog.js';
+import {
+  isValidJavaIdentifier,
+  isValidJavaPackage,
+  isValidJavaPackageSegment,
+  isValidSqlIdentifier,
   pluralize,
-  resolveTypeName,
   toCamelCase,
   toPascalCase,
   toSnakeCase,
-} from '@app/shared';
+} from '../model/naming.js';
 
 /**
  * Validación bloqueante previa a la generación (RF-GEN-11).
@@ -25,6 +26,26 @@ import {
  * Los errores impiden generar; los avisos no. La distinción importa: generar un
  * proyecto que no compila desplaza el diagnóstico del problema a un stack trace
  * de Maven, donde el usuario no tiene forma de relacionarlo con su diagrama.
+ *
+ * ## Por qué vive en `shared` y no en `generator`
+ *
+ * Estuvo en `generator/src/validation/` desde el principio, y tenía sentido
+ * mientras la única pregunta fuese «¿emito el ZIP o devuelvo los errores?». Pero
+ * el fichero nunca importó nada del generador: ni una plantilla, ni la IR, ni
+ * Handlebars. Solo el modelo y las convenciones de nombres, que ya vivían aquí.
+ *
+ * Lo que forzó la mudanza fue el navegador. `frontend` depende de `@app/shared` y
+ * no puede depender de `@app/generator`, que arrastra `handlebars` y `archiver`
+ * —código de Node que no se empaqueta—. Mientras esto viviera allí, la única
+ * forma que tenía el editor de saber si un diagrama se podía generar era
+ * preguntárselo al servidor, y eso convierte en dependiente de la red una
+ * pregunta que es puramente local; el requisito de trabajar sin conexión
+ * (RF-OFF-04) no lo admite. La reparación automática —`reparacion/reparar.ts`—
+ * lo habría hecho inviable de todos modos: valida, aplica y vuelve a validar en
+ * bucle, y eso son varias pasadas por pulsación.
+ *
+ * `generator` la sigue reexportando, así que nada de lo que ya la importaba tuvo
+ * que cambiar.
  */
 
 export type Severity = 'error' | 'warning';
@@ -260,13 +281,58 @@ function validateNameCollisions(diagram: ClassDiagram, issues: ValidationIssue[]
   }
 }
 
-/** Regla 1: toda entidad persistente tiene identificador. */
+/** Regla 1: toda entidad persistente tiene identificador, y uno solo. */
 function validateIdentifiers(diagram: ClassDiagram, issues: ValidationIssue[]): void {
   for (const cls of listClasses(diagram)) {
-    if (!isPersistent(cls) || cls.kind === 'abstract') continue;
+    if (!isPersistent(cls)) continue;
 
     const identifiers = cls.attributes.filter((a) => a.isIdentifier);
     const inherited = hasInheritedIdentifier(diagram, cls);
+
+    /*
+      Una subclase que declara su propia clave primaria.
+
+      Esto se escapaba porque las dos comprobaciones de abajo lo dan por bueno:
+      hay exactamente un identificador y no falta ninguno. Y sin embargo lo que
+      se genera está roto de tres formas a la vez, todas silenciosas:
+
+      1. `resolveIdentifier` (generator/src/ir/normalize.ts) prefiere el propio
+         al heredado, así que la clave de la subclase gana.
+      2. `generate.ts` excluye el identificador de la lista de campos, y la
+         plantilla de entidad no emite `@Id` cuando hay superclase. Resultado:
+         el atributo **desaparece** del Java generado. Un `Check.holderName`
+         marcado como clave no sale por ningún lado, y nadie lo echa en falta
+         hasta buscar el dato en producción.
+      3. El DDL cuelga la clave ajena al padre de esa misma columna, con el
+         tipo de la subclase apuntando al tipo del padre. `checks.holder_name
+         VARCHAR(255)` referenciando `payments.payment_id BIGINT` es una FK que
+         PostgreSQL rechaza al arrancar.
+
+      Es error y no aviso porque ninguno de los tres efectos es recuperable
+      leyendo el código: el proyecto se descarga, compila a medias y falla al
+      levantar el esquema, que es el peor sitio para enterarse.
+
+      Se comprueba también en las abstractas —al contrario que las dos reglas
+      siguientes— porque una clase abstracta puede heredar de otra, y el
+      generador la trata igual.
+    */
+    if (inherited && identifiers.length > 0) {
+      const nombres = identifiers.map((a) => `«${a.name}»`).join(', ');
+      issues.push({
+        severity: 'error',
+        code: 'SUBCLASS_DECLARES_IDENTIFIER',
+        message:
+          `«${cls.name}» hereda la clave primaria de su superclase y además declara ` +
+          `${nombres} como identificador. La identidad se hereda, no se vuelve a ` +
+          `declarar: desmarque ${identifiers.length === 1 ? 'ese atributo' : 'esos atributos'} ` +
+          `para que ${identifiers.length === 1 ? 'siga siendo un dato' : 'sigan siendo datos'} ` +
+          `de «${cls.name}».`,
+        elementId: cls.id,
+        elementName: cls.name,
+      });
+    }
+
+    if (cls.kind === 'abstract') continue;
 
     if (identifiers.length === 0 && !inherited) {
       issues.push({
