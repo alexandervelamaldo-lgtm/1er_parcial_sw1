@@ -19,7 +19,7 @@ import type { ClassKind, RelationKind } from '@app/shared';
  * deshabilitado o activo arrastra su icono al color que le toque sin una sola
  * regla extra.
  *
- * No se instala una librería de iconos. Son treinta y cuatro; una librería trae
+ * No se instala una librería de iconos. Son treinta y seis; una librería trae
  * varios miles, un `package.json` más largo y un árbol de dependencias que
  * auditar, para usar el uno por ciento.
  */
@@ -67,7 +67,15 @@ export type NombreIcono =
   | 'alerta'
   | 'comprobado'
   | 'modulo'
-  | 'comunicacion';
+  | 'comunicacion'
+  | 'revisar'
+  | 'encuadrar'
+  | 'personas'
+  | 'enviar'
+  | 'papelera'
+  | 'reproducir'
+  | 'pausa'
+  | 'mensajes';
 
 /** El punteado de las relaciones que en UML se dibujan con línea discontinua. */
 const PUNTEADO = '2 1.6';
@@ -282,6 +290,95 @@ const TRAZOS: Record<NombreIcono, ReactNode> = {
       <rect x="9.5" y="9.5" width="5" height="4" />
       <path d="M4 6.5v3.5a1.5 1.5 0 0 0 1.5 1.5H9" />
       <path d="M6.5 8.5 8.5 6.5 8.5 10.5z" />
+    </>
+  ),
+
+  /* Una lupa sobre la caja de una clase: mirar de cerca lo que ya está
+     dibujado. No es `alerta` a propósito —el triángulo diría «hay un problema»
+     antes de haber mirado— ni `comprobado`, que diría lo contrario. */
+  revisar: (
+    <>
+      <path d="M1.5 3.5h7v2h-7z" />
+      <path d="M1.5 5.5v6h4" />
+      <circle cx="10.5" cy="9" r="3.2" />
+      <path d="M12.8 11.3 14.8 13.3" />
+    </>
+  ),
+
+  /* Cuatro escuadras y una caja dentro: el diagrama entero encajado en la
+     pantalla. Las esquinas se dibujan sueltas, sin cerrar el marco, porque un
+     rectángulo completo con otro dentro se lee como «ventana» —lo que hacen
+     `columna-izquierda` y `columna-derecha`— y esto no abre nada, mueve la
+     vista. */
+  encuadrar: (
+    <>
+      <path d="M1.5 5.5v-4h4" />
+      <path d="M10.5 1.5h4v4" />
+      <path d="M14.5 10.5v4h-4" />
+      <path d="M5.5 14.5h-4v-4" />
+      <rect x="5.5" y="5.5" width="5" height="5" rx="1" />
+    </>
+  ),
+
+  /* Dos personas, no una silueta con una flecha saliendo.
+     ----------------------------------------------------
+     El icono de «compartir» más habitual —tres nodos unidos por dos líneas— es
+     el de mandar un fichero a otra aplicación, y aquí eso ya existe: es lo que
+     hacen «exportar XMI» y «generar». Lo que abre este botón es la lista de
+     **quién** entra al proyecto y con qué permiso, así que lo que se dibuja son
+     personas.
+
+     La segunda va detrás y recortada por el borde: con dos figuras enteras y
+     del mismo tamaño el dibujo se lee como «dos», que es un número, y no como
+     «un grupo», que es lo que hay que entender cuando el proyecto tiene seis
+     miembros. */
+  personas: (
+    <>
+      <circle cx="6" cy="5.4" r="2.6" />
+      <path d="M1.6 13.4c0-2.4 2-4.1 4.4-4.1s4.4 1.7 4.4 4.1" />
+      <circle cx="11.9" cy="6.3" r="1.9" />
+      <path d="M11.4 10.1c1.8-.1 3.1 1.3 3.1 3.3" />
+    </>
+  ),
+
+  /* El avión de papel de toda la vida, con el pliegue central marcado: sin él
+     la silueta sola se lee como un triángulo cualquiera. */
+  enviar: (
+    <>
+      <path d="M14.5 1.5 1.5 7l5 2.2z" />
+      <path d="M14.5 1.5 6.5 9.2l1.4 5.3z" />
+    </>
+  ),
+
+  /* Una papelera, no una cruz. La cruz es «cerrar» —que ya existe— y aquí lo
+     que se hace es retirar un mensaje del hilo de todo el proyecto: conviene
+     que el dibujo pese lo que pesa la acción. */
+  papelera: (
+    <>
+      <path d="M2.5 4.5h11" />
+      <path d="M6 4.5v-2h4v2" />
+      <path d="M3.9 4.5l.7 9.5h6.8l.7-9.5" />
+      <path d="M6.6 7v4.5M9.4 7v4.5" />
+    </>
+  ),
+
+  /* Un bocadillo con tres puntos: conversación, no notificación. El rabillo
+     cae a la izquierda, que es de donde viene lo que dicen los demás; un
+     bocadillo con el rabillo a la derecha se lee como «lo que dije yo». */
+  mensajes: (
+    <>
+      <path d="M2 3.5h12v7.5H6.5L3.5 14v-3H2z" />
+      <circle cx="5.6" cy="7.2" r="0.7" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="7.2" r="0.7" fill="currentColor" stroke="none" />
+      <circle cx="10.4" cy="7.2" r="0.7" fill="currentColor" stroke="none" />
+    </>
+  ),
+
+  reproducir: <path d="M5 3.2 12.5 8 5 12.8z" />,
+  pausa: (
+    <>
+      <path d="M5.5 3.5v9" />
+      <path d="M10.5 3.5v9" />
     </>
   ),
 };

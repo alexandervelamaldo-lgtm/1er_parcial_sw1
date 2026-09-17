@@ -196,6 +196,26 @@ export type ClassDiagram = z.infer<typeof ClassDiagramSchema>;
 // Utilidades de multiplicidad
 // ---------------------------------------------------------------------------
 
+/**
+ * Si un tipo de relación admite cardinalidad.
+ *
+ * La herencia y la realización no la llevan: «Perro hereda de Animal» no tiene
+ * multiplicidad en ninguno de sus dos extremos, y no es que se desconozca, es
+ * que no existe.
+ *
+ * Vive aquí, junto a `RelationKind`, porque es un hecho del modelo UML y no de
+ * ninguno de sus tres consumidores. Estuvo escrita tres veces —en el intérprete
+ * de fotos, en el descriptor de operaciones y, a medias, en la pantalla de
+ * revisión— y las copias se separaron: el servidor sabía que una herencia sin
+ * cardinalidad está bien; la pantalla no, y pintaba de rojo dos filas correctas
+ * pidiendo que se arreglara algo que no estaba roto. Un aviso que no
+ * corresponde a un problema es peor que ninguno: enseña a ignorar los avisos, y
+ * el día que uno sea de verdad también se ignorará.
+ */
+export function llevaCardinalidad(kind: RelationKind): boolean {
+  return kind !== 'inheritance' && kind !== 'realization';
+}
+
 export interface ParsedMultiplicity {
   lower: number;
   /** `null` representa `*` (sin cota superior). */

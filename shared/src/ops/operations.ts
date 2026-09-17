@@ -5,6 +5,7 @@ import {
   RelationKindSchema,
   VisibilitySchema,
   describeCardinality,
+  llevaCardinalidad,
   type RelationKind,
 } from '../model/uml.js';
 import { isValidJavaPackageSegment } from '../model/naming.js';
@@ -349,9 +350,9 @@ export function describeOperation(op: Operation): string {
     case 'addRelation': {
       const etiqueta = RELATION_KIND_LABELS[op.kind];
       const base = `Crear ${etiqueta} entre «${refName(op.source)}» y «${refName(op.target)}»`;
-      // La herencia no tiene cardinalidad; decir «uno a uno» sobre ella sería
-      // ruido que además sugiere que se puede cambiar, y no se puede.
-      if (op.kind === 'inheritance' || op.kind === 'realization') return base;
+      // Decir «uno a uno» sobre una herencia sería ruido que además sugiere que
+      // se puede cambiar, y no se puede.
+      if (!llevaCardinalidad(op.kind)) return base;
       return `${base} (${describeCardinality(op.sourceMultiplicity, op.targetMultiplicity)})`;
     }
     case 'updateRelation': {

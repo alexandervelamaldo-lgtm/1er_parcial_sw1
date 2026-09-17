@@ -116,6 +116,20 @@ export class CollabProvider {
   private cerradoAdrede = false;
   private sincronizado = false;
 
+  /**
+   * Qué intento de conexión es el bueno.
+   *
+   * Sube en cada `conectar()`, y cada juego de escuchas se queda con el número
+   * que había cuando se registró. Hace falta porque `reconectarYa` abandona un
+   * socket que puede seguir vivo, y el `close` de ese socket llega **después**
+   * de que el nuevo esté abierto: sin este contador, la escucha del viejo
+   * pondría `this.socket = null` —dejando mudo al nuevo, que ya estaba
+   * asignado— y programaría un reintento, con lo que acabarían corriendo dos
+   * conexiones a la vez. El síntoma sería un diagrama que duplica lo que se
+   * escribe, y cuesta días encontrarlo.
+   */
+  private generacion = 0;
+
   constructor(options: CollabProviderOptions) {
     this.doc = options.doc;
     this.url = options.url;
@@ -184,12 +198,24 @@ export class CollabProvider {
   private conectar(): void {
     if (this.cerradoAdrede) return;
 
+    this.generacion += 1;
+    const generacion = this.generacion;
+    /** ¿Sigue siendo este el socket bueno, o ya se abandonó por otro? */
+    const vigente = (): boolean => generacion === this.generacion && !this.cerradoAdrede;
+
     this.cambiarEstado('conectando');
     const socket = new this.WebSocketImpl(this.url);
     socket.binaryType = 'arraybuffer';
     this.socket = socket;
 
     socket.addEventListener('open', (): void => {
+      if (!vigente()) {
+        // Se abrió tarde, cuando ya se había decidido tirarlo. Dejarlo abierto
+        // sería una conexión huérfana consumiendo un hueco en el servidor
+        // durante toda la sesión.
+        socket.close();
+        return;
+      }
       this.intentos = 0;
       this.cambiarEstado('conectado');
 
@@ -205,11 +231,15 @@ export class CollabProvider {
     });
 
     socket.addEventListener('message', (evento: MensajeEntrante): void => {
+      if (!vigente()) return;
       const bytes = aBytes(evento.data);
       if (bytes) this.recibir(bytes);
     });
 
     socket.addEventListener('close', (evento: CierreEntrante): void => {
+      // El adiós de un socket abandonado no dice nada de la conexión actual, y
+      // atenderlo la rompería: ver `generacion`.
+      if (!vigente()) return;
       this.socket = null;
       this.sincronizado = false;
 
@@ -304,6 +334,52 @@ export class CollabProvider {
   /** ¿Ha llegado ya el contenido que el servidor tenía y este cliente no? */
   get estaSincronizado(): boolean {
     return this.sincronizado;
+  }
+
+  /**
+   * Tira la conexión actual y abre otra ahora mismo.
+   *
+   * Es lo único que salva del socket medio muerto: el que Android dejó atrás al
+   * congelar el WebView, o el que quedó atado a la dirección IP de la wifi
+   * cuando el teléfono saltó a datos. En los dos casos no llega ningún `close`
+   * —no hay nadie a quien mandárselo— y `readyState` sigue diciendo `OPEN`, con
+   * lo que el proveedor envía a la nada y el indicador afirma «Al día». La
+   * espera creciente no ayuda porque solo corre después de un cierre, y aquí no
+   * lo hay.
+   *
+   * Por eso **no se mira el estado antes de cerrar**. Mirarlo sería preguntarle
+   * a la única fuente que no puede saber la respuesta. Quien decide si vale la
+   * pena pagar la reconexión es `alDespertar` en el frontend, con lo que sí se
+   * sabe: cuánto tiempo estuvo el aparato sin correr y si cambió la red.
+   *
+   * A los demás no se les quita la presencia al pasar por aquí. La nueva
+   * conexión los volverá a anunciar en cuanto sincronice, y quien se haya
+   * marchado de verdad se cae solo por inactividad; borrarlos aquí haría que
+   * las fichas de la barra desaparecieran y volvieran a aparecer en cada
+   * desbloqueo de pantalla.
+   */
+  reconectarYa(): void {
+    if (this.cerradoAdrede) return;
+
+    if (this.reintentoTimer !== null) {
+      clearTimeout(this.reintentoTimer);
+      this.reintentoTimer = null;
+    }
+    // La cuenta de intentos vuelve a cero: la espera creciente protege al
+    // servidor de cien pestañas reintentando en bucle, no de una persona que
+    // acaba de desbloquear el teléfono y está mirando la pantalla.
+    this.intentos = 0;
+    this.sincronizado = false;
+
+    const abandonado = this.socket;
+    this.socket = null;
+    // Se invalida antes de cerrar, no después: algunas implementaciones emiten
+    // el `close` de forma síncrona dentro de `close()`, y para entonces la
+    // escucha vieja ya tiene que estar desautorizada.
+    this.generacion += 1;
+    abandonado?.close();
+
+    this.conectar();
   }
 
   /** Cierra sin reintentar. Es lo que hay que llamar al salir del diagrama. */

@@ -3,7 +3,7 @@ import type { ClassDiagram, UmlModule } from '@app/shared';
 import { CORPUS, tiendaDiagram } from './fixtures/corpus.js';
 import { normalize } from './ir/normalize.js';
 import { generateProject } from './render/generate.js';
-import { validateDiagram } from './validation/validate.js';
+import { validateDiagram } from '@app/shared';
 import type { GeneratedFile } from './ir/types.js';
 
 /**

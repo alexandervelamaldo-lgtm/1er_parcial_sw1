@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ApiError, api, type FilaPanel, type Miembro, type Proyecto } from '../services/api';
+import { ApiError, api, type FilaPanel, type Proyecto } from '../services/api';
 import { useSesion } from '../services/sesion';
 import { CodigoRecuperacion } from './CodigoRecuperacion';
+import { DialogoCompartir } from './DialogoCompartir';
 import { InformeEjecutivo } from './InformeEjecutivo';
 import { MenuCuenta } from './MenuCuenta';
 import { TableroProyectos } from './TableroProyectos';
@@ -199,10 +200,26 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
                         <span>
                           {resumen.miembros} {resumen.miembros === 1 ? 'miembro' : 'miembros'}
                         </span>
+                        {/*
+                          «impiden generar» y no «errores» a secas.
+                          -----------------------------------------
+                          Esta cifra sale de `validateDiagram`, que contesta
+                          «¿se puede emitir Java, JPA y SQL de esto?». La
+                          pantalla «Revisar el diagrama…» contesta otra muy
+                          distinta —«¿está bien modelado?»— y también llama
+                          «error» a lo suyo. Con las dos diciendo «error» se
+                          da el caso que ya ocurrió: una tarjeta con seis y
+                          una revisión sin ninguno, las dos ciertas, y quien
+                          mira concluye que una de las dos miente.
+
+                          Nombrar la consecuencia en vez de la categoría
+                          desempata sin necesidad de explicar nada: lo que
+                          esta cifra significa es que hoy no sale el backend.
+                        */}
                         {resumen.problemas > 0 && (
                           <span className="tarjeta__problemas">
-                            {resumen.problemas}{' '}
-                            {resumen.problemas === 1 ? 'error' : 'errores'}
+                            {resumen.problemas} {resumen.problemas === 1 ? 'impide' : 'impiden'}{' '}
+                            generar
                           </span>
                         )}
                       </>
@@ -274,99 +291,3 @@ export function ListaProyectos({ onAbrir }: { onAbrir: (proyecto: Proyecto) => v
   );
 }
 
-function DialogoCompartir({
-  proyecto,
-  onCerrar,
-}: {
-  proyecto: Proyecto;
-  onCerrar: () => void;
-}): JSX.Element {
-  const [miembros, setMiembros] = useState<Miembro[]>([]);
-  const [email, setEmail] = useState('');
-  const [rol, setRol] = useState<'editor' | 'viewer'>('editor');
-  const [error, setError] = useState<string | null>(null);
-
-  const recargar = useCallback(() => {
-    void api
-      .listarMiembros(proyecto.id)
-      .then(({ miembros: lista }) => setMiembros(lista))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : 'No se pudo consultar'));
-  }, [proyecto.id]);
-
-  useEffect(recargar, [recargar]);
-
-  return (
-    <div className="modal" onClick={onCerrar} role="presentation">
-      <div className="modal__caja" onClick={(e) => e.stopPropagation()} role="dialog">
-        <h2>Compartir «{proyecto.name}»</h2>
-        {error && <p className="panel__error">{error}</p>}
-
-        <ul className="lista">
-          {miembros.map((miembro) => (
-            <li key={miembro.usuarioId} className="lista__fila">
-              <span className="lista__nombre">{miembro.nombre || miembro.email}</span>
-              <span className={`etiqueta etiqueta--${miembro.rol}`}>{miembro.rol}</span>
-              {miembro.rol !== 'owner' && (
-                <button
-                  type="button"
-                  className="marca marca--borrar"
-                  title="Quitar del proyecto"
-                  onClick={() => {
-                    setError(null);
-                    void api
-                      .expulsar(proyecto.id, miembro.usuarioId)
-                      .then(recargar)
-                      .catch((e: unknown) =>
-                        setError(e instanceof Error ? e.message : 'No se pudo quitar'),
-                      );
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-
-        <form
-          className="fila-formulario"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setError(null);
-            void api
-              .invitar(proyecto.id, email.trim(), rol)
-              .then(() => {
-                setEmail('');
-                recargar();
-              })
-              .catch((err: unknown) =>
-                setError(err instanceof Error ? err.message : 'No se pudo invitar'),
-              );
-          }}
-        >
-          <input
-            type="email"
-            required
-            placeholder="correo@ejemplo.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <select value={rol} onChange={(e) => setRol(e.target.value as 'editor' | 'viewer')}>
-            <option value="editor">Editor</option>
-            <option value="viewer">Solo lectura</option>
-          </select>
-          <button type="submit">Invitar</button>
-        </form>
-
-        <p className="modal__nota">
-          Solo se puede invitar a personas con cuenta ya creada. Quien pierde el acceso deja de ver
-          el diagrama al instante, aunque lo tenga abierto.
-        </p>
-
-        <button type="button" className="boton" onClick={onCerrar}>
-          Cerrar
-        </button>
-      </div>
-    </div>
-  );
-}

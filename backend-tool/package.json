@@ -14,6 +14,7 @@
     "migrar": "tsx src/migrar.ts",
     "recuperar": "tsx src/recuperar.ts",
     "diagramas": "tsx src/diagramas.ts",
+    "casos-json": "tsx scripts/casos-a-json.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

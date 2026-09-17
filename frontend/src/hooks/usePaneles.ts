@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as EventoPuntero } from 'react';
 import {
+  abrirAcoplado,
   alternarAcoplado,
   alternarColumna,
   leerDisposicion,
@@ -76,6 +77,17 @@ export interface ControlDePaneles {
   /** Qué canaleta se está arrastrando, para pintarla activa y bloquear la selección. */
   ladoArrastrado: Lado | null;
   alternar: (acoplado: Acoplado) => void;
+  /**
+   * Abrir sin alternar, para quien ya sabe que quiere verlo.
+   *
+   * `alternar` no vale para eso y el caso se da: un panel marcado como abierto
+   * dentro de una columna plegada —que es como arranca el editor en un
+   * teléfono— responde al primer toque cerrándose, así que no pasa nada
+   * visible, y solo al segundo aparece. Quien pulsa «Ficha» en la barra del
+   * pulgar está pidiendo verla, no conmutar un interruptor que no tiene
+   * delante.
+   */
+  abrir: (acoplado: Acoplado) => void;
   alternarLado: (lado: Lado) => void;
   iniciarArrastre: (lado: Lado, evento: EventoPuntero<HTMLElement>) => void;
   /** Mueve la canaleta con el teclado; `delta` en píxeles, positivo ensancha. */
@@ -111,6 +123,10 @@ export function usePaneles(proyectoId: string): ControlDePaneles {
 
   const alternar = useCallback((acoplado: Acoplado) => {
     setDisposicion((actual) => alternarAcoplado(actual, acoplado));
+  }, []);
+
+  const abrir = useCallback((acoplado: Acoplado) => {
+    setDisposicion((actual) => abrirAcoplado(actual, acoplado));
   }, []);
 
   const alternarLado = useCallback((lado: Lado) => {
@@ -162,6 +178,7 @@ export function usePaneles(proyectoId: string): ControlDePaneles {
     cuerpo,
     ladoArrastrado,
     alternar,
+    abrir,
     alternarLado,
     iniciarArrastre,
     empujar,

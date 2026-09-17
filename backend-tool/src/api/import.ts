@@ -141,19 +141,50 @@ function comprobarImagen(
  */
 function explicarFalloDeLectura(error: ErrorDeModelo): string {
   const causa = ((): string | null => {
+    /*
+      Si se agotó la cadena entera, eso manda sobre el código de estado.
+
+      Antes esto se miraba dentro del `case 503`, y con ello se colaba el caso
+      mixto: preferido saturado y reserva retirada. El estado que sobrevive es el
+      del preferido —503—, así que el texto decía «están todos saturados», que es
+      medio falso: uno lo estaba, el otro ni existe. Y con la rama del 404 pasaba
+      algo peor, que se vio en pantalla: mandaba a corregir `LLM_VISION_MODEL`
+      nombrando como sustituto el modelo que ya estaba el primero.
+
+      Con la cadena agotada, el código de estado del primero deja de ser lo
+      relevante. Lo relevante es que **no queda nada por probar**, y eso se dice
+      igual valga lo que valga el estado. El detalle de atrás lleva qué contestó
+      cada modelo, que es lo que hace falta para decidir si se espera o se edita
+      el `.env`.
+    */
+    if (/se probaron \d+ modelos/.test(error.message)) {
+      return (
+        'Ninguno de los modelos de visión configurados ha podido leer la imagen: se probó la ' +
+        'cadena entera. La imagen no tiene nada de malo. El detalle de abajo dice qué contestó ' +
+        'cada uno —«saturado» se arregla esperando, «el proveedor no lo conoce» se arregla ' +
+        'corrigiendo LLM_VISION_MODEL en el .env del servidor—. Si corre prisa, la vía que no ' +
+        'depende del proveedor es importar el diagrama en XMI.'
+      );
+    }
+
     switch (error.status) {
       case 429:
-        return 'Se ha agotado la cuota del proveedor por ahora. Espera un minuto y vuelve a intentarlo.';
+        return 'Se ha agotado la cuota del proveedor por ahora. Conviene esperar un minuto antes de reintentar.';
       case 502:
       case 503:
       case 504:
+        // Aquí solo se llega con un modelo configurado: la cadena agotada se ha
+        // resuelto arriba. Es pasajero, y además hay algo que hacer para que no
+        // vuelva a pasar, que es poner un segundo modelo en la lista.
         return (
-          'El modelo de visión está saturado. Ya se ha reintentado varias veces sin suerte: ' +
-          'la imagen no tiene nada de malo, vuelve a intentarlo en un momento.'
+          'El modelo de visión está saturado. Ya se ha reintentado varias veces sin suerte: la ' +
+          'imagen no tiene nada de malo. Conviene reintentar en un momento; y para que no ' +
+          'vuelva a bloquear, se puede añadir un modelo de reserva en LLM_VISION_MODEL del ' +
+          '.env del servidor, separado por una coma.'
         );
       case 401:
       case 403:
-        return 'El proveedor ha rechazado la clave. Revisa LLM_VISION_API_KEY en el .env del servidor.';
+        return 'El proveedor ha rechazado la clave. Conviene revisar LLM_VISION_API_KEY en el .env del servidor.';
       case 402:
         return 'La cuenta del proveedor se ha quedado sin saldo.';
       /*
@@ -220,9 +251,9 @@ export function importRouter(deps: {
       const body = parseBody(LeerSchema, request.body);
       const limpia = comprobarImagen(body.imagen, body.mimeType, maxImageBytes);
 
-      let tabla;
+      let lectura;
       try {
-        tabla = await motor.extraerTabla(limpia, body.mimeType);
+        lectura = await motor.extraerTabla(limpia, body.mimeType);
       } catch (error) {
         if (error instanceof ErrorDeModelo) {
           // Se propaga el motivo del proveedor: distingue entre «saldo agotado»
@@ -235,11 +266,15 @@ export function importRouter(deps: {
         throw error;
       }
 
+      const { datos: tabla } = lectura;
       const room = await rooms.open(request.params.proyectoId ?? '');
       const interpretacion = interpretarTablaExtraida(tabla, readDiagram(room.doc));
 
       response.json({
-        modelo: motor.model,
+        // El modelo que contestó, no el que está configurado: con la cadena de
+        // reserva no siempre coinciden, y quien revisa tiene derecho a saber
+        // quién leyó su foto.
+        modelo: lectura.modelo,
         tabla,
         // Se manda el aviso ya calculado para que el cuadro de revisión enseñe
         // desde el primer momento lo que va a fallar, sin esperar a que el
@@ -309,9 +344,9 @@ export function importRouter(deps: {
       const body = parseBody(LeerSchema, request.body);
       const limpia = comprobarImagen(body.imagen, body.mimeType, maxImageBytes);
 
-      let diagrama;
+      let lectura;
       try {
-        diagrama = await motor.extraerDiagrama(limpia, body.mimeType);
+        lectura = await motor.extraerDiagrama(limpia, body.mimeType);
       } catch (error) {
         if (error instanceof ErrorDeModelo) {
           throw badRequest(
@@ -322,11 +357,13 @@ export function importRouter(deps: {
         throw error;
       }
 
+      const { datos: diagrama } = lectura;
       const room = await rooms.open(request.params.proyectoId ?? '');
       const interpretacion = interpretarDiagramaExtraido(diagrama, readDiagram(room.doc));
 
       response.json({
-        modelo: motor.model,
+        // El que contestó, no el configurado. Ver la ruta de tablas de arriba.
+        modelo: lectura.modelo,
         diagrama,
         clases: interpretacion.clases,
         relaciones: interpretacion.relaciones,

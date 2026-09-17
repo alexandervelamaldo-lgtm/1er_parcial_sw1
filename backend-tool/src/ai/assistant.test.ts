@@ -285,6 +285,35 @@ describe('createVisionEngine', () => {
       createVisionEngine({ llmApiKey: '', llmVisionApiKey: '', llmVisionModel: 'm' }),
     ).toBeUndefined();
   });
+
+  /*
+   * La reserva se configura en la misma variable, separada por comas, y no en
+   * una `LLM_VISION_MODEL_2` aparte. Dos variables obligan a acordarse de que la
+   * segunda existe; una lista se lee de un vistazo y admite tres modelos sin
+   * inventar `LLM_VISION_MODEL_3`. Lo que sí hay que sujetar es que un solo
+   * nombre —el caso normal, y el que hay hoy en todas las instalaciones— siga
+   * comportándose exactamente igual que antes de que existiera la cadena.
+   */
+  it('reparte LLM_VISION_MODEL en preferido y reserva', () => {
+    const motor = createVisionEngine({
+      llmApiKey: 'k',
+      llmVisionModel: 'gemini-3-flash, gemini-2.5-flash',
+    });
+    // `model` es la cadena configurada, para diagnóstico; quién contestó de
+    // verdad viaja en cada lectura.
+    expect(motor?.model).toBe('gemini-3-flash, gemini-2.5-flash');
+  });
+
+  it('aguanta comas sobrantes sin fabricar un modelo vacío', () => {
+    // `LLM_VISION_MODEL=algo,` es un descuido corriente al editar un .env, y un
+    // nombre vacío en la cadena sería una llamada garantizada a fallar.
+    const motor = createVisionEngine({ llmApiKey: 'k', llmVisionModel: ' algo-con-vision , ' });
+    expect(motor?.model).toBe('algo-con-vision');
+  });
+
+  it('una variable con solo comas no monta motor', () => {
+    expect(createVisionEngine({ llmApiKey: 'k', llmVisionModel: ' , ' })).toBeUndefined();
+  });
 });
 
 describe('OpenAiVisionEngine contra un proveedor simulado', () => {
@@ -323,8 +352,11 @@ describe('OpenAiVisionEngine contra un proveedor simulado', () => {
   it('devuelve la tabla cuando el modelo responde con la forma esperada', async () => {
     responder = () => ({ status: 200, payload: comoOpenAi(JSON.stringify(tablaValida)) });
 
-    const tabla = await vision().extraerTabla('QUJD', 'image/png');
+    const { datos: tabla, modelo } = await vision().extraerTabla('QUJD', 'image/png');
     expect(tabla.tabla).toBe('Empleado');
+    // La lectura dice quién la hizo. Con un solo modelo configurado es el mismo
+    // de siempre; lo que importa es que el dato viaje con ella y no en el motor.
+    expect(modelo).toBe('vision-de-prueba');
   });
 
   it('descarta entera una tabla a medias en vez de devolverla incompleta', async () => {
@@ -394,6 +426,76 @@ describe('OpenAiVisionEngine contra un proveedor simulado', () => {
     await expect(vision().extraerTabla('QUJD', 'image/png')).rejects.toThrow(/JSON/);
   });
 
+  /*
+   * Una respuesta cortada por el límite de tokens llegaba disfrazada de error de
+   * sintaxis, y ese disfraz costó una tarde.
+   *
+   * Lo que se veía en pantalla era «la respuesta no era JSON: Expected ',' or
+   * ']' after array element in JSON at position 1503»: un mensaje que señala una
+   * posición exacta del texto y que por tanto invita a buscar el fallo en el
+   * parseador o en lo que el modelo escribió mal. No había nada mal escrito. Al
+   * modelo no le dejaron terminar, y `extractJson` —que recorta de la primera
+   * `{` a la última `}`— cerró el recorte en la llave de un objeto interior,
+   * dejando una lista abierta.
+   *
+   * Estas tres pruebas fijan que la causa se diga con su nombre. La tercera es
+   * la que más se olvida: un modelo que razona puede gastarse el presupuesto
+   * entero pensando y devolver el contenido vacío, y eso salía como «el modelo
+   * devolvió una respuesta vacía», que suena a avería del proveedor cuando se
+   * arregla subiendo un número.
+   */
+  it('llama corte a un corte, en vez de error de sintaxis', async () => {
+    const truncado = '{"tabla":"Empleado","columnas":[{"nombre":"id","tipo":"Long"}';
+    responder = () => ({
+      status: 200,
+      payload: { choices: [{ message: { content: truncado }, finish_reason: 'length' }] },
+    });
+
+    await expect(vision().extraerTabla('QUJD', 'image/png')).rejects.toThrow(/se cortó/);
+  });
+
+  it('no manda a depurar el JSON cuando el problema es el presupuesto', async () => {
+    const truncado = '{"clases":[{"nombre":"Cliente","atributos":[{"nombre":"id"}';
+    responder = () => ({
+      status: 200,
+      payload: { choices: [{ message: { content: truncado }, finish_reason: 'length' }] },
+    });
+
+    // Lo que NO debe decir importa tanto como lo que dice: mientras el mensaje
+    // hable de sintaxis, se busca el fallo donde no está.
+    await expect(vision().extraerDiagrama('QUJD', 'image/png')).rejects.not.toThrow(
+      /no era JSON|Expected/,
+    );
+    await expect(vision().extraerDiagrama('QUJD', 'image/png')).rejects.toThrow(
+      /LLM_VISION_MAX_TOKENS/,
+    );
+  });
+
+  it('un modelo que se gasta el presupuesto pensando no es una respuesta vacía', async () => {
+    responder = () => ({
+      status: 200,
+      payload: { choices: [{ message: { content: '' }, finish_reason: 'length' }] },
+    });
+
+    await expect(vision().extraerDiagrama('QUJD', 'image/png')).rejects.toThrow(/se cortó/);
+    await expect(vision().extraerDiagrama('QUJD', 'image/png')).rejects.not.toThrow(
+      /respuesta vacía/,
+    );
+  });
+
+  it('pide sitio de sobra por defecto, y respeta el techo configurado', async () => {
+    responder = () => ({ status: 200, payload: comoOpenAi(JSON.stringify(tablaValida)) });
+
+    await vision().extraerTabla('QUJD', 'image/png');
+    // 4096 era el valor viejo y es justo el que provocaba el corte con un
+    // diagrama mediano; que la prueba nombre el número evita volver a bajarlo
+    // sin darse cuenta.
+    expect(recibidos[0]?.max_tokens).toBe(32_768);
+
+    await vision({ maxTokens: 8000 }).extraerTabla('QUJD', 'image/png');
+    expect(recibidos[1]?.max_tokens).toBe(8000);
+  });
+
   it('avisa cuando la respuesta viene vacía', async () => {
     responder = () => ({ status: 200, payload: comoOpenAi('   ') });
 
@@ -434,7 +536,7 @@ describe('OpenAiVisionEngine contra un proveedor simulado', () => {
   it('devuelve el diagrama cuando el modelo responde con la forma esperada', async () => {
     responder = () => ({ status: 200, payload: comoOpenAi(JSON.stringify(diagramaValido)) });
 
-    const diagrama = await vision().extraerDiagrama('QUJD', 'image/png');
+    const { datos: diagrama } = await vision().extraerDiagrama('QUJD', 'image/png');
     expect(diagrama.clases).toHaveLength(2);
     // La cardinalidad llega cruda hasta aquí; canonizarla es trabajo del
     // intérprete, no del transporte.
@@ -513,7 +615,7 @@ describe('OpenAiVisionEngine contra un proveedor simulado', () => {
         : { status: 200, payload: comoOpenAi(JSON.stringify(diagramaValido)) };
     };
 
-    const leido = await vision().extraerDiagrama('QUJD', 'image/png');
+    const { datos: leido } = await vision().extraerDiagrama('QUJD', 'image/png');
 
     expect(leido.clases).toHaveLength(2);
     expect(llamadas).toBe(2);
@@ -568,9 +670,170 @@ describe('OpenAiVisionEngine contra un proveedor simulado', () => {
         : { status: 200, payload: comoOpenAi(JSON.stringify(tablaValida)) };
     };
 
-    const tabla = await vision().extraerTabla('QUJD', 'image/png');
+    const { datos: tabla } = await vision().extraerTabla('QUJD', 'image/png');
 
     expect(tabla.tabla).toBe('Empleado');
     expect(llamadas).toBe(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // Cadena de modelos de reserva
+  //
+  // Lo de arriba reintenta contra el mismo modelo, y eso tiene un techo: tres
+  // intentos con espera creciente son unos dos segundos y medio, mientras que un
+  // `503 UNAVAILABLE` de la capa gratuita de Gemini dura minutos. Insistirle más
+  // al mismo modelo no lo despierta; preguntarle a otro sí.
+  //
+  // Lo que hay que sujetar aquí no es que la cadena funcione —eso es un bucle—
+  // sino su frontera, que es donde está el daño: encadenar de más convierte una
+  // clave sin saldo, o una foto ilegible, en tres llamadas de pago que acaban en
+  // el mismo error y de paso tapan el diagnóstico bueno.
+  // -------------------------------------------------------------------------
+
+  /** Los modelos que se han pedido, en orden, según lo que recibió el servidor. */
+  function modelosPedidos(): string[] {
+    return recibidos.map((cuerpo) => cuerpo.model as string);
+  }
+
+  const conReserva = { model: 'saturado', modelosDeReserva: ['de-reserva'] };
+
+  it('cuando el preferido da 503, contesta el de reserva', async () => {
+    responder = (cuerpo) =>
+      (cuerpo as { model: string }).model === 'saturado'
+        ? { status: 503, payload: { error: { code: 503, message: 'high demand' } } }
+        : { status: 200, payload: comoOpenAi(JSON.stringify(diagramaValido)) };
+
+    const { datos: leido, modelo } = await vision(conReserva).extraerDiagrama('QUJD', 'image/png');
+
+    expect(leido.clases).toHaveLength(2);
+    // Y la lectura dice quién la hizo de verdad. Si esto devolviera «saturado»,
+    // la línea «modelo: X» de la pantalla de revisión sería una mentira, y es
+    // justo la línea que alguien mirará dentro de un mes para explicar por qué
+    // dos lecturas de la misma foto salieron distintas.
+    expect(modelo).toBe('de-reserva');
+    // Al preferido se le insistió las tres veces antes de pasar al siguiente.
+    expect(modelosPedidos()).toEqual(['saturado', 'saturado', 'saturado', 'de-reserva']);
+  });
+
+  it('cuando el preferido está retirado (404), pregunta al siguiente', async () => {
+    // Un 404 no se reintenta —el modelo retirado lo sigue estando— pero sí
+    // cambia de modelo, que es el caso de quien deja en el .env el nombre de una
+    // versión que el proveedor ya jubiló.
+    responder = (cuerpo) =>
+      (cuerpo as { model: string }).model === 'saturado'
+        ? { status: 404, payload: 'model not found' }
+        : { status: 200, payload: comoOpenAi(JSON.stringify(diagramaValido)) };
+
+    const { modelo } = await vision(conReserva).extraerDiagrama('QUJD', 'image/png');
+
+    expect(modelo).toBe('de-reserva');
+    expect(modelosPedidos()).toEqual(['saturado', 'de-reserva']);
+  });
+
+  it('un 402 no pasa al siguiente: la cadena entera comparte la misma clave', async () => {
+    // Sin esta frontera, quedarse sin saldo costaría el doble de espera para
+    // enseñar exactamente el mismo mensaje.
+    responder = () => ({ status: 402, payload: 'Insufficient Balance' });
+
+    await expect(vision(conReserva).extraerDiagrama('QUJD', 'image/png')).rejects.toThrow(
+      /Insufficient Balance/,
+    );
+    expect(modelosPedidos()).toEqual(['saturado']);
+  });
+
+  it('una clave rechazada tampoco pasa al siguiente', async () => {
+    responder = () => ({ status: 401, payload: 'invalid api key' });
+
+    await expect(vision(conReserva).extraerDiagrama('QUJD', 'image/png')).rejects.toThrow(
+      /invalid api key/,
+    );
+    expect(modelosPedidos()).toEqual(['saturado']);
+  });
+
+  it('una respuesta ilegible no pasa al siguiente: el modelo sí contestó', async () => {
+    // El modelo miró la foto y dijo que no había ningún diagrama. Eso no es un
+    // modelo caído, y preguntarle a otro no va a hacer que aparezca uno: solo
+    // gastaría otra llamada para acabar en el mismo sitio, tapando el único
+    // diagnóstico que sirve cuando la foto está mal.
+    responder = () => ({
+      status: 200,
+      payload: comoOpenAi(JSON.stringify({ clases: [], ilegible: ['una foto de un gato'] })),
+    });
+
+    await expect(vision(conReserva).extraerDiagrama('QUJD', 'image/png')).rejects.toThrow(
+      /una foto de un gato/,
+    );
+    expect(modelosPedidos()).toEqual(['saturado']);
+  });
+
+  it('agotar la cadena deja dicho qué contestó cada modelo', async () => {
+    // Agotar la cadena y fallar el primer intento producían el mismo texto, y
+    // significan cosas distintas: lo primero es que no queda nada por probar;
+    // lo segundo, que sí. De esa diferencia depende que alguien espere un minuto
+    // o se vaya al XMI. Y no basta con decir a quién se preguntó: lo accionable
+    // es qué respondió cada uno.
+    responder = () => ({ status: 503, payload: { error: { code: 503, message: 'high demand' } } });
+
+    await expect(vision(conReserva).extraerDiagrama('QUJD', 'image/png')).rejects.toThrow(
+      /se probaron 2 modelos → saturado: 503 saturado; de-reserva: 503 saturado/,
+    );
+    // Tres intentos contra cada uno de los dos.
+    expect(recibidos).toHaveLength(6);
+  });
+
+  /*
+   * El caso que se vio en pantalla, y que este código llegó a empeorar.
+   *
+   * Con `gemini-3.6-flash,gemini-2.5-flash` el preferido cayó saturado y el de
+   * reserva contestó un 404: «gemini-2.5-flash ya no está disponible, use
+   * gemini-3.6-flash». Como el error que se propagaba era el último, lo que
+   * llegó al usuario fue ese 404, con una explicación que mandaba a corregir
+   * LLM_VISION_MODEL nombrando como sustituto **el modelo que ya estaba en
+   * primera posición**. Un error que describe al suplente y manda a arreglar lo
+   * que ya estaba bien.
+   */
+  it('el titular es el fallo del preferido, no el del suplente', async () => {
+    responder = (cuerpo) =>
+      (cuerpo as { model: string }).model === 'saturado'
+        ? { status: 503, payload: { error: { code: 503, message: 'high demand' } } }
+        : { status: 404, payload: 'gemini-2.5-flash is no longer available, use gemini-3.6-flash' };
+
+    let fallo: unknown;
+    try {
+      await vision(conReserva).extraerDiagrama('QUJD', 'image/png');
+    } catch (error) {
+      fallo = error;
+    }
+
+    expect(fallo).toBeInstanceOf(ErrorDeModelo);
+    const { status, message } = fallo as ErrorDeModelo;
+    // El estado que sobrevive es el del preferido: 503 y no 404. De él cuelga la
+    // explicación que ve el usuario, y la del 404 mandaba a mirar donde no había
+    // nada que arreglar.
+    expect(status).toBe(503);
+    expect(message).toMatch(/high demand/);
+    // Pero el suplente no se pierde: sin esta parte, «se probaron 2 modelos» no
+    // dice que el segundo nombre está muerto, que es lo único que hay que tocar.
+    expect(message).toMatch(/de-reserva: 404 el proveedor no lo conoce/);
+  });
+
+  it('sin reserva configurada el mensaje no habla de una cadena que no existe', async () => {
+    responder = () => ({ status: 503, payload: { error: { code: 503, message: 'high demand' } } });
+
+    await expect(vision().extraerDiagrama('QUJD', 'image/png')).rejects.not.toThrow(/se probaron/);
+  });
+
+  it('la lectura de tablas también encadena', async () => {
+    // Igual que con los reintentos: las dos lecturas comparten camino para que
+    // no se arreglen por separado.
+    responder = (cuerpo) =>
+      (cuerpo as { model: string }).model === 'saturado'
+        ? { status: 503, payload: 'high demand' }
+        : { status: 200, payload: comoOpenAi(JSON.stringify(tablaValida)) };
+
+    const { datos: tabla, modelo } = await vision(conReserva).extraerTabla('QUJD', 'image/png');
+
+    expect(tabla.tabla).toBe('Empleado');
+    expect(modelo).toBe('de-reserva');
   });
 });

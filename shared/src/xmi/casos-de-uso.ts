@@ -1,5 +1,5 @@
 /**
- * Los catorce casos de uso del sistema, descritos una sola vez.
+ * Los diecinueve casos de uso del sistema, descritos una sola vez.
  *
  * ## De dónde sale cada cosa
  *
@@ -14,7 +14,7 @@
  * método: `GestorDeAcceso` y no `LocalIdentityProvider`. El `origen` dice de qué
  * fichero salió; el nombre dice qué papel juega.
  *
- * ## Por qué un fichero de datos y no catorce ficheros de dibujo
+ * ## Por qué un fichero de datos y no diecinueve ficheros de dibujo
  *
  * De cada caso salen cuatro diagramas —comunicación, secuencia, actividad y
  * análisis de clases— que cuentan lo mismo con distinta forma. Mantenerlos a mano
@@ -1678,6 +1678,752 @@ const cu14: CasoDeUso = {
 };
 
 // ---------------------------------------------------------------------------
+// CU15 — Dictar una orden al asistente móvil
+// ---------------------------------------------------------------------------
+
+/**
+ * El actor de este caso no es el mismo señor que dibuja el diagrama.
+ *
+ * Quien dicta aquí es el dependiente de la cafetería o la recepcionista de la
+ * barbería: usa la aplicación **que se generó**, no la que la generó. No tiene
+ * cuenta en el editor UML y no sabe qué es una clase. Por eso `Usuario del
+ * asistente` no hereda de `Usuario`, igual que no hereda el operador del
+ * servidor: heredar diría que puede abrir proyectos y consultar la guía, y no
+ * puede.
+ */
+const cu15: CasoDeUso = {
+  id: 'CU15',
+  nombre: 'Dictar una orden al asistente móvil',
+  paquete: 'Asistente móvil',
+  actor: 'Usuario del asistente',
+  descripcion:
+    'Quien usa la aplicación generada dicta una orden en voz alta —«apunta una ' +
+    'cita para el martes a las cuatro»—, el teléfono la interpreta contra el ' +
+    'manifiesto del backend, la repite para que se confirme y la envía.',
+  precondicion:
+    'La aplicación conoce la dirección del backend generado y ya descargó su manifiesto.',
+  postcondicion:
+    'La orden queda enviada al backend, o encolada si no había red, y el resultado se dice en ' +
+    'voz alta.',
+  participantes: [
+    { alias: 'usuario', clase: 'UsuarioDelAsistente', estereotipo: 'actor' },
+    {
+      alias: 'pantalla',
+      clase: 'PantallaAsistente',
+      estereotipo: 'boundary',
+      origen: 'mobile/lib/asistente/pantalla_asistente.dart',
+    },
+    {
+      alias: 'voz',
+      clase: 'MotorDeVoz',
+      estereotipo: 'boundary',
+      origen: 'mobile/lib/asistente/voz.dart',
+    },
+    {
+      alias: 'interprete',
+      clase: 'InterpreteDeOrdenes',
+      estereotipo: 'control',
+      origen: 'mobile/lib/asistente/gramatica.dart',
+    },
+    {
+      alias: 'manifiesto',
+      clase: 'ManifiestoDelBackend',
+      estereotipo: 'entity',
+      origen: 'mobile/lib/asistente/manifiesto.dart',
+    },
+    {
+      alias: 'cliente',
+      clase: 'ClienteRest',
+      estereotipo: 'control',
+      origen: 'mobile/lib/asistente/cliente_rest.dart',
+    },
+  ],
+  pasos: [
+    { numero: '1', de: 'usuario', a: 'pantalla', mensaje: 'pulsarMicrofono()' },
+    { numero: '2', de: 'pantalla', a: 'voz', mensaje: 'escuchar(idioma)' },
+    { numero: '2.1', de: 'voz', a: 'pantalla', mensaje: 'entregarDictado(texto)', retorno: true },
+    { numero: '3', de: 'pantalla', a: 'interprete', mensaje: 'interpretar(texto)' },
+    { numero: '4', de: 'interprete', a: 'manifiesto', mensaje: 'consultarEntidad(nombre)' },
+    {
+      numero: '4.1',
+      de: 'manifiesto',
+      a: 'interprete',
+      mensaje: 'devolverCampos(campos)',
+      retorno: true,
+    },
+    {
+      numero: '5',
+      de: 'interprete',
+      a: 'pantalla',
+      mensaje: 'proponerOrden(orden)',
+      retorno: true,
+    },
+    { numero: '6', de: 'pantalla', a: 'voz', mensaje: 'decir(resumenDeLaOrden)' },
+    { numero: '7', de: 'usuario', a: 'pantalla', mensaje: 'confirmarEnVozAlta(respuesta)' },
+    { numero: '8', de: 'pantalla', a: 'cliente', mensaje: 'enviar(orden)' },
+    {
+      numero: '8.1',
+      de: 'cliente',
+      a: 'pantalla',
+      mensaje: 'devolverResultado(resultado)',
+      retorno: true,
+    },
+    { numero: '9', de: 'pantalla', a: 'voz', mensaje: 'decir(resultado)' },
+  ],
+  alternativos: [
+    {
+      nombre: 'La orden no se entiende',
+      texto:
+        'El intérprete no encuentra ni verbo ni entidad en el manifiesto. El asistente lo dice ' +
+        'en voz alta y pide que se repita, sin enviar nada.',
+    },
+    {
+      nombre: 'Falta un dato obligatorio',
+      texto:
+        'El manifiesto marca un campo como requerido y el dictado no lo trae. El asistente ' +
+        'pregunta solo por ese campo en vez de rechazar la orden entera.',
+    },
+    {
+      nombre: 'Quien dicta cancela al oír el resumen',
+      texto:
+        'La orden se descarta sin llegar al backend. Es la razón de repetirla antes de enviarla: ' +
+        'una transcripción equivocada se caza aquí y no en la base de datos.',
+    },
+  ],
+  actividad: {
+    nodos: [
+      { id: 'a0', tipo: 'inicio', calle: 'Usuario' },
+      { id: 'a1', tipo: 'accion', calle: 'Usuario', texto: 'Pulsar el micrófono y dictar' },
+      { id: 'a2', tipo: 'accion', calle: 'Sistema', texto: 'Transcribir el dictado en el aparato' },
+      {
+        id: 'a3',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Interpretar la orden contra el manifiesto',
+      },
+      { id: 'a4', tipo: 'decision', calle: 'Sistema', texto: 'La orden se entiende' },
+      {
+        id: 'a5',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Repetir la orden en voz alta y pedir confirmación',
+      },
+      { id: 'a6', tipo: 'accion', calle: 'Usuario', texto: 'Responder sí o no' },
+      { id: 'a7', tipo: 'decision', calle: 'Usuario', texto: 'Confirma' },
+      { id: 'a8', tipo: 'accion', calle: 'Sistema', texto: 'Enviar la orden al backend generado' },
+      { id: 'a9', tipo: 'accion', calle: 'Sistema', texto: 'Pedir que se repita la orden' },
+      { id: 'a10', tipo: 'accion', calle: 'Sistema', texto: 'Descartar la orden sin enviarla' },
+      { id: 'a11', tipo: 'fin', calle: 'Sistema' },
+    ],
+    flujos: [
+      { de: 'a0', a: 'a1' },
+      { de: 'a1', a: 'a2' },
+      { de: 'a2', a: 'a3' },
+      { de: 'a3', a: 'a4' },
+      { de: 'a4', a: 'a5', guarda: 'Sí' },
+      { de: 'a4', a: 'a9', guarda: 'No' },
+      { de: 'a9', a: 'a1' },
+      { de: 'a5', a: 'a6' },
+      { de: 'a6', a: 'a7' },
+      { de: 'a7', a: 'a8', guarda: 'Sí' },
+      { de: 'a7', a: 'a10', guarda: 'No' },
+      { de: 'a8', a: 'a11' },
+      { de: 'a10', a: 'a11' },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// CU16 — Registrar datos sin conexión y sincronizarlos al volver
+// ---------------------------------------------------------------------------
+
+/**
+ * El caso que justifica la clave de idempotencia.
+ *
+ * Sin él, «funciona sin conexión» se queda en una promesa de folleto. Lo que lo
+ * hace un caso de uso y no un detalle de implementación es el reintento: una
+ * orden encolada se envía **más de una vez** por definición —se reintenta hasta
+ * que alguien contesta—, y sin una clave estable el servidor apuntaría la misma
+ * cita tres veces. Por eso el filtro de idempotencia aparece como participante:
+ * es del backend generado, no del teléfono, y es donde se resuelve.
+ */
+const cu16: CasoDeUso = {
+  id: 'CU16',
+  nombre: 'Registrar datos sin conexión y sincronizarlos al volver',
+  paquete: 'Asistente móvil',
+  actor: 'Usuario del asistente',
+  descripcion:
+    'Sin cobertura, la orden dictada se guarda en el teléfono con su clave de ' +
+    'idempotencia y queda marcada como pendiente. Cuando vuelve la red se ' +
+    'reenvía sola, y el backend descarta los duplicados por la clave.',
+  precondicion: 'La aplicación tiene el manifiesto descargado de una sesión anterior.',
+  postcondicion:
+    'La orden está guardada en el aparato, y sincronizada en cuanto hubo red, una sola vez ' +
+    'aunque se reintentara varias.',
+  participantes: [
+    { alias: 'usuario', clase: 'UsuarioDelAsistente', estereotipo: 'actor' },
+    {
+      alias: 'pantalla',
+      clase: 'PantallaAsistente',
+      estereotipo: 'boundary',
+      origen: 'mobile/lib/asistente/pantalla_asistente.dart',
+    },
+    {
+      alias: 'bandeja',
+      clase: 'BandejaDeSalida',
+      estereotipo: 'control',
+      origen: 'mobile/lib/asistente/bandeja.dart',
+    },
+    {
+      alias: 'almacen',
+      clase: 'AlmacenDeOrdenes',
+      estereotipo: 'entity',
+      origen: 'mobile/lib/asistente/bandeja.dart',
+    },
+    {
+      alias: 'cliente',
+      clase: 'ClienteRest',
+      estereotipo: 'control',
+      origen: 'mobile/lib/asistente/cliente_rest.dart',
+    },
+    {
+      alias: 'filtro',
+      clase: 'FiltroDeIdempotencia',
+      estereotipo: 'control',
+      origen: 'generator/templates/FiltroIdempotencia.java.hbs',
+    },
+  ],
+  pasos: [
+    { numero: '1', de: 'usuario', a: 'pantalla', mensaje: 'dictarOrden(texto)' },
+    { numero: '2', de: 'pantalla', a: 'bandeja', mensaje: 'encolar(orden, clave)' },
+    { numero: '3', de: 'bandeja', a: 'almacen', mensaje: 'escribir(ordenes)' },
+    {
+      numero: '3.1',
+      de: 'almacen',
+      a: 'bandeja',
+      mensaje: 'confirmarGuardado(ok)',
+      retorno: true,
+    },
+    {
+      numero: '4',
+      de: 'bandeja',
+      a: 'pantalla',
+      mensaje: 'avisarPendientes(cuantas)',
+      retorno: true,
+    },
+    { numero: '5', de: 'bandeja', a: 'cliente', mensaje: 'reintentar(orden)' },
+    { numero: '6', de: 'cliente', a: 'filtro', mensaje: 'enviarConClave(orden, clave)' },
+    {
+      numero: '6.1',
+      de: 'filtro',
+      a: 'cliente',
+      mensaje: 'devolverRespuesta(resultado)',
+      retorno: true,
+    },
+    {
+      numero: '7',
+      de: 'cliente',
+      a: 'bandeja',
+      mensaje: 'confirmarEnvio(resultado)',
+      retorno: true,
+    },
+    { numero: '8', de: 'bandeja', a: 'almacen', mensaje: 'marcarSincronizada(orden)' },
+    {
+      numero: '9',
+      de: 'bandeja',
+      a: 'pantalla',
+      mensaje: 'avisarSincronizadas(cuantas)',
+      retorno: true,
+    },
+  ],
+  alternativos: [
+    {
+      nombre: 'La red se corta a mitad del envío',
+      texto:
+        'La orden sigue pendiente y se cuenta un intento. Al reintentar viaja con la misma clave, ' +
+        'así que si el servidor llegó a procesarla no se duplica.',
+    },
+    {
+      nombre: 'El servidor rechaza la orden por datos inválidos',
+      texto:
+        'Se marca como rechazada y deja de reintentarse. Reintentar un 400 para siempre es una ' +
+        'bandeja que no se vacía nunca.',
+    },
+    {
+      nombre: 'El aparato se apaga con órdenes pendientes',
+      texto:
+        'La bandeja está en disco, no en memoria, y se escribe por fichero temporal antes de ' +
+        'reemplazar: al arrancar se leen las pendientes y se reanuda el reenvío.',
+    },
+  ],
+  actividad: {
+    nodos: [
+      { id: 'b0', tipo: 'inicio', calle: 'Usuario' },
+      { id: 'b1', tipo: 'accion', calle: 'Usuario', texto: 'Dictar la orden sin cobertura' },
+      {
+        id: 'b2',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Guardar la orden en disco con su clave y estado pendiente',
+      },
+      { id: 'b3', tipo: 'accion', calle: 'Sistema', texto: 'Avisar de que queda por enviar' },
+      { id: 'b4', tipo: 'decision', calle: 'Sistema', texto: 'Hay conexión' },
+      {
+        id: 'b5',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Reenviar las pendientes con su clave',
+      },
+      { id: 'b6', tipo: 'accion', calle: 'Sistema', texto: 'Esperar a que vuelva la red' },
+      { id: 'b7', tipo: 'decision', calle: 'Sistema', texto: 'El servidor la acepta' },
+      { id: 'b8', tipo: 'accion', calle: 'Sistema', texto: 'Marcarla como sincronizada' },
+      { id: 'b9', tipo: 'accion', calle: 'Sistema', texto: 'Dejarla pendiente y contar el intento' },
+      { id: 'b10', tipo: 'fin', calle: 'Sistema' },
+    ],
+    flujos: [
+      { de: 'b0', a: 'b1' },
+      { de: 'b1', a: 'b2' },
+      { de: 'b2', a: 'b3' },
+      { de: 'b3', a: 'b4' },
+      { de: 'b4', a: 'b5', guarda: 'Sí' },
+      { de: 'b4', a: 'b6', guarda: 'No' },
+      { de: 'b6', a: 'b4' },
+      { de: 'b5', a: 'b7' },
+      { de: 'b7', a: 'b8', guarda: 'Sí' },
+      { de: 'b7', a: 'b9', guarda: 'No' },
+      { de: 'b9', a: 'b4' },
+      { de: 'b8', a: 'b10' },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// CU17 — Revisar el modelado del diagrama
+// ---------------------------------------------------------------------------
+
+/**
+ * La revisión que opina, frente a la validación que decide.
+ *
+ * Conviene no confundirlo con CU18, porque responden preguntas distintas. Este
+ * pregunta «¿está bien modelado?» y devuelve avisos y sugerencias que se pueden
+ * ignorar: una relación duplicada sin rol, un `Double` para un importe. CU18
+ * pregunta «¿puedo emitir Java, JPA y SQL?» y sus errores no se pueden ignorar,
+ * porque sin resolverlos no hay proyecto. Los dos catálogos de códigos no
+ * comparten ni uno.
+ */
+const cu17: CasoDeUso = {
+  id: 'CU17',
+  nombre: 'Revisar el modelado del diagrama',
+  paquete: 'Asistencia inteligente',
+  actor: 'Editor',
+  descripcion:
+    'El editor pide una revisión del diagrama y recibe los problemas de modelado ' +
+    'agrupados por gravedad, cada uno con el elemento al que señala y el código ' +
+    'de la regla que lo pide.',
+  precondicion: 'Hay un proyecto abierto con al menos una clase.',
+  postcondicion: 'El editor tiene la lista de hallazgos. El diagrama no ha cambiado.',
+  participantes: [
+    { alias: 'editor', clase: 'Editor', estereotipo: 'actor' },
+    {
+      alias: 'panel',
+      clase: 'PanelDeRevision',
+      estereotipo: 'boundary',
+      origen: 'frontend/src/components/RevisionDiagrama.tsx',
+    },
+    {
+      alias: 'revisor',
+      clase: 'RevisorDeModelado',
+      estereotipo: 'control',
+      origen: 'shared/src/revision/revision.ts',
+    },
+    {
+      alias: 'diagrama',
+      clase: 'DiagramaDeClases',
+      estereotipo: 'entity',
+      origen: 'shared/src/model/uml.ts',
+    },
+    {
+      alias: 'hallazgo',
+      clase: 'Hallazgo',
+      estereotipo: 'entity',
+      origen: 'shared/src/revision/revision.ts',
+    },
+  ],
+  pasos: [
+    { numero: '1', de: 'editor', a: 'panel', mensaje: 'pedirRevision()' },
+    { numero: '2', de: 'panel', a: 'revisor', mensaje: 'revisarDiagrama(diagrama)' },
+    { numero: '3', de: 'revisor', a: 'diagrama', mensaje: 'recorrerClasesYRelaciones()' },
+    {
+      numero: '3.1',
+      de: 'diagrama',
+      a: 'revisor',
+      mensaje: 'devolverElementos(elementos)',
+      retorno: true,
+    },
+    { numero: '4', de: 'revisor', a: 'hallazgo', mensaje: 'anotar(codigo, gravedad, mensaje)' },
+    {
+      numero: '4.1',
+      de: 'hallazgo',
+      a: 'revisor',
+      mensaje: 'devolverHallazgo(hallazgo)',
+      retorno: true,
+    },
+    { numero: '5', de: 'revisor', a: 'panel', mensaje: 'entregarHallazgos(lista)', retorno: true },
+    {
+      numero: '6',
+      de: 'panel',
+      a: 'editor',
+      mensaje: 'mostrarPorGravedad(errores, avisos, sugerencias)',
+      retorno: true,
+    },
+  ],
+  alternativos: [
+    {
+      nombre: 'El modelado está limpio',
+      texto:
+        'Se dice que no hay hallazgos en vez de enseñar una lista vacía, que es lo que hacía ' +
+        'dudar de si la revisión llegó a ejecutarse.',
+    },
+    {
+      nombre: 'El diagrama es válido pero está mal modelado',
+      texto:
+        'Es el caso normal y por eso existen las dos pantallas: un diagrama que genera código ' +
+        'perfectamente puede tener importes en coma flotante y relaciones sin rol.',
+    },
+  ],
+  actividad: {
+    nodos: [
+      { id: 'r0', tipo: 'inicio', calle: 'Editor' },
+      { id: 'r1', tipo: 'accion', calle: 'Editor', texto: 'Pedir la revisión del diagrama' },
+      {
+        id: 'r2',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Recorrer clases, atributos y relaciones',
+      },
+      {
+        id: 'r3',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Anotar cada hallazgo con su código y su gravedad',
+      },
+      { id: 'r4', tipo: 'decision', calle: 'Sistema', texto: 'Hay hallazgos' },
+      { id: 'r5', tipo: 'accion', calle: 'Sistema', texto: 'Mostrarlos agrupados por gravedad' },
+      { id: 'r6', tipo: 'accion', calle: 'Sistema', texto: 'Decir que el modelado está limpio' },
+      { id: 'r7', tipo: 'decision', calle: 'Editor', texto: 'Quiere corregir alguno' },
+      { id: 'r8', tipo: 'accion', calle: 'Editor', texto: 'Ir al elemento y corregirlo' },
+      { id: 'r9', tipo: 'fin', calle: 'Sistema' },
+    ],
+    flujos: [
+      { de: 'r0', a: 'r1' },
+      { de: 'r1', a: 'r2' },
+      { de: 'r2', a: 'r3' },
+      { de: 'r3', a: 'r4' },
+      { de: 'r4', a: 'r5', guarda: 'Sí' },
+      { de: 'r4', a: 'r6', guarda: 'No' },
+      { de: 'r5', a: 'r7' },
+      { de: 'r7', a: 'r8', guarda: 'Sí' },
+      { de: 'r7', a: 'r9', guarda: 'No' },
+      { de: 'r8', a: 'r2' },
+      { de: 'r6', a: 'r9' },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// CU18 — Arreglar lo que impide generar
+// ---------------------------------------------------------------------------
+
+/**
+ * Por qué el planificador vuelve a llamar al validador.
+ *
+ * El paso 4 no es un descuido ni una llamada de más: la planificación va por
+ * rondas porque un arreglo destapa otro. Quitarle la marca de clave primaria a
+ * un atributo que es una fecha **crea** el problema «esta clase se quedó sin
+ * clave», que a su vez pide añadir una. De ahí que los cambios sean más que los
+ * errores, y que el resumen en pantalla cuente cambios y no errores.
+ */
+const cu18: CasoDeUso = {
+  id: 'CU18',
+  nombre: 'Arreglar lo que impide generar',
+  paquete: 'Generación de código',
+  actor: 'Editor',
+  descripcion:
+    'Cuando el diagrama todavía no se puede convertir en código, el sistema ' +
+    'planifica los cambios que lo arreglan, los enseña con su motivo antes de ' +
+    'tocar nada, y los aplica todos juntos como un solo paso deshacible.',
+  precondicion: 'La validación del diagrama devuelve al menos un error.',
+  postcondicion:
+    'El diagrama ha recibido los cambios aceptados en una sola entrada del historial, y lo que ' +
+    'no tiene arreglo único queda listado aparte.',
+  participantes: [
+    { alias: 'editor', clase: 'Editor', estereotipo: 'actor' },
+    {
+      alias: 'pantalla',
+      clase: 'PantallaDeArreglo',
+      estereotipo: 'boundary',
+      origen: 'frontend/src/components/ArreglarGeneracion.tsx',
+    },
+    {
+      alias: 'validador',
+      clase: 'ValidadorDeDiagrama',
+      estereotipo: 'control',
+      origen: 'shared/src/validation/validate.ts',
+    },
+    {
+      alias: 'planificador',
+      clase: 'PlanificadorDeReparacion',
+      estereotipo: 'control',
+      origen: 'shared/src/reparacion/reparar.ts',
+    },
+    {
+      alias: 'documento',
+      clase: 'DocumentoCompartido',
+      estereotipo: 'entity',
+      origen: 'shared/src/crdt/historial.ts',
+    },
+  ],
+  pasos: [
+    { numero: '1', de: 'editor', a: 'pantalla', mensaje: 'pedirGeneracion()' },
+    { numero: '2', de: 'pantalla', a: 'validador', mensaje: 'validarDiagrama(diagrama)' },
+    {
+      numero: '2.1',
+      de: 'validador',
+      a: 'pantalla',
+      mensaje: 'devolverErrores(errores)',
+      retorno: true,
+    },
+    { numero: '3', de: 'pantalla', a: 'planificador', mensaje: 'planificarReparacion(diagrama)' },
+    { numero: '4', de: 'planificador', a: 'validador', mensaje: 'validarRonda(diagrama)' },
+    {
+      numero: '4.1',
+      de: 'validador',
+      a: 'planificador',
+      mensaje: 'devolverErrores(errores)',
+      retorno: true,
+    },
+    {
+      numero: '5',
+      de: 'planificador',
+      a: 'pantalla',
+      mensaje: 'entregarPlan(arreglos, irreparables)',
+      retorno: true,
+    },
+    {
+      numero: '6',
+      de: 'pantalla',
+      a: 'editor',
+      mensaje: 'mostrarCambiosConSuMotivo(plan)',
+      retorno: true,
+    },
+    { numero: '7', de: 'editor', a: 'pantalla', mensaje: 'aplicarLosCambios()' },
+    { numero: '8', de: 'pantalla', a: 'documento', mensaje: 'aplicar(operaciones)' },
+    {
+      numero: '8.1',
+      de: 'documento',
+      a: 'pantalla',
+      mensaje: 'confirmarAplicado(ok)',
+      retorno: true,
+    },
+    {
+      numero: '9',
+      de: 'pantalla',
+      a: 'editor',
+      mensaje: 'ofrecerGenerarDeNuevo()',
+      retorno: true,
+    },
+  ],
+  alternativos: [
+    {
+      nombre: 'Quedan errores que no tienen arreglo único',
+      texto:
+        'Una enumeración vacía, dos clases con el mismo nombre, una herencia múltiple. Se listan ' +
+        'aparte y sin botón: elegir por su cuenta cambiaría lo que el diagrama significa.',
+    },
+    {
+      nombre: 'El permiso es de solo lectura',
+      texto:
+        'La lista se ve igual, pero el botón queda desactivado. Los cambios los tiene que aplicar ' +
+        'quien pueda editar el proyecto.',
+    },
+    {
+      nombre: 'El resultado no convence',
+      texto:
+        'Todo el plan entró en una sola llamada, así que una única pulsación de deshacer lo ' +
+        'devuelve entero.',
+    },
+  ],
+  actividad: {
+    nodos: [
+      { id: 'g0', tipo: 'inicio', calle: 'Editor' },
+      { id: 'g1', tipo: 'accion', calle: 'Editor', texto: 'Pedir la generación del backend' },
+      {
+        id: 'g2',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Validar el diagrama en el navegador, sin red',
+      },
+      { id: 'g3', tipo: 'decision', calle: 'Sistema', texto: 'El diagrama es válido' },
+      { id: 'g4', tipo: 'accion', calle: 'Sistema', texto: 'Generar el proyecto Spring Boot' },
+      { id: 'g5', tipo: 'accion', calle: 'Sistema', texto: 'Planificar los arreglos por rondas' },
+      {
+        id: 'g6',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Enseñar cada cambio con su motivo y su regla',
+      },
+      { id: 'g7', tipo: 'decision', calle: 'Editor', texto: 'Acepta los cambios' },
+      {
+        id: 'g8',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Aplicarlos como un solo paso deshacible',
+      },
+      {
+        id: 'g9',
+        tipo: 'accion',
+        calle: 'Editor',
+        texto: 'Corregirlos a mano en el panel de propiedades',
+      },
+      { id: 'g10', tipo: 'fin', calle: 'Sistema' },
+    ],
+    flujos: [
+      { de: 'g0', a: 'g1' },
+      { de: 'g1', a: 'g2' },
+      { de: 'g2', a: 'g3' },
+      { de: 'g3', a: 'g4', guarda: 'Sí' },
+      { de: 'g3', a: 'g5', guarda: 'No' },
+      { de: 'g5', a: 'g6' },
+      { de: 'g6', a: 'g7' },
+      { de: 'g7', a: 'g8', guarda: 'Sí' },
+      { de: 'g7', a: 'g9', guarda: 'No' },
+      { de: 'g8', a: 'g2' },
+      { de: 'g9', a: 'g2' },
+      { de: 'g4', a: 'g10' },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// CU19 — Ver el diagrama de comunicación del backend generado
+// ---------------------------------------------------------------------------
+
+const cu19: CasoDeUso = {
+  id: 'CU19',
+  nombre: 'Ver el diagrama de comunicación del backend generado',
+  paquete: 'Generación de código',
+  actor: 'Usuario',
+  descripcion:
+    'El usuario abre el diagrama de comunicación que se deriva del backend ya ' +
+    'generado —controlador, servicio, repositorio y entidad, con los mensajes ' +
+    'numerados— y puede llevárselo a Enterprise Architect en XMI.',
+  precondicion: 'El proyecto tiene un backend generado.',
+  postcondicion:
+    'El diagrama se ve en pantalla, y si se pidió, queda descargado un XMI que Enterprise ' +
+    'Architect abre.',
+  participantes: [
+    { alias: 'usuario', clase: 'Usuario', estereotipo: 'actor' },
+    {
+      alias: 'visor',
+      clase: 'VisorDeComunicacion',
+      estereotipo: 'boundary',
+      origen: 'frontend/src/components/VisorComunicacion.tsx',
+    },
+    {
+      alias: 'derivador',
+      clase: 'DerivadorDeComunicacion',
+      estereotipo: 'control',
+      origen: 'frontend/src/components/comunicacion.ts',
+    },
+    {
+      alias: 'proyecto',
+      clase: 'ProyectoGenerado',
+      estereotipo: 'entity',
+      origen: 'shared/src/model/capas.ts',
+    },
+    {
+      alias: 'escritor',
+      clase: 'EscritorXmiDeComunicacion',
+      estereotipo: 'control',
+      origen: 'shared/src/xmi/ea-comunicacion.ts',
+    },
+  ],
+  pasos: [
+    { numero: '1', de: 'usuario', a: 'visor', mensaje: 'abrirDiagramaDeComunicacion()' },
+    { numero: '2', de: 'visor', a: 'derivador', mensaje: 'derivarDeLaGeneracion(proyecto)' },
+    { numero: '3', de: 'derivador', a: 'proyecto', mensaje: 'leerCapasYLlamadas()' },
+    {
+      numero: '3.1',
+      de: 'proyecto',
+      a: 'derivador',
+      mensaje: 'devolverRutas(rutas)',
+      retorno: true,
+    },
+    {
+      numero: '4',
+      de: 'derivador',
+      a: 'visor',
+      mensaje: 'entregarMensajesNumerados(mensajes)',
+      retorno: true,
+    },
+    { numero: '5', de: 'visor', a: 'usuario', mensaje: 'dibujarObjetosYMensajes()', retorno: true },
+    { numero: '6', de: 'usuario', a: 'visor', mensaje: 'exportarParaEnterpriseArchitect()' },
+    { numero: '7', de: 'visor', a: 'escritor', mensaje: 'escribirXmi(mensajes)' },
+    { numero: '7.1', de: 'escritor', a: 'visor', mensaje: 'devolverFichero(xmi)', retorno: true },
+    { numero: '8', de: 'visor', a: 'usuario', mensaje: 'descargarFichero(nombre)', retorno: true },
+  ],
+  alternativos: [
+    {
+      nombre: 'El proyecto todavía no se ha generado',
+      texto:
+        'No hay de dónde derivar los mensajes. El visor lo dice y remite a la generación en vez ' +
+        'de dibujar un diagrama vacío.',
+    },
+    {
+      nombre: 'Solo se quiere mirar',
+      texto: 'La exportación es opcional: el diagrama se ve sin descargar nada.',
+    },
+  ],
+  actividad: {
+    nodos: [
+      { id: 'c0', tipo: 'inicio', calle: 'Usuario' },
+      { id: 'c1', tipo: 'accion', calle: 'Usuario', texto: 'Abrir el visor de comunicación' },
+      {
+        id: 'c2',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Derivar los mensajes de las capas generadas',
+      },
+      {
+        id: 'c3',
+        tipo: 'accion',
+        calle: 'Sistema',
+        texto: 'Dibujar los objetos y numerar los mensajes',
+      },
+      {
+        id: 'c4',
+        tipo: 'decision',
+        calle: 'Usuario',
+        texto: 'Quiere llevarlo a Enterprise Architect',
+      },
+      { id: 'c5', tipo: 'accion', calle: 'Sistema', texto: 'Escribir y descargar el XMI' },
+      { id: 'c6', tipo: 'accion', calle: 'Usuario', texto: 'Mirarlo solo en pantalla' },
+      { id: 'c7', tipo: 'fin', calle: 'Sistema' },
+    ],
+    flujos: [
+      { de: 'c0', a: 'c1' },
+      { de: 'c1', a: 'c2' },
+      { de: 'c2', a: 'c3' },
+      { de: 'c3', a: 'c4' },
+      { de: 'c4', a: 'c5', guarda: 'Sí' },
+      { de: 'c4', a: 'c6', guarda: 'No' },
+      { de: 'c5', a: 'c7' },
+      { de: 'c6', a: 'c7' },
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
 
 /**
  * El modelo completo.
@@ -1690,6 +2436,11 @@ const cu14: CasoDeUso = {
  * `Operador del servidor` queda fuera de esa jerarquía a propósito: no tiene
  * cuenta en la aplicación. Es quien tiene acceso a la máquina, y el único caso de
  * uso que le toca es el que se ejecuta por consola.
+ *
+ * `Usuario del asistente` queda fuera por la misma razón, y conviene no
+ * confundirlo con `Usuario`: no usa el editor, usa la aplicación que el editor
+ * generó. Heredar diría que puede abrir proyectos y dibujar diagramas, y no
+ * puede: para él el sistema es un backend con entidades y un micrófono.
  */
 export const modeloDeCasosDeUso: ModeloDeCasosDeUso = {
   sistema: 'Editor UML colaborativo',
@@ -1720,6 +2471,12 @@ export const modeloDeCasosDeUso: ModeloDeCasosDeUso = {
       descripcion:
         'Tiene acceso a la máquina donde corre la aplicación. No tiene cuenta: actúa por consola.',
     },
+    {
+      nombre: 'Usuario del asistente',
+      descripcion:
+        'Usa la aplicación móvil generada, no la que la generó. No tiene cuenta en el editor: ' +
+        'dicta órdenes contra el backend que salió de un diagrama.',
+    },
   ],
   paquetes: [
     {
@@ -1743,8 +2500,34 @@ export const modeloDeCasosDeUso: ModeloDeCasosDeUso = {
       nombre: 'Generación de código',
       descripcion: 'Convertir el diagrama en un proyecto Spring Boot que compila.',
     },
+    {
+      nombre: 'Asistente móvil',
+      descripcion:
+        'La aplicación que acompaña al backend generado: dictar órdenes y seguir trabajando sin ' +
+        'conexión.',
+    },
   ],
-  casos: [cu1, cu2, cu3, cu4, cu5, cu6, cu7, cu8, cu9, cu10, cu11, cu12, cu13, cu14],
+  casos: [
+    cu1,
+    cu2,
+    cu3,
+    cu4,
+    cu5,
+    cu6,
+    cu7,
+    cu8,
+    cu9,
+    cu10,
+    cu11,
+    cu12,
+    cu13,
+    cu14,
+    cu15,
+    cu16,
+    cu17,
+    cu18,
+    cu19,
+  ],
 };
 
 /** Un caso por su identificador, para las órdenes que generan solo uno. */

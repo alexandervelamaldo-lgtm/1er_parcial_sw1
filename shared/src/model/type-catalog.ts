@@ -127,6 +127,17 @@ const ALIASES: Record<string, string> = {
   identificador: 'UUID',
   uuid: 'UUID',
   largo: 'Long',
+
+  // Los nombres de Java para los tipos de fecha. El catálogo los emite pero no
+  // los aceptaba, y quien dibuja un diagrama sabiendo Java escribe
+  // `LocalDate`, no `Date` —una pizarra fotografiada en clase los trae casi
+  // siempre así—. Sin estas tres líneas ese atributo es «tipo desconocido», y
+  // la reparación automática lo degrada a String: una fecha convertida en
+  // texto que ya no se puede ordenar ni comparar, y nadie se entera hasta que
+  // el backend está generado.
+  localdate: 'Date',
+  localdatetime: 'DateTime',
+  localtime: 'Time',
 };
 
 export function resolveTypeName(name: string): string | undefined {

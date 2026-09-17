@@ -153,6 +153,22 @@
     tarjeta con esquinas de tarjeta y una rejilla que encaje.
   */
   --radio-ajustado: 6px;
+  /*
+    El tercero existe para una sola cosa, y por eso es un token y no un número
+    suelto: la superficie donde la guía contesta.
+
+    No es una tarjeta más de la rejilla. Es lo que se mira mientras algo habla, y
+    ahí el borde recto se lee como «un cuadro de texto» mientras que el borde muy
+    redondeado se lee como «alguien está diciendo esto». Es la forma del
+    bocadillo, y es la que usan los asistentes de voz por ese motivo y no por
+    moda. Con veinticuatro píxeles los controles pequeños de dentro salen ya en
+    forma de pastilla sin necesitar un cuarto valor.
+
+    No se extiende a los paneles acoplados: el argumento de los doce píxeles
+    sigue en pie y una retícula con esquinas de bocadillo es justo lo que no se
+    quiere.
+  */
+  --radio-amplio: 24px;
 
   /*
     Medidas de la interfaz de escritorio.
@@ -331,6 +347,30 @@
 
 * {
   box-sizing: border-box;
+  /*
+    La barra de desplazamiento, del color de la interfaz.
+    -----------------------------------------------------
+    Sin esto el navegador pinta la suya: en Windows, una banda clara de 17 px
+    con dos flechas y un pulgar gris. Sobre un fondo `#020617` no se lee como
+    parte de la aplicación, se lee como el marco de otra cosa que se ha colado
+    dentro, y aparece en más de veinte sitios —el tablero de proyectos, los
+    paneles, cada modal— porque cualquier caja con `overflow-y: auto` la trae.
+
+    No se esconde, se viste. Un `::-webkit-scrollbar { display: none }` deja la
+    página exactamente igual de larga pero sin decir que lo es, y entonces el
+    contenido de abajo solo lo encuentra quien se le ocurra girar la rueda. Aquí
+    hay tarjetas de proyecto por debajo del pliegue: la barra es la única señal
+    de que están.
+
+    `thin` y `--borde` son la respuesta a las dos cosas que molestan por
+    separado —el ancho y el color—, y el carril transparente deja ver el fondo
+    del panel en vez de abrir un canal claro a su lado. Son las propiedades
+    estándar, que Chrome entiende desde la 121 y Firefox desde siempre; en un
+    navegador que no las entienda sale la barra de antes, que es fea pero
+    funciona, y no una página sin forma de bajar.
+  */
+  scrollbar-width: thin;
+  scrollbar-color: var(--borde) transparent;
 }
 
 html,
@@ -1654,6 +1694,118 @@ select:focus {
   color: var(--texto-2);
   font-size: 11px;
   white-space: normal;
+}
+
+/* --------------------------------------------------------------------------
+   Barra del pulgar
+   --------------------------------------------------------------------------
+
+   Cinco botones grandes pegados al canto de abajo. Solo existe en pantalla
+   estrecha, y no porque allí «quepa menos»: es que la esquina de arriba a la
+   izquierda, que con un ratón es la más cómoda, con un pulgar es la más lejana.
+   La misma disposición que estaba bien en el portátil estaba mal en el
+   teléfono, y no se arregla encogiendo nada.
+
+   El componente se monta y se desmonta desde React, así que aquí no hay ningún
+   `display: none` que esconda la barra en el escritorio: lo que no se dibuja no
+   necesita ocultarse, y además así no queda tabulable.
+   -------------------------------------------------------------------------- */
+
+.barra-pulgar {
+  display: flex;
+  flex: 0 0 auto;
+  background: var(--fondo-2);
+  border-top: 1px solid var(--borde-fuerte);
+  /*
+    Con navegación por gestos, la franja del sistema se come el canto inferior.
+    Sin esto, el borde de abajo de los cinco botones queda debajo de la barrita
+    de inicio: se ven enteros y no responden en su tercio inferior, que es
+    exactamente el trozo que toca un pulgar que viene desde abajo.
+  */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+  Los cinco reparten el ancho a partes iguales, `1fr` cada uno.
+
+  Es a propósito que «Composición» y «Clase» midan lo mismo aunque uno tenga
+  once letras y el otro cinco: si cada botón midiera su texto, el sitio de cada
+  acción cambiaría al cambiar el tipo de relación armado, y la barra se aprende
+  por posición. `min-width: 0` para que el rótulo largo no ensanche su columna.
+*/
+.barra-pulgar__boton {
+  flex: 1 1 0;
+  min-width: 0;
+  /* El mínimo táctil publicado. El número vive en `barra-pulgar.ts` como
+     `LADO_TACTIL` y `estilos.test.ts` comprueba que esta cifra no baje de él. */
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 2px;
+  background: none;
+  border: none;
+  /* La separación entre botones es una línea, no un hueco: un hueco sería
+     superficie muerta justo donde más se falla al apuntar. Tocar entre dos
+     botones acierta siempre en uno de los dos. */
+  border-left: 1px solid var(--borde);
+  /* Los dos píxeles del subrayado del botón hundido los reserva siempre, en
+     transparente. Si solo los tuviera el activo, los cinco iconos pegarían un
+     salto de dos píxeles cada vez que se arma o se desarma la relación. */
+  border-bottom: 2px solid transparent;
+  color: var(--texto-2);
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.barra-pulgar__boton:first-child {
+  border-left: none;
+}
+
+.barra-pulgar__boton:active:not(:disabled) {
+  background: var(--fondo-3);
+}
+
+/*
+  El botón hundido se marca de tres formas a la vez —fondo, color y subrayado—
+  y no solo con el color: en un teléfono al sol el matiz de una letra de 10 px
+  no se distingue, y «la herramienta de relación está armada» cambia lo que hace
+  arrastrar una caja. Quien no lo vea tiene además el `aria-pressed`.
+
+  El subrayado es un borde y no una sombra interior. Podría dibujarse con
+  `box-shadow: inset`, pero en esta hoja la sombra significa «esto flota sobre
+  otra capa y recibe el clic», y un botón de una barra pegada al canto no flota
+  sobre nada. `estilos.test.ts` lo comprueba.
+*/
+.barra-pulgar__boton--activo {
+  background: var(--fondo-3);
+  color: var(--acento);
+  border-bottom-color: var(--acento);
+}
+
+.barra-pulgar__boton:disabled {
+  color: var(--texto-2);
+  opacity: 0.45;
+}
+
+.barra-pulgar__simbolo {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+/*
+  El rótulo se recorta antes que envolverse. Dos líneas en un botón y una en el
+  de al lado desalinean los cinco iconos, y un icono que se mueve de altura
+  según el tipo de relación armado deja de reconocerse de reojo.
+*/
+.barra-pulgar__rotulo {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --------------------------------------------------------------------------
@@ -3443,6 +3595,369 @@ select:focus {
 }
 
 /* --------------------------------------------------------------------------
+   Revisión del diagrama
+   -------------------------------------------------------------------------- */
+
+/*
+ * Una lista larga de prosa, no una rejilla de etiquetas.
+ *
+ * Cada hallazgo ocupa tres o cuatro líneas porque explica su motivo, y esa es la
+ * decisión de diseño de toda la pantalla: una tabla apretada de códigos cabría
+ * en un tercio del alto y no serviría para arreglar nada. El ancho se queda en
+ * 760 px por lo mismo —el límite de línea legible—, en vez de los 1080 del
+ * catálogo de módulos, que sí es una rejilla.
+ */
+.revision {
+  width: min(760px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.revision__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.revision__cabecera h2 {
+  margin: 0;
+}
+
+.revision__resumen {
+  color: var(--texto-2);
+  font-size: 12px;
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.revision__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.revision__hallazgo {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  /*
+   * La franja de color va a la izquierda y no en el fondo entero: con nueve
+   * hallazgos seguidos, nueve rectángulos teñidos convierten la lista en un
+   * semáforo ilegible. La franja se recorre con la vista de arriba abajo y
+   * agrupa por gravedad sin tapar el texto.
+   */
+  border-left: 3px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+.revision__hallazgo--error {
+  border-left-color: var(--error);
+}
+
+.revision__hallazgo--aviso {
+  border-left-color: var(--aviso);
+}
+
+.revision__hallazgo--sugerencia {
+  border-left-color: var(--acento);
+}
+
+.revision__gravedad {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-2);
+  padding-top: 1px;
+  flex-shrink: 0;
+}
+
+.revision__hallazgo--error .revision__gravedad {
+  color: var(--error);
+}
+
+.revision__hallazgo--aviso .revision__gravedad {
+  color: var(--aviso);
+}
+
+.revision__cuerpo {
+  min-width: 0;
+}
+
+.revision__titulo {
+  margin: 0;
+  font-size: 13px;
+  /*
+   * Los nombres del diagrama van dentro del título entre comillas angulares, y
+   * pueden ser largos: `LibraryManagementSystem` no cabe en 760 px junto al
+   * resto de la frase si no se le deja partir.
+   */
+  overflow-wrap: anywhere;
+}
+
+.revision__detalle {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--texto-2);
+  line-height: 1.5;
+}
+
+.revision__codigo {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--texto-2);
+  opacity: 0.7;
+}
+
+.revision__ir {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.revision__limpio {
+  padding: 18px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+.revision__limpio p:first-child {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--exito);
+  font-size: 13px;
+}
+
+.revision__nota {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--texto-2);
+  line-height: 1.5;
+}
+
+.revision__nota--pie {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--borde);
+}
+
+@media (max-width: 700px) {
+  /*
+   * En el móvil el rótulo de gravedad y el botón bajan a su propia línea: con
+   * tres columnas, el texto del hallazgo se quedaba en una tira de cuarenta
+   * caracteres y cada detalle ocupaba doce líneas.
+   */
+  .revision__hallazgo {
+    grid-template-columns: 1fr;
+  }
+
+  .revision__ir {
+    justify-self: start;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Arreglar lo que impide generar
+   -------------------------------------------------------------------------- */
+
+/*
+ * Vive dentro de la caja de «Proyecto generado», ocupando el sitio de la vista
+ * previa mientras el diagrama no se pueda generar. Por eso no repite cabecera
+ * ni botón de cerrar: los pone la ventana que lo contiene.
+ *
+ * Se parece a `.revision` a propósito —misma retícula, mismo tamaño de letra,
+ * mismo `código` al pie de cada fila— porque son la misma clase de pantalla:
+ * una lista de cosas que están mal, cada una con su porqué. Dos maneras
+ * distintas de pintar lo mismo obligarían a aprender la interfaz dos veces. Lo
+ * que no comparte es la clase, y es deliberado: aquella lista se lee y esta se
+ * ejecuta, así que esta tiene numeración y aquella no.
+ */
+.arreglo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * El recuento y el botón en la misma línea. Es la única decisión de la
+ * pantalla, así que va arriba del todo y no al final de una lista con scroll:
+ * enterrar el botón debajo de once filas obliga a recorrerlas para descubrir
+ * que existe.
+ */
+.arreglo__resumen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--error);
+  border-radius: var(--radio-ajustado);
+}
+
+.arreglo__frase {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.arreglo__frase svg {
+  color: var(--error);
+  flex-shrink: 0;
+}
+
+.arreglo__titulo-seccion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-2);
+}
+
+.arreglo__cuenta {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+.arreglo__lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arreglo__fila {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 10px 14px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+/*
+ * El número no es adorno: la lista es un plan que se aplica de una vez y en
+ * orden, y encadena —el arreglo 7 existe porque el 3 desmarcó una clave—. Sin
+ * la numeración, dos filas que hablan de la misma clase parecen contradecirse.
+ *
+ * Va con `aria-hidden` en el componente: para quien escucha, la posición ya la
+ * dice la propia lista, y oír «uno» delante de cada punto sobra.
+ */
+.arreglo__marca {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sobre-acento);
+  background: var(--acento);
+  border-radius: 50%;
+}
+
+/*
+ * Los de abajo no se numeran ni se pintan del color del acento: no forman
+ * parte del plan, y darles el mismo aspecto que a los que sí se van a aplicar
+ * haría creer que el botón también se ocupa de ellos.
+ */
+.arreglo__marca--manual {
+  background: none;
+  color: var(--aviso);
+}
+
+.arreglo__lista--manual .arreglo__fila {
+  border-left: 3px solid var(--aviso);
+}
+
+.arreglo__cuerpo {
+  min-width: 0;
+}
+
+.arreglo__que {
+  margin: 0;
+  font-size: 13px;
+  /* Los nombres del diagrama van dentro entre comillas angulares y pueden ser
+     más largos que el ancho disponible. */
+  overflow-wrap: anywhere;
+}
+
+.arreglo__porque {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: var(--texto-2);
+  line-height: 1.5;
+}
+
+.arreglo__codigo {
+  display: inline-block;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--texto-2);
+  opacity: 0.7;
+}
+
+.arreglo__nota {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-2);
+  line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+  /*
+   * El botón baja debajo del recuento y ocupa el ancho: en un teléfono, un
+   * botón de la mitad del ancho a la derecha de una frase de tres líneas queda
+   * a la altura del párrafo y no se lee como su conclusión.
+   */
+  .arreglo__resumen {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Diagrama de comunicación
    -------------------------------------------------------------------------- */
 
@@ -3648,6 +4163,63 @@ select:focus {
   margin: 0;
   font-size: 12px;
   color: var(--texto-2);
+}
+
+/* --------------------------------------------------------------------------
+   Diagrama de comunicación importado
+
+   Comparte casi todo con el de arriba —el mismo modal, el mismo lienzo, la
+   misma tabla— y aquí solo está lo que aquel no necesita, porque su diagrama
+   es siempre el mismo: objetos que pueden ser actores o múltiples, enlaces que
+   pueden no venir en el fichero y cajas de ancho variable.
+   -------------------------------------------------------------------------- */
+
+.comunicacion__fuente {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-2);
+}
+
+/*
+ * Punteado para el enlace que no venía como `uml:Connector` y se ha deducido de
+ * que circula un mensaje. La distinción importa: un enlace declarado es un dato
+ * del fichero y uno deducido es una conclusión de este programa, y quien revise
+ * el modelo contra el original tiene que poder saber cuál es cuál.
+ */
+.comunicacion__enlace--deducido {
+  stroke-dasharray: 5 4;
+  opacity: 0.75;
+}
+
+.comunicacion__enlace-nombre {
+  fill: var(--texto-2);
+  font-size: 10px;
+}
+
+/* Un actor no es una caja del sistema; se marca con el trazo, como el cliente
+   del otro visor. */
+.comunicacion__caja--actor rect {
+  fill: var(--fondo);
+  stroke-dasharray: 4 3;
+}
+
+/* La caja de detrás de un objeto múltiple: sin relleno propio para que se vea
+   que es la misma cosa repetida y no otro objeto. */
+.comunicacion__caja-sombra {
+  fill: var(--fondo-2);
+  stroke: var(--borde);
+  stroke-width: 1;
+}
+
+/*
+ * El rótulo de una flecha importada es el mensaje entero —`*[por cada línea]
+ * 1.2: añadirLinea(linea)`—, no un número de dos caracteres. A 11 px y en
+ * regular cabe sin taparse con la caja de al lado; a los 12 px en negrita del
+ * otro visor, no.
+ */
+.comunicacion--importada .comunicacion__flecha text {
+  font-size: 11px;
+  font-weight: 500;
 }
 
 /* --------------------------------------------------------------------------
@@ -3929,6 +4501,37 @@ select:focus {
   margin-right: 4px;
 }
 
+/*
+ * Lo que se guarda además del diagrama de clases. Enmarcado y no en la lista de
+ * recuentos porque no es un número más: es la otra mitad de lo que hace el
+ * botón, y esa mitad no aparece en la lista de operaciones de abajo.
+ */
+.importar-xmi__comunicacion {
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--acento);
+  border-radius: var(--radio-ajustado);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.importar-xmi__comunicacion p {
+  margin: 0 0 6px;
+  line-height: 1.8;
+}
+
+.importar-xmi__comunicacion p:last-child {
+  margin-bottom: 0;
+}
+
+.importar-xmi__comunicacion .etiqueta {
+  margin-right: 4px;
+}
+
+.importar-xmi__comunicacion .importar-xmi__detalle {
+  margin-bottom: 0;
+}
+
 .importar-xmi__detalle {
   border: 1px solid var(--borde);
   border-radius: var(--radio-ajustado);
@@ -4036,6 +4639,40 @@ select:focus {
   white-space: nowrap;
 }
 
+/*
+  Los métodos van sangrados igual que los atributos, porque son hermanos: los dos
+  son compartimentos del mismo recuadro. Lo único que los distingue a la vista es
+  el paréntesis, que es exactamente lo que los distingue en UML.
+*/
+.importar-diagrama__metodo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 16px;
+  font-size: 13px;
+}
+
+.importar-diagrama__metodo > input:not([type]) {
+  flex: 1;
+  min-width: 0;
+}
+
+/*
+  Los parámetros se leen, no se editan. En monoespaciada porque son una firma, y
+  recortados porque una lista larga no debe empujar fuera de la fila el botón de
+  quitar, que es la única acción que hay aquí.
+*/
+.importar-diagrama__parametros {
+  color: var(--texto-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .importar-diagrama__relacion {
   display: flex;
   align-items: center;
@@ -4069,6 +4706,44 @@ select:focus {
 .importar-diagrama__dudosa {
   border-color: var(--error);
   color: var(--error);
+}
+
+/* Lo sugerido NO se pinta igual que lo leído.
+   ------------------------------------------
+   Un valor supuesto por convención y uno leído de la pizarra deciden cosas
+   distintas —una clave foránea o una tabla de unión— y en cuanto entran al
+   lienzo son indistinguibles. Así que aquí, mientras todavía se puede
+   comprobar, se distinguen: ámbar y no rojo, porque ya no es un hueco; pero
+   tampoco neutro, porque sigue siendo una suposición de la máquina. El
+   subrayado punteado es para quien no separa bien esos dos colores. */
+.importar-diagrama__sugerida {
+  border-color: var(--aviso);
+  color: var(--aviso);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.importar-diagrama__sugerir {
+  align-items: center;
+  color: var(--texto-2);
+  display: flex;
+  font-size: 13px;
+  gap: 10px;
+  line-height: 1.5;
+  margin: 10px 0;
+}
+
+.importar-diagrama__sugerir button {
+  flex-shrink: 0;
+}
+
+/* La raya de «aquí no aplica» ocupa el sitio del desplegable para que las filas
+   no se descuadren, pero no lo aparenta: sin borde y en gris, para que nadie
+   intente pulsarla. */
+.importar-diagrama__sin-cardinalidad {
+  color: var(--texto-2);
+  min-width: 56px;
+  text-align: center;
 }
 
 /* --------------------------------------------------------------------------
@@ -4288,6 +4963,23 @@ select:focus {
   grid-column: 2;
   grid-row: 1 / span 2;
   align-self: center;
+  display: flex;
+  gap: 8px;
+}
+
+/* La entrada de vuelta al recorrido de bienvenida. Discreta a propósito: es
+   para quien lo busca, no para quien viene a preguntar algo. */
+.guia__recorrido {
+  background: transparent;
+  border-color: var(--borde);
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.guia__recorrido:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--acento);
+  color: var(--acento);
 }
 
 .guia__entrada {
@@ -4298,6 +4990,21 @@ select:focus {
 .guia__entrada input {
   flex: 1;
   min-width: 0;
+}
+
+/* Que el micrófono está abierto y que las pausas no cortan la pregunta. Se pinta
+   con los colores del error y no con los del aviso porque no es una advertencia:
+   es el único sitio de la pantalla que dice que se está grabando, y eso tiene que
+   verse antes de hablar, no después. */
+.guia__escuchando {
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--superficie-error);
+  border: 1px solid var(--borde-error);
+  border-radius: var(--radio-ajustado);
+  color: var(--error);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .guia__ejemplos {
@@ -4327,12 +5034,45 @@ select:focus {
   border-radius: var(--radio-ajustado);
 }
 
+/*
+  La respuesta, con forma de respuesta.
+
+  Antes era un rectángulo con una barra de acento a la izquierda: la forma de
+  una cita en un documento. Encajaba cuando lo único que salía de aquí era texto
+  para leer, y dejó de encajar cuando el panel empezó a contestar en voz alta
+  sin que nadie pulse nada. Lo que se mira mientras algo habla no es una cita, y
+  la barra vertical apunta al margen en lugar de a quien contesta.
+
+  El redondeo grande y el disco del icono hacen ese trabajo. La barra se va: con
+  el disco delante ya hay una señal de origen, y dos a la vez solo compiten.
+*/
 .guia__respuesta {
-  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 16px 18px;
   background: var(--fondo-3);
   border: 1px solid var(--borde);
-  border-left: 3px solid var(--acento);
-  border-radius: var(--radio-ajustado);
+  border-radius: var(--radio-amplio);
+}
+
+/*
+  El disco de quien contesta. Es un círculo de verdad —`50%`, no una esquina
+  redondeada—, y va en el color de acento porque es lo único de la caja que
+  identifica el origen del texto ahora que no hay barra lateral.
+*/
+.guia__marca {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--acento);
+  color: var(--fondo-1);
+  /* La cabecera de la caja ya tiene su interlineado; el disco se alinea con la
+     primera línea del texto y no con el borde de arriba. */
+  margin-top: 1px;
 }
 
 .guia__respuesta p {
@@ -4341,26 +5081,68 @@ select:focus {
   line-height: 1.6;
 }
 
+.guia__acciones {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
 .guia__leer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
   font-size: 13px;
-  padding: 4px 10px;
+  padding: 5px 12px;
+  /* Pastilla: sale del mismo token que la caja, y a esta altura de botón el
+     radio ya es mayor que la mitad, así que el borde es un semicírculo. */
+  border-radius: var(--radio-amplio);
 }
 
 /*
-  Ocupa el sitio del botón «Escuchar» cuando no hay voz. Lleva dos clases a
-  propósito: `.guia__respuesta p`, justo arriba, pone `margin: 0`, y con un solo
-  nombre esta regla perdería el margen superior por especificidad —la clase de
-  fallo que solo se ve cuando ya está en pantalla.
+  Que está sonando se dice mirando, no solo leyendo: las mismas barras del
+  asistente móvil, con la misma animación, porque es el mismo hecho.
 */
-.guia__respuesta .guia__leer-nota {
+.guia__sonando {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--texto-2);
+}
+
+.guia__sonando span {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.guia__sonando i {
+  width: 3px;
+  height: 12px;
+  background: var(--acento);
+  border-radius: 1px;
+  animation: onda-audio 0.8s ease-in-out infinite alternate;
+}
+
+.guia__sonando i:nth-child(2) {
+  animation-delay: 0.25s;
+  height: 14px;
+}
+
+.guia__sonando i:nth-child(3) {
+  animation-delay: 0.45s;
+  height: 9px;
+}
+
+/* Ocupa el sitio del botón «Escuchar» cuando no hay voz. El margen superior lo
+   pone ya `.guia__acciones`, que es quien coloca la fila entera. */
+.guia__leer-nota {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
   font-size: 13px;
   color: var(--texto-2);
 }
@@ -4427,6 +5209,492 @@ select:focus {
 
   .boton-ayuda span {
     display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   El recorrido de primer acceso (AsistenteDps.tsx)
+   --------------------------------------------------------------------------
+
+   Las clases se llaman `recorrido__…` y no `asistente__…` aunque el componente
+   se llame así. El bloque de arriba —la franja de voz del editor, `Asistente
+   .tsx`— ya ocupaba `.asistente` y `.asistente__entrada`, y al estar este más
+   abajo en la hoja se los estaba quedando: la franja de voz perdía su altura y
+   su borde en cuanto se cargaba este fichero. Dos componentes con el mismo
+   bloque BEM no pueden convivir, y el que cambia de nombre es el nuevo. */
+
+/*
+  Dos columnas: el índice a la izquierda y la lámina a la derecha.
+
+  El índice no se esconde tras un botón. Un recorrido del que no se ve cuánto
+  queda se cierra a la tercera lámina, y esconder el mapa en la pantalla de
+  bienvenida es justo donde menos se puede presuponer que alguien sabrá
+  buscarlo.
+
+  Es también la única superficie de la aplicación que se ve antes que el
+  diagrama, así que hereda el repertorio entero del resto —los mismos tokens de
+  color, el mismo radio, los mismos iconos dibujados— y no estrena nada. Una
+  pantalla de bienvenida con su propia paleta es lo que hace que el producto
+  parezca dos productos.
+*/
+.recorrido {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 60%);
+}
+
+/*
+  `grid-template-rows: minmax(0, 1fr)` es lo que hace que las dos columnas se
+  desplacen por dentro en vez de desbordar.
+
+  Sin esa línea, la fila implícita se dimensiona por su contenido: la lámina de
+  las ocho funcionalidades la estiraba a 900 px, la caja se quedaba en sus 720
+  de máximo y el resto lo cortaba el `overflow: hidden` de aquí abajo. Las
+  columnas medían lo que medía la fila, así que su propio `overflow-y: auto` no
+  tenía nada que hacer —cabían enteras dentro de sí mismas— y no había manera de
+  llegar a lo que quedaba fuera: media lista y ningún botón. Con la fila atada a
+  la altura de la caja, quien desborda es el contenido de cada columna, que es
+  quien sabe desplazarse.
+
+  `minmax(0, 1fr)` y no `1fr` porque `1fr` es `minmax(auto, 1fr)`, y ese `auto`
+  vuelve a ser el tamaño del contenido: el mismo problema con otra sintaxis.
+*/
+.recorrido__caja {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  width: min(940px, 100%);
+  max-height: min(88vh, 720px);
+  overflow: hidden;
+  background: var(--fondo-2);
+  /*
+    Misma lectura que en `.guia__caja`: está sobre el velo, en otra capa, y la
+    sombra dice cuál de las dos superficies recibe el clic. La lista de los
+    sitios donde se permite está en `estilos.test.ts`.
+  */
+  border: 1px solid var(--borde-fuerte);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra);
+}
+
+/* --- El índice ----------------------------------------------------------- */
+
+/* El mismo `min-height: 0` que la lámina, y por el mismo motivo: con las ocho
+   secciones desplegadas el índice también se pasa de largo. */
+.recorrido__indice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px 14px;
+  overflow-y: auto;
+  background: var(--fondo);
+  border-right: 1px solid var(--borde);
+}
+
+/*
+  El nombre, arriba del índice y no en la lámina.
+
+  En la lámina cambia con cada paso —la portada ya se titula así— y repetirlo
+  encima haría que el título de la primera pantalla saliera dos veces. Aquí se
+  queda fijo, que es lo que hace de marca: dice dónde se está durante las seis.
+*/
+.recorrido__marca {
+  margin: 0 0 4px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--texto-2);
+}
+
+.recorrido__indice ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recorrido__entrada {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  text-align: left;
+  background: transparent;
+  border-color: transparent;
+  border-radius: var(--radio-ajustado);
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.recorrido__entrada:hover:not(:disabled) {
+  background: var(--fondo-3);
+  border-color: transparent;
+  color: var(--texto);
+}
+
+.recorrido__entrada--actual {
+  background: var(--fondo-3);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+/*
+  El número va en un disco, y el de la sección en curso se invierte. Es la única
+  señal de posición que funciona sin color: quien no distingue el acento del
+  gris sigue viendo cuál de los seis está relleno.
+*/
+.recorrido__numero {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--fondo-3);
+  color: var(--texto-2);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.recorrido__entrada--actual .recorrido__numero {
+  background: var(--acento);
+  color: var(--sobre-acento);
+}
+
+.recorrido__rotulo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  Los puntos de la sección en curso, desplegados bajo su entrada. Es lo que hace
+  que el índice sea detallado sin ser una pared: las otras cinco secciones
+  siguen ocupando una línea cada una.
+*/
+.recorrido__subindice {
+  list-style: none;
+  margin: 2px 0 6px;
+  padding: 0 8px 0 38px;
+  color: var(--texto-2);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.recorrido__subindice li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- La lámina ----------------------------------------------------------- */
+
+/*
+  `min-height: 0` no es de adorno, es lo que hace que esto se desplace.
+
+  Las dos columnas son celdas de una rejilla, y una celda mide por omisión lo
+  que mida su contenido (`min-height: auto`) aunque el contenedor tenga puesto
+  un máximo. Con eso, la lámina de las ocho funcionalidades crecía hasta pasarse
+  de la caja, `overflow-y: auto` no llegaba a activarse nunca —no había nada que
+  desplazar, la celda cabía en sí misma— y lo que sobraba lo recortaba el
+  `overflow: hidden` de la caja sin dejar forma de alcanzarlo. Se veía media
+  lista y ningún botón.
+
+  El relleno de abajo lo pone el pie y no la lámina: con `position: sticky` el
+  pie se detiene en el borde del contenedor, y un hueco de 18 px por debajo
+  dejaría ver pasar el texto entre los botones y el borde de la caja.
+*/
+.recorrido__lamina {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 24px 26px 0;
+  overflow-y: auto;
+}
+
+.recorrido__paso {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--acento);
+}
+
+.recorrido__cabecera h2 {
+  margin: 4px 0 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+/* El título recibe el foco al cambiar de lámina —es lo que hace que un lector
+   de pantalla la lea— y sin esto el navegador le dibujaría el anillo de foco a
+   un texto que nadie ha pulsado. El anillo se quita solo para el foco de
+   programa: `:focus-visible` sigue pintándolo si se llega con el teclado. */
+.recorrido__cabecera h2:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.recorrido__entradilla {
+  margin: 10px 0 0;
+  max-width: 62ch;
+  color: var(--texto-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.recorrido__puntos {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.recorrido__punto {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  background: var(--fondo-3);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+}
+
+.recorrido__punto h3 {
+  margin: 0 0 3px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.recorrido__punto p {
+  margin: 0;
+  max-width: 68ch;
+  color: var(--texto-2);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* Mismo disco que el de la guía, en pequeño: identifica sin colorear el texto. */
+.recorrido__icono {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  color: var(--acento);
+}
+
+/*
+  La nota al pie de una lámina, en ámbar. Es el mismo código que los avisos del
+  revisor a propósito: lo que dice es de la misma clase —«esto es opcional»,
+  «este orden importa»— y enseñar dos amarillos distintos para lo mismo obliga a
+  aprenderse dos.
+*/
+.recorrido__nota {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--aviso);
+  border-radius: var(--radio-ajustado);
+  color: var(--aviso);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/*
+  Se anuncia, no se ve. No se usa `display: none` ni `visibility: hidden`: las
+  dos lo esconden también del lector de pantalla, que es lo único para lo que
+  existe.
+*/
+.recorrido__anuncio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- El pie -------------------------------------------------------------- */
+
+/*
+  El pie se queda pegado abajo mientras la lámina se desplaza.
+
+  Sin esto, la lámina de las ocho funcionalidades empujaba «Siguiente» fuera de
+  la caja: con la ventana a 720 px de alto se veía la mitad de la lista y
+  ningún botón, y el recorrido parecía no tener salida hasta que uno adivinaba
+  que aquello se desplazaba. Pegado, la manera de avanzar, de retroceder y de
+  salir está siempre en el mismo sitio, mida lo que mida la lámina.
+
+  El fondo no es decorativo: sin él, el texto que pasa por debajo se lee a
+  través de los botones.
+*/
+.recorrido__pie {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding: 14px 0 18px;
+  background: var(--fondo-2);
+  border-top: 1px solid var(--borde);
+}
+
+/*
+  «Saltar» está a la izquierda del todo, separado de los otros dos y sin relleno
+  de botón. No se esconde —quien quiere entrar ya tiene que poder— pero tampoco
+  compite con «Siguiente»: el peso visual es la única forma honesta de decir
+  cuál de los dos es la salida y cuál el camino.
+*/
+.recorrido__saltar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  background: transparent;
+  border-color: transparent;
+  color: var(--texto-2);
+  font-size: 12px;
+}
+
+.recorrido__saltar:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--borde);
+  color: var(--texto);
+}
+
+.recorrido__puntitos {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.recorrido__puntito {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--borde-fuerte);
+}
+
+.recorrido__puntito--actual {
+  background: var(--acento);
+  /* El de la lámina en curso además se alarga: en una tira de seis discos
+     iguales, el cambio de color solo se ve si se está mirando. */
+  width: 18px;
+  border-radius: var(--radio-ajustado);
+}
+
+.recorrido__botones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/*
+  El `nowrap` es lo que mantiene el pie de la misma altura en las seis láminas.
+
+  En la última, «Siguiente» pasa a ser «Empezar a modelar», y con las columnas
+  del pie en `1fr auto 1fr` esa columna medía lo mismo que la de «Saltar el
+  recorrido»: el rótulo no cabía, se partía en dos líneas y el pie crecía un
+  renglón justo en la lámina del final, de modo que los botones daban un salto
+  al llegar a ella. Prohibido el corte, el mínimo de la columna pasa a ser el
+  rótulo entero; como `1fr` respeta ese mínimo y las dos columnas laterales son
+  iguales, las dos crecen a la vez y los puntitos siguen centrados.
+*/
+.recorrido__botones .boton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/*
+  En un teléfono el índice no cabe al lado: pasa arriba, en una tira que se
+  desplaza en horizontal. Se conserva entero en vez de reducirlo a los puntitos
+  porque es lo que dice de qué va cada lámina, y en la pantalla pequeña es
+  justo donde menos se ve el conjunto.
+*/
+@media (max-width: 720px) {
+  .recorrido {
+    padding: 0;
+  }
+
+  .recorrido__caja {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+    border: none;
+    border-radius: 0;
+  }
+
+  .recorrido__indice {
+    border-right: none;
+    border-bottom: 1px solid var(--borde);
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .recorrido__indice ol {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+  }
+
+  .recorrido__entrada {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  /* El detalle de la sección en curso no cabe en una tira horizontal, y
+     desplegarlo dentro de ella empujaría las demás fuera de la pantalla. */
+  .recorrido__subindice {
+    display: none;
+  }
+
+  .recorrido__lamina {
+    padding: 16px 14px 0;
+  }
+
+  .recorrido__cabecera h2 {
+    font-size: 18px;
+  }
+
+  /* Con tres celdas en una fila, «Saltar el recorrido» y «Anterior» se parten
+     por la mitad. El pie pasa a dos filas: los puntitos arriba, centrados, y
+     los botones debajo repartidos. */
+  .recorrido__pie {
+    grid-template-columns: 1fr auto;
+  }
+
+  .recorrido__puntitos {
+    grid-column: 1 / -1;
+    justify-content: center;
+    order: -1;
+    padding-bottom: 8px;
   }
 }
 
@@ -4501,28 +5769,14 @@ select:focus {
     gap: 6px 8px;
   }
 
-  .barra__herramientas {
-    margin-left: 0;
-    width: 100%;
-  }
-
   /*
-    Los botones se estrechan pero no se aplastan. Lo que ahorra filas es la
-    anchura —la letra más pequeña—, no la altura; bajar también el alto haría
-    que once objetivos de 26 px compitieran por el mismo pulgar. Se deja el
-    relleno vertical generoso a propósito: menos filas y dedos que aciertan.
+    Aquí había media docena de reglas para encoger `.barra__herramientas`: la
+    barra ocupaba el ancho entero en una segunda fila y sus botones bajaban a
+    12 px de letra y 38 de alto. Sobran desde que la cabecera no la monta en
+    pantalla estrecha —sus acciones están abajo, en la barra del pulgar—. Eran
+    además un parche sobre el problema equivocado: el tamaño no era lo que
+    fallaba, era que estaban en la franja a la que el pulgar no llega.
   */
-  .barra__herramientas button,
-  .barra__herramientas .boton,
-  .barra__herramientas select {
-    font-size: 12px;
-    padding: 8px 9px;
-    min-height: 38px;
-  }
-
-  .barra__grupo + .barra__grupo {
-    padding-left: 8px;
-  }
 
   /* La franja del asistente compite con el lienzo por la misma altura, y en un
      móvil el lienzo la necesita más. Sigue creciendo cuando hay una propuesta
@@ -4532,14 +5786,23 @@ select:focus {
     padding: 8px 10px;
   }
 
+  /* El hueco de la franja del sistema lo reserva ahora la barra del pulgar, que
+     es la que toca el canto de abajo. Dejarlo también aquí abriría una banda
+     vacía en mitad de la pantalla. */
+  .barra-estado {
+    padding-bottom: 0;
+  }
+
   /*
     El botón de ayuda flota en la esquina inferior derecha, que en el editor es
-    justo donde está el micrófono del asistente. En pantalla ancha sobra sitio y
-    no se tocan; aquí se sube por encima de esa franja.
+    justo donde está el micrófono del asistente y ahora también el quinto botón
+    del pulgar. Se sube por encima de las dos franjas: si se quedara donde
+    estaba, taparía «Encuadrar», que es precisamente el botón que hay que poder
+    pulsar cuando el diagrama se ha ido de la vista.
   */
   .boton-ayuda {
     right: 10px;
-    bottom: calc(14px + env(safe-area-inset-bottom));
+    bottom: calc(14px + 58px + env(safe-area-inset-bottom));
   }
 
   /* Los modales dejan de ser tarjetas centradas con aire alrededor: a este ancho
@@ -4579,5 +5842,401 @@ select:focus {
   /* Las cuatro cifras caben en dos filas de dos en vez de encogerse. */
   .tablero__cifras {
     gap: 8px 24px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Objetivos táctiles
+   --------------------------------------------------------------------------
+
+   Por puntero grueso y no por ancho de pantalla. Son dos preguntas distintas y
+   se habían estado confundiendo: `max-width` dice cuánto sitio hay, y aquí lo
+   que importa es con qué se apunta. Una tableta de 1024 px en horizontal es
+   ancha y se toca con el dedo; un portátil con pantalla táctil, igual. Al revés
+   también pasa: una ventana estrecha en un escritorio con ratón no necesita
+   nada de esto, y agrandar sus controles solo le quitaría sitio.
+
+   El número de referencia es 44, que es `LADO_TACTIL` en `barra-pulgar.ts`.
+   `estilos.test.ts` lee esta hoja y comprueba que ninguna de estas cifras baje
+   de él, que es la única forma de que la constante y el CSS no se separen.
+   -------------------------------------------------------------------------- */
+
+@media (pointer: coarse) {
+  /*
+    Los controles de React Flow vienen de fábrica a 26 px. En pantalla estrecha
+    ni se montan, pero en una tableta ancha sí, y ahí eran tres objetivos de
+    26 px pegados uno encima de otro: fallar el de en medio significa acercar
+    cuando se quería alejar.
+  */
+  .react-flow__controls-button {
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+  }
+
+  /* Los del aumento medían 20×20, que es la mitad de la yema que los pulsa. */
+  .barra-estado__boton {
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .barra-estado__boton--ancho {
+    min-width: 44px;
+    padding: 0 10px;
+  }
+}
+
+/*
+  El conector, agrandado solo mientras se está relacionando.
+
+  Los cuatro puntos de la caja miden 8 px, que con un dedo es imposible: la yema
+  cubre unos 40 y tapa el punto antes de tocarlo. La tentación es agrandarlos
+  siempre en táctil, y es justo lo que no hay que hacer —una zona sensible de
+  44 px en cada lado de una caja de 160×80 deja la caja rodeada de trampas, y
+  arrastrarla para moverla empezaría a trazar una relación—.
+
+  Por eso el área grande aparece con la herramienta armada y solo entonces, que
+  es cuando los conectores además se ven: es un modo que se entra a propósito
+  desde la paleta o desde la barra del pulgar, y mientras dura lo único que se
+  hace es tirar de un conector a otro.
+
+  Va en un `::after` y no en el `width` del propio punto: cambiar su caja
+  movería el punto pintado, porque React Flow lo coloca con desplazamientos
+  calculados sobre su tamaño. Un pseudoelemento no es un nodo del DOM, así que
+  el evento sigue llegando al conector y el arrastre funciona igual.
+*/
+@media (pointer: coarse) {
+  .lienzo--relacionando .caja__conector::after {
+    content: '';
+    position: absolute;
+    /* 8 del punto + 18 por lado = 44. */
+    inset: -18px;
+  }
+}
+
+/* ==========================================================================
+   El tablón: comunicación interna del proyecto
+   ==========================================================================
+
+   Un hilo de conversación dentro de una columna de 300 px. Las dos decisiones
+   que sostienen el resto:
+
+   1. **El hilo crece y la caja de escribir no.** La columna es una rejilla de
+      dos filas con la primera en `1fr` y `min-height: 0`. Sin ese cero la fila
+      se estira hasta el alto de su contenido —es el tamaño mínimo automático de
+      una rejilla— y la caja de escribir sale empujada fuera de la pantalla en
+      cuanto hay quince mensajes.
+
+   2. **No hay burbujas ni colores por autor.** Un mensaje propio de fondo azul
+      a la derecha es el idioma de la mensajería personal, y aquí la columna
+      mide lo que mide: una burbuja alineada a la derecha dentro de 300 px deja
+      un texto de cuarenta caracteres por línea. El autor se dice una vez por
+      bloque, en texto, como en el historial de al lado.
+   ========================================================================== */
+
+.tablon {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  height: 100%;
+  min-height: 0;
+  gap: 8px;
+}
+
+.tablon__hilo {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* El separador de día: una línea con la fecha encima, centrada. */
+.tablon__dia {
+  margin: 4px 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--texto-2);
+  border-top: 1px solid var(--borde);
+  padding-top: 6px;
+}
+
+.tablon__bloque {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tablon__autor {
+  margin: 0;
+  font-weight: 600;
+  font-size: var(--fuente-ui);
+  color: var(--texto);
+}
+
+/* «(usted)» no compite con el nombre: dice de quién es el mensaje al repasar
+   el hilo, y en negrita sería el nombre lo que se pierde. */
+.tablon__yo {
+  font-weight: 400;
+  color: var(--texto-2);
+}
+
+.tablon__mensajes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/*
+  La hora y la papelera ocupan sitio siempre, también cuando están invisibles.
+  Si aparecieran al pasar el ratón cambiando el ancho disponible, el texto del
+  mensaje se recompondría bajo el cursor y la línea que se estaba leyendo
+  saltaría.
+*/
+.tablon__mensaje {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: start;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: var(--radio-ajustado);
+}
+
+.tablon__mensaje:hover {
+  background: var(--fondo-3);
+}
+
+.tablon__texto {
+  margin: 0;
+  /* El texto llega tal cual lo escribieron: los saltos de línea de una lista
+     de tres puntos son parte del mensaje, y colapsarlos la convierte en un
+     párrafo. `pre-wrap` los conserva y sigue ajustando al ancho. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.tablon__hora {
+  font-size: 10px;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+
+.tablon__retirar {
+  background: none;
+  border: none;
+  color: var(--texto-2);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radio-ajustado);
+  /* Invisible hasta que se apunta al mensaje, pero presente en el árbol de
+     accesibilidad y alcanzable con el tabulador: `visibility: hidden` lo
+     sacaría de los dos sitios. */
+  opacity: 0;
+}
+
+.tablon__mensaje:hover .tablon__retirar,
+.tablon__retirar:focus-visible {
+  opacity: 1;
+}
+
+.tablon__retirar:hover {
+  color: var(--error);
+}
+
+.tablon__mensaje--retirado {
+  grid-template-columns: 1fr auto;
+}
+
+.tablon__retirado {
+  font-style: italic;
+  color: var(--texto-2);
+  font-size: var(--fuente-ui);
+}
+
+/* ---- La nota de voz ---------------------------------------------------- */
+
+.tablon__voz {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tablon__reproducir {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border: 1px solid var(--borde);
+  border-radius: 50%;
+  background: var(--fondo-3);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.tablon__reproducir:hover:not(:disabled) {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.tablon__reproducir:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+/* El reproductor del navegador a 28 px de alto para que no domine la fila. */
+.tablon__audio {
+  height: 28px;
+  max-width: 100%;
+  flex: 1 1 140px;
+}
+
+.tablon__duracion {
+  font-size: 11px;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tablon__cargando-voz,
+.tablon__fallo-voz {
+  font-size: 11px;
+  color: var(--texto-2);
+}
+
+.tablon__fallo-voz {
+  color: var(--error);
+}
+
+/* ---- Escribir ---------------------------------------------------------- */
+
+.tablon__error {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--borde-error);
+  background: var(--superficie-error);
+  border-radius: var(--radio-ajustado);
+  font-size: 11px;
+}
+
+.tablon__redactar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--borde);
+  padding-top: 8px;
+}
+
+.tablon__entrada {
+  width: 100%;
+  resize: vertical;
+  min-height: 48px;
+  font: inherit;
+  color: var(--texto);
+  background: var(--fondo-2);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-ajustado);
+  padding: 6px 8px;
+}
+
+.tablon__entrada:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.tablon__acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* El contador de caracteres empuja los botones a la derecha y solo aparece
+   cerca del tope: enseñarlo desde el primer carácter convierte un mensaje de
+   dos líneas en un examen. */
+.tablon__restantes {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tablon__microfono {
+  margin-left: auto;
+}
+
+/* ---- Grabando ---------------------------------------------------------- */
+
+.tablon__grabando {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--borde);
+  padding-top: 8px;
+}
+
+/* El punto rojo que parpadea. Es la única forma de decir «esto está abierto»
+   que se entiende sin leer, y el micrófono abierto merece decirse sin leer. */
+.tablon__punto {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--error);
+  animation: tablon-latido 1.4s ease-in-out infinite;
+}
+
+@keyframes tablon-latido {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Quien haya pedido menos movimiento no lo pierde: el punto se queda fijo y
+   encendido, que sigue diciendo lo mismo. */
+@media (prefers-reduced-motion: reduce) {
+  .tablon__punto {
+    animation: none;
+  }
+}
+
+.tablon__transcurrido {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.tablon__restante {
+  font-size: 11px;
+  color: var(--texto-2);
+  font-variant-numeric: tabular-nums;
+  margin-right: auto;
+}
+
+.tablon__restante--poco {
+  color: var(--error);
+}
+
+/*
+  Con el dedo, los dos controles pequeños del hilo.
+
+  El de reproducir crece a 44 y la papelera deja de esconderse: en una pantalla
+  táctil no hay «pasar el ratón por encima», así que un botón que solo aparece
+  al apuntar es un botón que no existe.
+*/
+@media (pointer: coarse) {
+  .tablon__reproducir {
+    width: 44px;
+    height: 44px;
+  }
+
+  .tablon__retirar {
+    opacity: 1;
+    min-width: 44px;
+    min-height: 44px;
   }
 }

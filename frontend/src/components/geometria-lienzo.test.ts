@@ -226,7 +226,7 @@ describe('puntoEnCurva', () => {
 });
 
 describe('etiquetas del texto de una caja', () => {
-  it('el atributo identificador lleva su llave', () => {
+  it('el atributo identificador lleva su marca, y solo él', () => {
     const conClave = clase({
       id: 'c1',
       name: 'Cliente',
@@ -235,8 +235,28 @@ describe('etiquetas del texto de una caja', () => {
         { id: 'a2', name: 'correo', type: { name: 'String' }, visibility: '+' },
       ],
     });
-    expect(textoAtributo(conClave.attributes[0]!)).toContain('🔑');
-    expect(textoAtributo(conClave.attributes[1]!)).not.toContain('🔑');
+    expect(textoAtributo(conClave.attributes[0]!)).toContain('{id}');
+    expect(textoAtributo(conClave.attributes[1]!)).not.toContain('{id}');
+  });
+
+  /*
+    Y la marca se mide con el resto de la fila. Era un emoji, que viene de una
+    fuente distinta de la monoespaciada sobre la que está calculada
+    `ANCHO_CARACTER_MIEMBRO`, así que la única fila cuya anchura no se sabía era
+    precisamente la del identificador. Se comprueba que la caja crece al marcarlo
+    en vez de comprobar un número: lo que hay que impedir es que la marca vuelva
+    a ser invisible para la medida, no fijar cuánto ocupa.
+  */
+  it('la marca del identificador cuenta para la anchura de la caja', () => {
+    const fila = (isIdentifier: boolean): UmlClass =>
+      clase({
+        id: 'c1',
+        name: 'A',
+        attributes: [
+          { id: 'a1', name: 'identificadorDeCliente', type: { name: 'Long' }, visibility: '+', isIdentifier },
+        ],
+      });
+    expect(medidasDe(fila(true)).ancho).toBeGreaterThan(medidasDe(fila(false)).ancho);
   });
 
   it('cada tipo de clase enseña su estereotipo, y una clase normal ninguno', () => {

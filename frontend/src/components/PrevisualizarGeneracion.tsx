@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { validateDiagram, type Aplicar, type ClassDiagram } from '@app/shared';
 import { api, descargarProyecto, type FicheroGenerado, type Proyecto } from '../services/api';
+import { ArreglarGeneracion } from './ArreglarGeneracion';
 import { Icono } from './iconos';
 import {
   ROTULO_CAPA,
@@ -32,10 +34,35 @@ import {
  * La previsualización no descarga nada y la descarga no vuelve a generar en
  * balde: son dos llamadas distintas al mismo generador, y el ZIP sigue
  * armándose en el servidor como antes.
+ *
+ * ## Se valida aquí antes de preguntar al servidor
+ *
+ * Un diagrama que no se puede generar acababa en el `catch` de abajo, con el
+ * mensaje del servidor —los seis motivos separados por punto y coma, sin decir
+ * en qué clase estaba cada uno— pintado en rojo y nada que hacer con él.
+ *
+ * Ahora la misma pregunta se contesta antes de salir a la red. `validateDiagram`
+ * vive en `shared` desde que se mudó de `generator`, así que el navegador la
+ * puede ejecutar; si el diagrama no pasa, no se llama al servidor —la respuesta
+ * ya se sabe— y en su lugar se pinta `ArreglarGeneracion`, que enseña qué
+ * bloquea y ofrece arreglarlo.
+ *
+ * Que la validación esté en el `useMemo` sobre el diagrama es lo que hace que
+ * la pantalla se resuelva sola: al aplicar los arreglos cambia el diagrama,
+ * cambia la validación, y esta ventana pasa de la lista de problemas a la vista
+ * previa del proyecto sin que haya que cerrar nada ni volver a pulsar.
  */
 
 interface Props {
   proyecto: Proyecto;
+  /**
+   * El diagrama del documento Yjs, no el del servidor: es el que tiene delante
+   * quien pulsó «Generar», incluidos los cambios que todavía no se han
+   * sincronizado.
+   */
+  diagrama: ClassDiagram;
+  aplicar: Aplicar;
+  soloLectura: boolean;
   onCerrar: () => void;
 }
 
@@ -44,13 +71,26 @@ type Estado =
   | { fase: 'error'; mensaje: string }
   | { fase: 'listo'; ficheros: FicheroGenerado[]; avisos: number };
 
-export function PrevisualizarGeneracion({ proyecto, onCerrar }: Props) {
+export function PrevisualizarGeneracion({
+  proyecto,
+  diagrama,
+  aplicar,
+  soloLectura,
+  onCerrar,
+}: Props) {
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' });
   const [abierto, setAbierto] = useState<string | null>(null);
   const [bajando, setBajando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
 
+  const validacion = useMemo(() => validateDiagram(diagrama), [diagrama]);
+  const bloqueado = !validacion.ok;
+
   useEffect(() => {
+    // Con errores de validación la respuesta ya se conoce, y es un 400: pedirla
+    // gastaría un viaje para enterarse de lo que se acaba de calcular aquí.
+    if (bloqueado) return undefined;
+
     let vivo = true;
     api
       .previsualizarGeneracion(proyecto.id)
@@ -75,7 +115,7 @@ export function PrevisualizarGeneracion({ proyecto, onCerrar }: Props) {
     return () => {
       vivo = false;
     };
-  }, [proyecto.id]);
+  }, [proyecto.id, bloqueado]);
 
   const ficheros = estado.fase === 'listo' ? estado.ficheros : [];
   const capas = useMemo(() => porCapas(ficheros), [ficheros]);
@@ -87,11 +127,17 @@ export function PrevisualizarGeneracion({ proyecto, onCerrar }: Props) {
   const bajar = async (): Promise<void> => {
     setBajando(true);
     try {
-      const { avisos } = await descargarProyecto(proyecto.id, proyecto.name);
+      const { avisos, donde } = await descargarProyecto(proyecto.id, proyecto.name);
+      // `donde` viene vacío en el navegador, que guarda en su carpeta de
+      // descargas y no lo cuenta. En el móvil el ZIP ha pasado por el diálogo
+      // de compartir del sistema, y ahí sí hace falta decir la ruta: si se ha
+      // mandado por WhatsApp no queda rastro visible en el teléfono y luego no
+      // hay manera de encontrarlo.
+      const ruta = donde ? ` Guardado en ${donde}.` : '';
       setAviso(
         avisos > 0
-          ? `Proyecto descargado con ${String(avisos)} aviso${avisos === 1 ? '' : 's'}.`
-          : 'Proyecto descargado.',
+          ? `Proyecto descargado con ${String(avisos)} aviso${avisos === 1 ? '' : 's'}.${ruta}`
+          : `Proyecto descargado.${ruta}`,
       );
     } catch (error) {
       setAviso(error instanceof Error ? error.message : 'No se pudo generar el proyecto');
@@ -101,26 +147,41 @@ export function PrevisualizarGeneracion({ proyecto, onCerrar }: Props) {
   };
 
   return (
-    <div className="modal" role="dialog" aria-modal="true" aria-label="Proyecto generado">
+    <div
+      className="modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={bloqueado ? 'El diagrama no se puede generar todavía' : 'Proyecto generado'}
+    >
       <div className="modal__caja generado">
         <header className="generado__cabecera">
           <div>
-            <h2>Proyecto generado</h2>
+            <h2>{bloqueado ? 'Todavía no se puede generar' : 'Proyecto generado'}</h2>
             <p className="generado__resumen">
-              {estado.fase === 'listo'
-                ? `${String(ficheros.length)} ficheros · ${tamaño(totalBytes)}`
-                : 'Preparando…'}
+              {bloqueado
+                ? 'El diagrama no llega a compilar como backend.'
+                : estado.fase === 'listo'
+                  ? `${String(ficheros.length)} ficheros · ${tamaño(totalBytes)}`
+                  : 'Preparando…'}
             </p>
           </div>
           <div className="generado__acciones">
-            <button
-              type="button"
-              className="boton boton--primario"
-              disabled={estado.fase !== 'listo' || bajando}
-              onClick={() => void bajar()}
-            >
-              {bajando ? 'Descargando…' : 'Descargar ZIP'}
-            </button>
+            {/*
+              El botón de descarga desaparece mientras está bloqueado en vez de
+              salir deshabilitado: deshabilitado invita a pulsarlo para
+              averiguar por qué, y el porqué ya está escrito debajo con más
+              detalle del que cabe en un `title`.
+            */}
+            {!bloqueado && (
+              <button
+                type="button"
+                className="boton boton--primario"
+                disabled={estado.fase !== 'listo' || bajando}
+                onClick={() => void bajar()}
+              >
+                {bajando ? 'Descargando…' : 'Descargar ZIP'}
+              </button>
+            )}
             <button
               type="button"
               className="boton boton--icono"
@@ -132,7 +193,18 @@ export function PrevisualizarGeneracion({ proyecto, onCerrar }: Props) {
           </div>
         </header>
 
-        {estado.fase === 'cargando' && <p className="panel__vacio">Generando la vista previa…</p>}
+        {bloqueado && (
+          <ArreglarGeneracion
+            diagrama={diagrama}
+            validacion={validacion}
+            aplicar={aplicar}
+            soloLectura={soloLectura}
+          />
+        )}
+
+        {!bloqueado && estado.fase === 'cargando' && (
+          <p className="panel__vacio">Generando la vista previa…</p>
+        )}
 
         {estado.fase === 'error' && <p className="panel__error">{estado.mensaje}</p>}
 

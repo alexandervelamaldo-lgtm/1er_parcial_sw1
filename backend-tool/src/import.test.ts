@@ -8,7 +8,7 @@ import type { DiagramaExtraido, TablaExtraida } from '@app/shared';
 import { loadConfig } from './config.js';
 import { createApp, createDependencies, type AppDependencies } from './app.js';
 import { ErrorDeModelo } from './ai/transporte.js';
-import type { VisionEngine } from './ai/vision.js';
+import type { Lectura, VisionEngine } from './ai/vision.js';
 
 /**
  * Pruebas de integración de la importación por fotografía (RF-OCR-01 … RF-OCR-04).
@@ -48,9 +48,9 @@ class VisionDoble implements VisionEngine {
   /** El diagrama de la foto del enunciado: tres clases y dos asociaciones. */
   respuestaDiagrama: DiagramaExtraido | Error = {
     clases: [
-      { nombre: 'Class A', estereotipo: 'class', atributos: [], filas: [] },
-      { nombre: 'Class B', estereotipo: 'class', atributos: [], filas: [] },
-      { nombre: 'Class C', estereotipo: 'class', atributos: [], filas: [] },
+      { nombre: 'Class A', estereotipo: 'class', atributos: [], metodos: [], filas: [] },
+      { nombre: 'Class B', estereotipo: 'class', atributos: [], metodos: [], filas: [] },
+      { nombre: 'Class C', estereotipo: 'class', atributos: [], metodos: [], filas: [] },
     ],
     relaciones: [
       {
@@ -74,16 +74,16 @@ class VisionDoble implements VisionEngine {
     ilegible: [],
   };
 
-  async extraerTabla(): Promise<TablaExtraida> {
+  async extraerTabla(): Promise<Lectura<TablaExtraida>> {
     this.llamadas += 1;
     if (this.respuesta instanceof Error) throw this.respuesta;
-    return this.respuesta;
+    return { datos: this.respuesta, modelo: this.model };
   }
 
-  async extraerDiagrama(): Promise<DiagramaExtraido> {
+  async extraerDiagrama(): Promise<Lectura<DiagramaExtraido>> {
     this.llamadas += 1;
     if (this.respuestaDiagrama instanceof Error) throw this.respuestaDiagrama;
-    return this.respuestaDiagrama;
+    return { datos: this.respuestaDiagrama, modelo: this.model };
   }
 }
 
@@ -551,8 +551,66 @@ describe('lectura de un diagrama de clases fotografiado', () => {
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('LECTURA_FALLIDA');
     expect(response.body.error).toMatch(/saturado/);
-    expect(response.body.error).toMatch(/vuelve a intentarlo/i);
+    expect(response.body.error).toMatch(/reintentar/i);
     expect(response.body.error).toMatch(/high demand/);
+    // Y con un solo modelo configurado hay un arreglo que quita el problema de
+    // en medio, no solo una espera: nombrar un modelo de reserva.
+    expect(response.body.error).toMatch(/reserva/);
+  });
+
+  /*
+   * El mismo 503, dos situaciones distintas, y la diferencia importa el día del
+   * examen. Si solo se probó un modelo, esperar un minuto suele bastar. Si se
+   * probó la cadena entera, no queda nada por probar: esperar es tirar tiempo y
+   * lo que hay que hacer es sacar el diagrama por XMI, que no depende de nadie.
+   * Sin distinguirlos, el texto es el mismo y manda a esperar en los dos casos.
+   */
+  it('distingue «no queda nada por probar» de «este modelo está saturado»', async () => {
+    const token = await registrar('cadena@ejemplo.com');
+    const proyectoId = await crearProyecto(token);
+    vision.respuestaDiagrama = new ErrorDeModelo(
+      '503 high demand [se probaron 2 modelos → gemini-3.6-flash: 503 saturado; ' +
+        'gemini-2.5-flash: 404 el proveedor no lo conoce]',
+      503,
+    );
+
+    const response = await leerDiagrama(token, proyectoId, {
+      imagen: PNG_1X1,
+      mimeType: 'image/png',
+    });
+
+    expect(response.body.error).toMatch(/cadena entera/);
+    expect(response.body.error).toMatch(/XMI/);
+    // Y no manda a configurar una reserva que ya está configurada.
+    expect(response.body.error).not.toMatch(/añadir un modelo de reserva/);
+    // El detalle de cada modelo llega entero: es lo que distingue «espera» de
+    // «corrige el .env», y aquí hacen falta las dos cosas a la vez.
+    expect(response.body.error).toMatch(/404 el proveedor no lo conoce/);
+  });
+
+  /*
+   * La cadena agotada manda sobre el código de estado, y este es el caso que lo
+   * obligó. Con el preferido retirado, el estado que sobrevive es un 404, y la
+   * rama del 404 decía «revisa LLM_VISION_MODEL: el detalle nombra el
+   * sustituto». Con una cadena entera muerta eso es un consejo a medias: no dice
+   * que se probaron dos ni cuál de los dos hay que cambiar.
+   */
+  it('la cadena agotada manda sobre el 404, que se explica de otra forma', async () => {
+    const token = await registrar('cadena404@ejemplo.com');
+    const proyectoId = await crearProyecto(token);
+    vision.respuestaDiagrama = new ErrorDeModelo(
+      '404 not found [se probaron 2 modelos → viejo-a: 404 el proveedor no lo conoce; ' +
+        'viejo-b: 404 el proveedor no lo conoce]',
+      404,
+    );
+
+    const response = await leerDiagrama(token, proyectoId, {
+      imagen: PNG_1X1,
+      mimeType: 'image/png',
+    });
+
+    expect(response.body.error).toMatch(/cadena entera/);
+    expect(response.body.error).toMatch(/LLM_VISION_MODEL/);
   });
 
   it('un 404 manda a mirar LLM_VISION_MODEL, no la foto', async () => {

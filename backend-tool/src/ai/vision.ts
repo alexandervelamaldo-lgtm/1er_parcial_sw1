@@ -61,10 +61,16 @@ Reglas:
 const INSTRUCCION_DIAGRAMA = `Extrae el diagrama de clases UML que aparece en la imagen.
 
 Responde ÚNICAMENTE con un objeto JSON, sin texto alrededor y sin vallas de código:
-{"clases":[{"nombre":"","estereotipo":"class|interface|enum|abstract","atributos":[{"nombre":"","tipo":"TIPOS","esClave":true|false}],"filas":[["valor"]]}],"relaciones":[{"origen":"","destino":"","tipo":"association|aggregation|composition|inheritance|realization|dependency","cardinalidadOrigen":"","cardinalidadDestino":"","nombre":""}],"confianza":0.0-1.0,"ilegible":["..."]}
+{"clases":[{"nombre":"","estereotipo":"class|interface|enum|abstract","atributos":[{"nombre":"","tipo":"TIPOS","esClave":true|false}],"metodos":[{"nombre":"","tipoRetorno":"","visibilidad":"+|-|#|~","parametros":[{"nombre":"","tipo":"TIPOS"}]}],"filas":[["valor"]]}],"relaciones":[{"origen":"","destino":"","tipo":"association|aggregation|composition|inheritance|realization|dependency","cardinalidadOrigen":"","cardinalidadDestino":"","nombre":""}],"confianza":0.0-1.0,"ilegible":["..."]}
 
 Reglas:
 - "nombre" de cada clase es el texto del compartimento superior del recuadro, tal como se lee.
+- Un recuadro UML tiene hasta tres compartimentos: nombre, atributos y operaciones. El TERCERO va en "metodos" y no se puede omitir: si el recuadro tiene un compartimento inferior con nombres seguidos de paréntesis —"+deposit()", "+verifyPassword()"— cada uno es un método.
+- Distingue un atributo de un método por el paréntesis, no por el compartimento: si lleva "()" es método aunque esté escrito arriba.
+- En "metodos", "nombre" va SIN los paréntesis. Si dentro del paréntesis hay parámetros, ponlos en "parametros"; si está vacío, deja "parametros": [].
+- "tipoRetorno" es lo que aparece tras los dos puntos al final de la firma. Si no hay nada escrito, deja "" —significa void— y no lo inventes.
+- "visibilidad" es el símbolo que precede al nombre: "+" público, "-" privado, "#" protegido, "~" de paquete. Si no hay símbolo, usa "+".
+- Si una clase no tiene compartimento de operaciones, deja "metodos": []. No te inventes métodos que no estén dibujados.
 - "origen" y "destino" deben coincidir EXACTAMENTE con el "nombre" de alguna clase de la lista. No los abrevies ni los reescribas.
 - Las cardinalidades van tal como aparecen escritas junto a cada extremo de la línea: "1", "0..1", "*", "0..*", "1..*", "5".
 - Si una cardinalidad no está escrita en el dibujo, o no la lees con seguridad, deja "" en ese campo. NO la supongas: es preferible declarar que no se ve.
@@ -113,28 +119,82 @@ function describirTablaAusente(json: unknown): string | null {
   return pistas.join('; ').slice(0, 300);
 }
 
+/**
+ * Lo leído, junto al modelo que de verdad lo leyó.
+ *
+ * El modelo viaja con la lectura y no como propiedad del motor porque **no
+ * siempre es el que está configurado**: si el primero de la cadena está
+ * saturado, contesta el siguiente. Guardarlo en el motor (`this.model = …` al
+ * terminar) habría sido más corto y habría mentido en cuanto dos personas
+ * importan una foto a la vez: la respuesta de una llevaría el modelo que
+ * contestó a la otra. Y esa línea de la pantalla —«modelo: X»— es justo la que
+ * alguien mirará dentro de un mes para explicar por qué una lectura salió
+ * distinta de la otra.
+ */
+export interface Lectura<T> {
+  readonly datos: T;
+  readonly modelo: string;
+}
+
 export interface VisionEngine {
+  /** La cadena configurada, para diagnóstico. Lo que contestó va en cada `Lectura`. */
   readonly model: string;
   /** `imagen` es el contenido en base64, sin el prefijo `data:`. */
-  extraerTabla(imagen: string, mimeType: string): Promise<TablaExtraida>;
+  extraerTabla(imagen: string, mimeType: string): Promise<Lectura<TablaExtraida>>;
   /** Lee un diagrama de clases completo: varias clases y las relaciones entre ellas. */
-  extraerDiagrama(imagen: string, mimeType: string): Promise<DiagramaExtraido>;
+  extraerDiagrama(imagen: string, mimeType: string): Promise<Lectura<DiagramaExtraido>>;
 }
 
 export interface VisionOptions {
   apiKey: string;
+  /** El modelo preferido: el que se prueba primero. */
   model: string;
+  /**
+   * A quién preguntar si el preferido no está disponible, en orden.
+   *
+   * No es redundancia por si acaso: las capas gratuitas de los modelos de visión
+   * recientes dan `503 UNAVAILABLE` con bastante alegría, y ese 503 dura minutos,
+   * no segundos. Reintentar contra el mismo modelo no sirve —ya se hace tres
+   * veces antes de llegar aquí—; lo que saca del atasco es preguntarle a otro.
+   */
+  modelosDeReserva?: readonly string[];
   baseUrl: string;
   timeoutMs?: number;
   /** Reintentos ante un fallo pasajero del proveedor. Por defecto 2. */
   reintentos?: number;
   /** Espera base entre reintentos. Existe para que las pruebas no tarden segundos. */
   pausaMs?: number;
+  /** Techo de la respuesta. Ver `MAX_TOKENS_POR_DEFECTO`. */
+  maxTokens?: number;
 }
 
 interface RespuestaOpenAi {
-  choices?: { message?: { content?: string } }[];
+  choices?: { message?: { content?: string }; finish_reason?: string }[];
 }
+
+/**
+ * Cuánto se le deja escribir al modelo.
+ *
+ * Empezó en 4096 y ese número rompió la lectura de diagramas de forma
+ * especialmente cara: no fallaba, *mentía*. Al pasar de la cuenta, el proveedor
+ * corta la respuesta a media palabra y devuelve un JSON sin cerrar. `extractJson`
+ * recorta desde la primera `{` hasta la última `}`, que en un texto truncado ya
+ * no es la del objeto raíz sino la de cualquier objeto interior, y lo que sale
+ * de ahí revienta con «Expected ',' or ']' after array element in JSON at
+ * position 1503» —un error de sintaxis que apunta al parseador y no a la causa,
+ * y que manda a quien lo lee a buscar un fallo que no existe.
+ *
+ * El límite se agota antes de lo que parece con los modelos que razonan: en el
+ * traductor de Google al protocolo de OpenAI, `max_tokens` se convierte en
+ * `maxOutputTokens`, y los tokens de pensamiento de Gemini 3 se descuentan del
+ * mismo saco. O sea, el modelo puede gastarse el presupuesto entero pensando y
+ * quedarse sin sitio para contestar. Con un diagrama de quince clases —el tipo
+ * de cosa que trae un enunciado de banco o de barbería— eso pasa sin esfuerzo.
+ *
+ * 32768 no es generosidad: es el orden de magnitud correcto para que el techo lo
+ * ponga el diagrama y no la configuración. Solo se cobra lo que se usa.
+ */
+const MAX_TOKENS_POR_DEFECTO = 32_768;
 
 /**
  * Motor de visión sobre el protocolo compatible con OpenAI.
@@ -144,11 +204,105 @@ interface RespuestaOpenAi {
  * para un caso que hoy nadie usa. El día que haga falta, se separa igual que en
  * `assistant.ts`.
  */
+/**
+ * Cuándo tiene sentido preguntarle al siguiente modelo de la cadena.
+ *
+ * `429/502/503/504` es el modelo saturado y `404` es el modelo retirado: en los
+ * cinco casos, *otro* modelo sí puede contestar.
+ *
+ * Fuera queda todo lo que no se arregla cambiando de modelo, y la lista corta
+ * importa. `401/403` (clave rechazada) y `402` (sin saldo) hablan de la clave, y
+ * la cadena entera comparte la misma clave: probar el siguiente solo alargaría
+ * la espera para enseñar el mismo mensaje. `400` es la petición mal formada.
+ *
+ * Tampoco se pasa al siguiente cuando el modelo *contestó* y su respuesta no
+ * servía —vacía, sin JSON, cortada por el límite de tokens, o sin ningún
+ * diagrama dentro—. Eso no es un modelo caído: es un modelo que miró la foto y
+ * dijo algo. Encadenar ahí convertiría «esta foto no se entiende» en tres
+ * llamadas de pago para acabar en el mismo sitio, y taparía el diagnóstico
+ * bueno, que es justo el que hace falta cuando la foto está mal.
+ */
+function mereceOtroModelo(error: unknown): boolean {
+  return error instanceof ErrorDeModelo && CAMBIAR_DE_MODELO.has(error.status ?? 0);
+}
+
+const CAMBIAR_DE_MODELO = new Set([404, 429, 502, 503, 504]);
+
+/**
+ * Lo que contestó un modelo, en cuatro palabras.
+ *
+ * El cuerpo crudo del proveedor ocupa diez líneas y solo hace falta el del
+ * primer fallo. De los demás basta saber si fue la clave, el saldo, el nombre o
+ * la congestión: eso es lo que decide qué se toca.
+ */
+function resumirFallo(error: unknown): string {
+  if (!(error instanceof ErrorDeModelo)) {
+    return error instanceof Error ? error.message.slice(0, 120) : 'fallo desconocido';
+  }
+  const motivo = MOTIVOS[error.status ?? 0];
+  return motivo ? `${error.status} ${motivo}` : error.message.slice(0, 120);
+}
+
+const MOTIVOS: Record<number, string> = {
+  400: 'petición rechazada',
+  401: 'clave rechazada',
+  402: 'sin saldo',
+  403: 'clave sin permiso',
+  404: 'el proveedor no lo conoce',
+  429: 'sin cuota por ahora',
+  500: 'error del proveedor',
+  502: 'saturado',
+  503: 'saturado',
+  504: 'saturado',
+};
+
+/** Un modelo de la cadena que no pudo contestar. */
+interface Fallo {
+  readonly modelo: string;
+  readonly error: unknown;
+}
+
+/**
+ * Convierte los fallos de la cadena en un solo error, con dos decisiones dentro.
+ *
+ * **El titular es el primer fallo, no el último.** Esto empezó al revés y salió
+ * mal a la primera prueba real. Con `gemini-3.6-flash,gemini-2.5-flash`, el
+ * preferido cayó y el de reserva contestó un 404 diciendo «gemini-2.5-flash ya
+ * no está disponible, use gemini-3.6-flash». Lo que llegó a la pantalla fue ese
+ * 404: un mensaje que manda a revisar `LLM_VISION_MODEL` y que nombra como
+ * sustituto **el modelo que ya estaba en primera posición**. O sea, un error que
+ * describe el suplente y manda a arreglar algo que ya estaba bien. El fallo que
+ * importa es el del preferido: es el que se quiere que funcione, y el que
+ * explica por qué se llegó a la reserva siquiera.
+ *
+ * **Y se dice qué contestó cada uno.** Sin eso, «se probaron: a → b» dice a
+ * quién se preguntó pero no qué respondió ninguno, que es justo lo accionable:
+ * dos saturados se arreglan esperando, dos nombres retirados se arreglan
+ * editando el `.env`, y una mezcla de los dos —el caso real— no se parece a
+ * ninguna de las dos cosas.
+ */
+function resumirCadena(fallos: readonly Fallo[]): unknown {
+  const primero = fallos[0];
+  if (primero === undefined) return new ErrorDeModelo('no se llegó a probar ningún modelo');
+  // Con un solo modelo no hay cadena que resumir, y añadir corchetes a un error
+  // que ya se entiende solo es ruido.
+  if (fallos.length === 1 || !(primero.error instanceof ErrorDeModelo)) return primero.error;
+
+  const detalle = fallos.map((f) => `${f.modelo}: ${resumirFallo(f.error)}`).join('; ');
+  return new ErrorDeModelo(
+    `${primero.error.message} [se probaron ${fallos.length} modelos → ${detalle}]`,
+    primero.error.status,
+  );
+}
+
 export class OpenAiVisionEngine implements VisionEngine {
   readonly model: string;
 
+  private readonly cadena: readonly string[];
+
   constructor(private readonly options: VisionOptions) {
-    this.model = options.model;
+    this.cadena = [options.model, ...(options.modelosDeReserva ?? [])];
+    this.model = this.cadena.join(', ');
   }
 
   /**
@@ -159,8 +313,32 @@ export class OpenAiVisionEngine implements VisionEngine {
    * respuesta y qué hacer cuando llega vacía o sin JSON. Tenerlo en un sitio
    * evita que las dos lecturas se comporten distinto ante el mismo fallo del
    * proveedor, que es lo que pasa cuando una se corrige y la otra no.
+   *
+   * Recorre la cadena de modelos: el preferido primero y los de reserva después,
+   * solo si el fallo es de los que se arreglan cambiando de modelo.
    */
   private async preguntar(
+    imagen: string,
+    mimeType: string,
+    instruccion: string,
+  ): Promise<Lectura<unknown>> {
+    const fallos: Fallo[] = [];
+    for (const [i, modelo] of this.cadena.entries()) {
+      try {
+        return { datos: await this.preguntarA(modelo, imagen, mimeType, instruccion), modelo };
+      } catch (error) {
+        fallos.push({ modelo, error });
+        const quedan = i < this.cadena.length - 1;
+        if (!quedan || !mereceOtroModelo(error)) throw resumirCadena(fallos);
+      }
+    }
+    // Inalcanzable: la cadena nunca está vacía y el último intento o devuelve o
+    // lanza. Está por el comprobador de tipos, no por el flujo.
+    throw new ErrorDeModelo('no había ningún modelo de visión que probar');
+  }
+
+  private async preguntarA(
+    modelo: string,
     imagen: string,
     mimeType: string,
     instruccion: string,
@@ -171,8 +349,8 @@ export class OpenAiVisionEngine implements VisionEngine {
       url: `${baseUrl}/chat/completions`,
       headers: { authorization: `Bearer ${this.options.apiKey}` },
       body: {
-        model: this.options.model,
-        max_tokens: 4096,
+        model: modelo,
+        max_tokens: this.options.maxTokens ?? MAX_TOKENS_POR_DEFECTO,
         stream: false,
         messages: [
           {
@@ -206,7 +384,37 @@ export class OpenAiVisionEngine implements VisionEngine {
     // alta el razonamiento contiene versiones anteriores del JSON que el propio
     // modelo descartó; quedarse con la primera que parsee sería quedarse con la
     // que él mismo rechazó.
-    const raw = payload.choices?.[0]?.message?.content ?? '';
+    const eleccion = payload.choices?.[0];
+    const raw = eleccion?.message?.content ?? '';
+
+    /*
+      Mirar `finish_reason` **antes** de intentar parsear.
+
+      Es la diferencia entre un diagnóstico y una adivinanza. Una respuesta
+      cortada por el límite de tokens es un JSON sin cerrar, y al parsearlo sale
+      un error de sintaxis que señala una posición concreta del texto: parece que
+      el modelo escribió algo mal, cuando lo que pasó es que no le dejaron
+      terminar. Ese mensaje se ha llegado a leer como un fallo del programa.
+
+      `length` es la palabra que usan tanto OpenAI como el traductor de Google
+      para decir «me quedé sin presupuesto». Convertirla en una frase que nombra
+      la causa y la salida ahorra la tarde de depuración que costó descubrirla.
+
+      Se comprueba también con el contenido vacío, y ese caso es el peor de los
+      dos: un modelo que razona puede gastarse el presupuesto entero pensando y
+      devolver `content: ""` con `finish_reason: "length"`. Sin esta rama, eso
+      salía como «el modelo devolvió una respuesta vacía», que suena a avería del
+      proveedor y se arregla subiendo un número.
+    */
+    if (eleccion?.finish_reason === 'length') {
+      throw new ErrorDeModelo(
+        'la respuesta del modelo se cortó por el límite de tokens, así que llegó incompleta. ' +
+          'Suele pasar con diagramas de muchas clases, y con los modelos que razonan, porque el ' +
+          'razonamiento consume el mismo presupuesto que la respuesta. Prueba con una foto de ' +
+          'menos clases, o sube LLM_VISION_MAX_TOKENS en el .env del servidor.',
+      );
+    }
+
     if (!raw.trim()) throw new ErrorDeModelo('el modelo devolvió una respuesta vacía');
 
     try {
@@ -216,8 +424,8 @@ export class OpenAiVisionEngine implements VisionEngine {
     }
   }
 
-  async extraerTabla(imagen: string, mimeType: string): Promise<TablaExtraida> {
-    const json = await this.preguntar(imagen, mimeType, INSTRUCCION);
+  async extraerTabla(imagen: string, mimeType: string): Promise<Lectura<TablaExtraida>> {
+    const { datos: json, modelo } = await this.preguntar(imagen, mimeType, INSTRUCCION);
 
     // «No hay tabla aquí» es una respuesta correcta, no un fallo de formato.
     //
@@ -247,11 +455,11 @@ export class OpenAiVisionEngine implements VisionEngine {
       // que ve sin saber que falta la mitad.
       throw new ErrorDeModelo(`la respuesta del modelo no tiene la forma esperada: ${parsed.error}`);
     }
-    return parsed.value;
+    return { datos: parsed.value, modelo };
   }
 
-  async extraerDiagrama(imagen: string, mimeType: string): Promise<DiagramaExtraido> {
-    const json = await this.preguntar(imagen, mimeType, INSTRUCCION_DIAGRAMA);
+  async extraerDiagrama(imagen: string, mimeType: string): Promise<Lectura<DiagramaExtraido>> {
+    const { datos: json, modelo } = await this.preguntar(imagen, mimeType, INSTRUCCION_DIAGRAMA);
 
     const nadaQueLeer = describirDiagramaAusente(json);
     if (nadaQueLeer !== null) {
@@ -271,7 +479,7 @@ export class OpenAiVisionEngine implements VisionEngine {
       // genera un esquema sin las claves foráneas que faltan.
       throw new ErrorDeModelo(`la respuesta del modelo no tiene la forma esperada: ${parsed.error}`);
     }
-    return parsed.value;
+    return { datos: parsed.value, modelo };
   }
 }
 
@@ -294,6 +502,7 @@ export function createVisionEngine(config: {
   llmVisionModel?: string;
   llmVisionApiKey?: string;
   llmVisionBaseUrl?: string;
+  llmVisionMaxTokens?: number;
 }): VisionEngine | undefined {
   // `||` y no `??`: en un .env lo normal es dejar la variable escrita y vacía,
   // y `LLM_VISION_API_KEY=` llega como cadena vacía, no como `undefined`. Con
@@ -307,10 +516,21 @@ export function createVisionEngine(config: {
   const mismoProveedor = !config.llmVisionBaseUrl || config.llmVisionBaseUrl === config.llmBaseUrl;
   const apiKey = config.llmVisionApiKey || (mismoProveedor ? config.llmApiKey : undefined);
 
-  if (!apiKey || !config.llmVisionModel) return undefined;
+  // `LLM_VISION_MODEL` admite varios separados por comas: el primero es el
+  // preferido y los demás son la reserva, en orden. Un solo nombre —el caso
+  // normal— produce una cadena de uno y se comporta exactamente como antes.
+  const cadena = (config.llmVisionModel ?? '')
+    .split(',')
+    .map((nombre) => nombre.trim())
+    .filter((nombre) => nombre !== '');
+
+  const [preferido, ...reserva] = cadena;
+  if (!apiKey || !preferido) return undefined;
   return new OpenAiVisionEngine({
     apiKey,
-    model: config.llmVisionModel,
+    model: preferido,
+    modelosDeReserva: reserva,
     baseUrl: baseUrl || 'https://api.openai.com/v1',
+    maxTokens: config.llmVisionMaxTokens,
   });
 }

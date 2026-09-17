@@ -4,6 +4,7 @@ import { initializeEmpty, toKebabCase } from '@app/shared';
 import type { IdentityProvider } from '../auth/identity.js';
 import type { ProjectStore } from '../storage/store.js';
 import type { RoomManager } from '../collab/rooms.js';
+import type { TablonStore } from '../storage/tablon.js';
 import { badRequest, handler, notFound, parseBody, requireRole } from './http.js';
 
 /**
@@ -50,8 +51,9 @@ export function projectsRouter(deps: {
   store: ProjectStore;
   identity: IdentityProvider;
   rooms: RoomManager;
+  tablon: TablonStore;
 }): Router {
-  const { store, identity, rooms } = deps;
+  const { store, identity, rooms, tablon } = deps;
   const router = Router();
 
   router.get(
@@ -121,6 +123,12 @@ export function projectsRouter(deps: {
       // Se cierra la sala antes de borrar los metadatos: si quedara abierta,
       // seguiría guardando en disco un documento de un proyecto inexistente.
       await rooms.discard(projectId);
+      // El tablón va antes que los metadatos y de forma explícita. Con
+      // PostgreSQL bastaría el `on delete cascade`, pero con el almacén de
+      // fichero no hay cascada que valga: los mensajes y sus notas de voz
+      // quedarían en `datos/tablones/` para siempre, ocupando disco y
+      // conservando conversaciones de un proyecto que alguien pidió borrar.
+      await tablon.borrarProyecto(projectId);
       await store.deleteProject(projectId);
       response.status(204).end();
     }),

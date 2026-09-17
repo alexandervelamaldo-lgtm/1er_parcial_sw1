@@ -93,6 +93,15 @@ export interface Config {
   llmVisionApiKey?: string;
   llmVisionBaseUrl?: string;
   /**
+   * Techo de la respuesta del modelo de visión, en tokens.
+   *
+   * Se saca a variable porque el valor bueno depende del modelo y del diagrama,
+   * y el día que se quede corto conviene poder subirlo sin recompilar ni volver
+   * a desplegar. Ver `MAX_TOKENS_POR_DEFECTO` en `ai/vision.ts` para el porqué
+   * del valor y para qué aspecto tiene el fallo cuando este número es bajo.
+   */
+  llmVisionMaxTokens?: number;
+  /**
    * Tamaño máximo de una imagen para OCR, en bytes.
    *
    * No es solo memoria: la imagen viaja al modelo en base64, que la agranda un
@@ -263,6 +272,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     llmVisionModel: env.LLM_VISION_MODEL,
     llmVisionApiKey: env.LLM_VISION_API_KEY,
     llmVisionBaseUrl: env.LLM_VISION_BASE_URL,
+    // Sin variable se deja `undefined` en vez de poner aquí un número: así el
+    // valor por defecto vive en un solo sitio, junto a la explicación de por qué
+    // es ese, y no repetido en dos ficheros que se separarán con el tiempo.
+    llmVisionMaxTokens: env.LLM_VISION_MAX_TOKENS
+      ? intFromEnv('LLM_VISION_MAX_TOKENS', 0) || undefined
+      : undefined,
     maxImageBytes: intFromEnv('MAX_IMAGE_BYTES', 4 * 1024 * 1024),
     // Por defecto, `docs/` de la raíz del repositorio: se resuelve desde este
     // fichero y no desde `process.cwd()`, que cambia según desde dónde se

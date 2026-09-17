@@ -12,9 +12,12 @@ import {
   type RelationKind,
   type Visibility,
 } from '../model/uml.js';
+import { comprobarIntegridad, type ProblemaIntegridad } from '../model/comunicacion-integridad.js';
+import type { DiagramaComunicacionUml } from '../model/comunicacion-uml.js';
 import type { Operation } from '../ops/operations.js';
 import { esVerdadero, idDe, refDe, tipoUml, type AvisoXmi } from './comun.js';
 import { leerComunicacion, type ContextoComunicacion } from './comunicacion.js';
+import { leerDiagramasComunicacion } from './diagrama-comunicacion.js';
 import { EXTENDER } from './export.js';
 import { attr, descendientes, hijos, parseXml, type XmlNode } from './xml.js';
 
@@ -85,6 +88,31 @@ export interface ResultadoImportacionXmi {
   readonly ampliadas: string[];
   /** El fichero traía una interacción: objetos y mensajes. */
   readonly comunicacion: boolean;
+  /**
+   * Los diagramas de comunicación del fichero, enteros y sin traducir.
+   *
+   * Son lo mismo que `operaciones` mira por otro lado y no un sustituto: las
+   * operaciones añaden los métodos y las dependencias al diagrama de clases,
+   * que es la mitad útil de importar un diagrama de comunicación, y esto
+   * conserva el diagrama en sí, con su numeración, para guardarlo en el
+   * proyecto y dibujarlo. Se aplican los dos.
+   */
+  readonly diagramas: readonly DiagramaComunicacionUml[];
+  /**
+   * Lo que le falta o le sobra a esos diagramas.
+   *
+   * Va aparte de `avisos` porque cada uno responde a una pregunta distinta:
+   * `avisos` habla de la traducción a diagrama de clases —«este mensaje no da
+   * un nombre de método válido»— y esto habla del diagrama importado —«este
+   * mensaje apunta a un objeto que no existe». Mezclarlos dejaría una lista en
+   * la que no se distingue lo que se va a escribir de lo que se va a dibujar.
+   *
+   * Un `error` aquí **no** bloquea la importación: el diagrama de clases se
+   * puede aplicar igual, y bloquearlo por un mensaje colgante sería tirar lo
+   * que sí se pudo leer. Lo que hace es marcar ese diagrama concreto como
+   * incompleto.
+   */
+  readonly problemas: readonly ProblemaIntegridad[];
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +225,16 @@ function esSinRetorno(nodo: XmlNode): boolean {
   return nombre === 'void' || nombre.startsWith('eanone_');
 }
 
-export function leerXmi(texto: string, diagrama: ClassDiagram): ResultadoImportacionXmi {
+/**
+ * @param fuente Nombre del fichero, solo para poder decir de dónde salió cada
+ *   diagrama de comunicación en la interfaz. No se interpreta ni se usa para
+ *   nada más; en particular, el dialecto no se deduce de la extensión.
+ */
+export function leerXmi(
+  texto: string,
+  diagrama: ClassDiagram,
+  fuente = '',
+): ResultadoImportacionXmi {
   const vacio: ResumenXmi = {
     clases: 0,
     atributos: 0,
@@ -215,6 +252,8 @@ export function leerXmi(texto: string, diagrama: ClassDiagram): ResultadoImporta
     clases: [],
     ampliadas: [],
     comunicacion: false,
+    diagramas: [],
+    problemas: [],
   });
 
   const analisis = parseXml(texto);
@@ -503,11 +542,43 @@ export function leerXmi(texto: string, diagrama: ClassDiagram): ResultadoImporta
   operaciones.push(...comunicacion.operaciones);
   avisos.push(...comunicacion.avisos);
 
+  /*
+    El mismo fichero se lee dos veces y con dos propósitos distintos, que no se
+    pueden fundir en uno.
+
+    Lo de arriba **traduce**: convierte los mensajes en métodos del diagrama de
+    clases y los enlaces en dependencias. Es lo que hace que importar un
+    diagrama de comunicación sirva de algo aunque no se vaya a dibujar.
+
+    Lo de aquí **conserva**: devuelve el diagrama con sus objetos, sus flechas y
+    su numeración, para guardarlo en el proyecto como un documento más. No
+    produce ni una operación sobre el diagrama de clases.
+
+    Recorrer el árbol dos veces cuesta lo que cuesta —el documento ya está en
+    memoria y limitado a 200 000 nodos— y sale mucho más barato que un lector
+    único que hiciera las dos cosas: tendría que decidir, en cada mensaje que
+    no da un nombre de método válido, si eso invalida también la flecha. Y no
+    la invalida: un mensaje llamado «borrar(); DROP TABLE x» no se puede
+    convertir en método y sí se puede dibujar, con su etiqueta entera a la
+    vista, que además es como se ve lo que traía el fichero.
+  */
+  const lectura = leerDiagramasComunicacion(raiz, fuente);
+  const problemas: ProblemaIntegridad[] = [];
+  for (const importado of lectura.diagramas) {
+    problemas.push(...comprobarIntegridad(importado).problemas);
+  }
+  avisos.push(...lectura.avisos);
+
   // Ahora sí se puede decidir si el fichero traía algo. Un XMI de un diagrama de
   // comunicación no tiene por qué declarar ni una sola clase: las clases están
   // implícitas en los objetos, y rendirse antes de mirarlos era justo lo que
   // hacía que estos ficheros no se pudieran importar.
-  if (operaciones.length === 0) {
+  // Un fichero que no toca el diagrama de clases pero sí trae un diagrama de
+  // comunicación **sí** se importa. Es justo el caso del fixture real de
+  // Enterprise Architect —tres objetos y tres enlaces, ni un mensaje— y el de
+  // cualquier diagrama dibujado sobre objetos que ya están en el proyecto: no
+  // hay nada que añadir a las clases y hay un diagrama entero que guardar.
+  if (operaciones.length === 0 && lectura.diagramas.length === 0) {
     return fallo(
       'No se ha encontrado ninguna clase en el fichero, ni objetos con mensajes de los que ' +
         'deducirlas. ¿Seguro que es un XMI de un diagrama de clases o de comunicación?',
@@ -531,6 +602,8 @@ export function leerXmi(texto: string, diagrama: ClassDiagram): ResultadoImporta
     clases: [...clases.map((c) => c.nombre), ...comunicacion.clasesNuevas],
     ampliadas: comunicacion.ampliadas,
     comunicacion: comunicacion.hayInteraccion,
+    diagramas: lectura.diagramas,
+    problemas,
   };
 }
 

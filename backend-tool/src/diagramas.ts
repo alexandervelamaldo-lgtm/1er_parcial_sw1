@@ -30,7 +30,7 @@ import {
  *
  * ## Por qué revisa antes de escribir nada
  *
- * `revisarModelo` mira los catorce casos de una vez. Si algo está mal, la orden
+ * `revisarModelo` mira los diecinueve casos de una vez. Si algo está mal, la orden
  * no escribe ni un fichero y lista todos los problemas juntos. La alternativa
  * —escribir los que salgan y fallar en el séptimo— deja `docs/uml/` a medias, con
  * una mezcla de ficheros nuevos y viejos que no se distingue a simple vista.
@@ -60,8 +60,8 @@ function elegir(argumentos: readonly string[]): readonly CasoDeUso[] {
   );
 
   if (sueltos.length > 0) {
-    // Se para en vez de generar los que sí existen: quien escribe `CU15` cree que
-    // hay quince casos, y darle catorce ficheros sin decir nada le confirma la
+    // Se para en vez de generar los que sí existen: quien escribe `CU20` cree que
+    // hay veinte casos, y darle diecinueve ficheros sin decir nada le confirma la
     // idea equivocada.
     console.error(`No existe ningún caso de uso llamado ${sueltos.join(', ')}.`);
     console.error(`Los que hay: ${modeloDeCasosDeUso.casos.map((c) => c.id).join(', ')}.`);
@@ -98,7 +98,7 @@ function main(): void {
   // aquí y no a mano: si se mantuvieran por separado, el que se quedaría viejo
   // sería siempre el documento, porque los diagramas se miran en la defensa y el
   // documento no. Se reescribe entero aunque se haya pedido un solo caso: describe
-  // los catorce y quedarse a medias sería peor que no tocarlo.
+  // los diecinueve y quedarse a medias sería peor que no tocarlo.
   const documento = join(raiz, 'docs', '08-casos-de-uso.md');
   writeFileSync(documento, documentarCasosDeUso(modeloDeCasosDeUso), 'utf8');
   console.log('  docs/08-casos-de-uso.md  (catálogo completo, entra en la guía)');

@@ -99,6 +99,7 @@ describe('leer lo guardado', () => {
       'historial',
       'paleta',
       'propiedades',
+      'tablon',
     ]);
   });
 });

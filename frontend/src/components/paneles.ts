@@ -7,14 +7,22 @@
  * prueban sin montar un navegador. Aquí no se toca `localStorage` ni el DOM.
  */
 
-/** Los cuatro paneles acoplados, dos por columna. */
-export type Acoplado = 'arbol' | 'paleta' | 'propiedades' | 'historial';
+/** Los cinco paneles acoplados: dos a la izquierda y tres a la derecha. */
+export type Acoplado = 'arbol' | 'paleta' | 'propiedades' | 'historial' | 'tablon';
 
 export type Lado = 'izquierda' | 'derecha';
 
+/**
+ * El tablón va a la derecha, con el historial.
+ *
+ * Los dos contestan a «qué ha pasado aquí» —uno con los cambios y otro con lo
+ * que se dijo sobre ellos— mientras que la izquierda es con lo que se trabaja.
+ * Puestos en la misma columna se alternan en vez de competir por el ancho, y
+ * leer la discusión de un cambio no obliga a estrechar el lienzo.
+ */
 export const ACOPLADOS_POR_LADO: Record<Lado, readonly Acoplado[]> = {
   izquierda: ['arbol', 'paleta'],
-  derecha: ['propiedades', 'historial'],
+  derecha: ['propiedades', 'historial', 'tablon'],
 };
 
 export const TITULOS: Record<Acoplado, string> = {
@@ -22,6 +30,7 @@ export const TITULOS: Record<Acoplado, string> = {
   paleta: 'Paleta',
   propiedades: 'Propiedades',
   historial: 'Historial',
+  tablon: 'Comunicación',
 };
 
 export interface EstadoColumna {
@@ -64,7 +73,10 @@ export function disposicionInicial(estrecha: boolean): Disposicion {
   return {
     izquierda: { ancho: POR_DEFECTO.izquierda, plegada: estrecha },
     derecha: { ancho: POR_DEFECTO.derecha, plegada: estrecha },
-    abiertos: { arbol: true, paleta: true, propiedades: true, historial: false },
+    // El tablón empieza cerrado como el historial: se abre cuando hay algo que
+    // decir, y abierto de partida convertiría el editor en un chat con un
+    // diagrama al lado.
+    abiertos: { arbol: true, paleta: true, propiedades: true, historial: false, tablon: false },
   };
 }
 

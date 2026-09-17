@@ -2,11 +2,14 @@ import type {
   AvisoImportacion,
   ClassDiagram,
   DiagramaExtraido,
+  MensajePublico,
   Operation,
   OrigenCambio,
   RelationKind,
+  RespuestaTablon,
   TablaExtraida,
 } from '@app/shared';
+import { descargar, nombreDeFichero } from './descarga';
 
 /**
  * Cliente HTTP de la API.
@@ -153,6 +156,36 @@ async function pedir<T>(ruta: string, init: RequestInit = {}): Promise<T> {
   }
 
   return cuerpo as T;
+}
+
+/**
+ * Como `pedir`, pero para respuestas que no son JSON.
+ *
+ * El error sí que lo es —el backend contesta `{ error, code }` también cuando
+ * falla una descarga—, así que se intenta leer de ahí el mensaje antes de
+ * caer en un «Error 404» que no dice nada.
+ */
+async function pedirBinario(ruta: string): Promise<Blob> {
+  const cabeceras = new Headers({ Accept: '*/*' });
+  if (tokenActual) cabeceras.set('Authorization', `Bearer ${tokenActual}`);
+
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(`/api${ruta}`, { headers: cabeceras });
+  } catch {
+    throw new ApiError(0, 'No hay conexión con el servidor');
+  }
+
+  if (!respuesta.ok) {
+    const detalle = (await respuesta.json().catch(() => null)) as {
+      error?: string;
+      code?: string;
+    } | null;
+    if (respuesta.status === 401 && tokenActual) alPerderLaSesion?.();
+    throw new ApiError(respuesta.status, detalle?.error ?? `Error ${respuesta.status}`, detalle?.code);
+  }
+
+  return respuesta.blob();
 }
 
 // ---------------------------------------------------------------------------
@@ -354,6 +387,74 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ diagrama }),
     }),
+
+  // -------------------------------------------------------------------------
+  // Tablón del proyecto
+  // -------------------------------------------------------------------------
+
+  /**
+   * Los últimos mensajes del tablón. Es la primera carga al abrir el panel.
+   *
+   * El cursor que devuelve es el que hay que pasar a `sondearTablon`, y lo
+   * calcula el servidor: si lo dedujera el cliente del máximo recibido, una
+   * primera carga vacía lo dejaría en cero y el siguiente sondeo se traería el
+   * hilo entero otra vez.
+   */
+  leerTablon: (id: string) => pedir<RespuestaTablon>(`/proyectos/${id}/tablon`),
+
+  /**
+   * Lo que ha cambiado desde `desde`. Es la llamada que se repite cada pocos
+   * segundos, así que devuelve una página vacía casi siempre y no gasta cuota.
+   *
+   * Trae también los mensajes *retirados* después de ese punto, y por eso la
+   * retirada es un cambio de versión y no un borrado: a un cliente que sondea
+   * no se le puede contar una ausencia.
+   */
+  sondearTablon: (id: string, desde: number) =>
+    pedir<RespuestaTablon>(`/proyectos/${id}/tablon?desde=${String(desde)}`),
+
+  /** La página anterior, para cuando alguien sube a leer lo de antes. */
+  leerTablonAnterior: (id: string, antesDe: number) =>
+    pedir<RespuestaTablon>(`/proyectos/${id}/tablon?antesDe=${String(antesDe)}`),
+
+  publicarEnTablon: (id: string, texto: string) =>
+    pedir<{ mensaje: MensajePublico }>(`/proyectos/${id}/tablon`, {
+      method: 'POST',
+      body: JSON.stringify({ texto }),
+    }),
+
+  /**
+   * Sube una nota de voz. `audio` va en base64 sin el prefijo `data:`.
+   *
+   * La duración la mide el cliente porque el servidor tendría que descodificar
+   * el audio para averiguarla, y eso es un decodificador de formatos ajenos
+   * corriendo sobre bytes que manda cualquiera. Solo se usa para pintar la
+   * barra del reproductor; el límite que de verdad protege es el de bytes.
+   */
+  publicarVozEnTablon: (id: string, audio: string, tipo: string, duracionMs: number) =>
+    pedir<{ mensaje: MensajePublico }>(`/proyectos/${id}/tablon/voz`, {
+      method: 'POST',
+      body: JSON.stringify({ audio, tipo, duracionMs }),
+    }),
+
+  retirarDelTablon: (id: string, mensajeId: string) =>
+    pedir<{ mensaje: MensajePublico }>(`/proyectos/${id}/tablon/${mensajeId}`, {
+      method: 'DELETE',
+    }),
+
+  /**
+   * Descarga los bytes de una nota de voz.
+   *
+   * No devuelve una URL con el token en la consulta, que es el atajo evidente
+   * para poder escribirla directamente en el `src` de un `<audio>`. Esa URL
+   * acaba en el historial, en la caché del disco y en cualquier registro de
+   * accesos que haya delante, y ahí el token vale para todo, no solo para este
+   * audio. Se baja con la cabecera de siempre y el componente hace un
+   * `URL.createObjectURL` con lo que salga —y lo revoca al desmontarse, que si
+   * no cada nota reproducida se queda en memoria hasta recargar la página.
+   */
+  descargarAudioDelTablon: (id: string, mensajeId: string) =>
+    pedirBinario(`/proyectos/${id}/tablon/${mensajeId}/audio`),
 };
 
 export interface RelacionRevisada {
@@ -487,12 +588,21 @@ export interface OpcionesGeneracion {
  * pasarla por el mismo camino obligaría a que el ayudante genérico supiera de
  * `Blob`, de `Content-Disposition` y del aviso que el servidor manda en
  * `X-Avisos`, y todo eso solo lo necesita esta llamada.
+ *
+ * La entrega la hace `descarga.ts` y no un `<a download>` aquí mismo, porque
+ * dentro de la app Android ese enlace no hace nada: no hay `DownloadListener`,
+ * una `blob:` no la resuelve el `DownloadManager`, y este ZIP además sale de un
+ * POST con autorización, así que no hay ninguna URL que se le pueda dar. Ver la
+ * cabecera de `descarga.ts`.
+ *
+ * @returns los avisos del generador y dónde quedó el fichero —cadena vacía en
+ * un navegador, donde la carpeta la elige él y no lo cuenta—.
  */
 export async function descargarProyecto(
   id: string,
   nombreSugerido: string,
   opciones: OpcionesGeneracion = {},
-): Promise<{ avisos: number }> {
+): Promise<{ avisos: number; donde: string }> {
   const cabeceras = new Headers({ 'Content-Type': 'application/json' });
   if (tokenActual) cabeceras.set('Authorization', `Bearer ${tokenActual}`);
 
@@ -518,16 +628,18 @@ export async function descargarProyecto(
     );
   }
 
-  const blob = await respuesta.blob();
-  const url = URL.createObjectURL(blob);
-  const enlace = document.createElement('a');
-  enlace.href = url;
-  enlace.download = `${nombreSugerido || 'proyecto'}.zip`;
-  enlace.click();
-  // Sin revocar, el ZIP entero se queda en memoria hasta recargar la página.
-  URL.revokeObjectURL(url);
+  // Los avisos se leen antes de tocar el cuerpo: si la entrega falla lanzará, y
+  // entonces ya no habría ocasión de mirar las cabeceras.
+  const avisos = Number(respuesta.headers.get('X-Avisos') ?? 0);
+  const bytes = new Uint8Array(await respuesta.arrayBuffer());
 
-  return { avisos: Number(respuesta.headers.get('X-Avisos') ?? 0) };
+  const donde = await descargar(
+    nombreDeFichero(nombreSugerido || 'proyecto', '.zip'),
+    'application/zip',
+    bytes,
+  );
+
+  return { avisos, donde };
 }
 
 /** URL del canal colaborativo para un proyecto, con el token en la consulta. */

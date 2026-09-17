@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { LADO_TACTIL } from './components/barra-pulgar';
 
 /**
  * Los criterios de aspecto, comprobados en vez de prometidos.
@@ -252,7 +253,7 @@ describe('contraste AA en los dos temas', () => {
    Geometría: esquinas y sombras
    -------------------------------------------------------------------------- */
 
-describe('el redondeo sale de los dos tokens, no de números sueltos', () => {
+describe('el redondeo sale de los tokens, no de números sueltos', () => {
   /*
     Esta prueba cambió de intención, no de existencia.
 
@@ -263,19 +264,27 @@ describe('el redondeo sale de los dos tokens, no de números sueltos', () => {
     inservible.
 
     Lo que se conserva es lo que seguía teniendo valor: que el redondeo salga de
-    un token y no de un número escrito a mano. Con dos valores —`--radio` para
-    lo que flota y `--radio-ajustado` para lo que forma retícula— la decisión de
+    un token y no de un número escrito a mano. Con tres valores —`--radio` para
+    lo que flota, `--radio-ajustado` para lo que forma retícula y
+    `--radio-amplio` para la superficie donde la guía contesta— la decisión de
     cuál toca se sigue tomando una vez y en un sitio. Un `border-radius: 9px`
     suelto en una regla es justo lo que empieza a deshacer un sistema.
+
+    El tercero se añadió con la lectura automática de la guía, y es el caso que
+    conviene vigilar: un token nuevo por cada pantalla que quiere verse distinta
+    es la misma enfermedad que los números sueltos, solo que con nombre. Vale
+    porque su uso está acotado a una superficie y porque el porqué de su forma
+    está escrito en la hoja, no porque «quedaba mejor».
   */
   it('ningún radio suelto: todos salen de un token o son círculos', () => {
     const culpables: string[] = [];
     for (const [, valor] of CSS.matchAll(/border-radius:\s*([^;]+);/g)) {
       const v = (valor ?? '').trim();
       // `50%` es un círculo de verdad: el punto de presencia de cada
-      // participante y el avatar. No es una esquina redondeada.
+      // participante, el avatar y el disco de la guía. No es una esquina
+      // redondeada.
       if (v === '50%' || v === '0') continue;
-      if (v.includes('var(--radio)') || v.includes('var(--radio-ajustado)')) continue;
+      if (/var\(--radio(-ajustado|-amplio)?\)/.test(v)) continue;
       // Se siguen tolerando los radios de 1 y 2 px: son el matado de un pixel
       // en un borde, no una esquina de tarjeta, y no merecen un token.
       const px = /^(\d+(?:\.\d+)?)px$/.exec(v);
@@ -286,11 +295,11 @@ describe('el redondeo sale de los dos tokens, no de números sueltos', () => {
   });
 
   /*
-    Los dos tokens también tienen techo. Doce es el redondeo de una tarjeta;
+    Los tres tokens también tienen techo. Doce es el redondeo de una tarjeta;
     veinticuatro es el de una pastilla, y a partir de ahí los diálogos empiezan a
     parecer notificaciones de móvil.
   */
-  it('los dos tokens de radio se quedan donde se decidió', () => {
+  it('los tokens de radio se quedan donde se decidió', () => {
     const radio = /--radio:\s*(\d+)px/.exec(CSS);
     expect(radio?.[1], 'no se encontró --radio').toBeDefined();
     expect(Number.parseInt(radio?.[1] ?? '99', 10)).toBeLessThanOrEqual(12);
@@ -298,6 +307,15 @@ describe('el redondeo sale de los dos tokens, no de números sueltos', () => {
     const ajustado = /--radio-ajustado:\s*(\d+)px/.exec(CSS);
     expect(ajustado?.[1], 'no se encontró --radio-ajustado').toBeDefined();
     expect(Number.parseInt(ajustado?.[1] ?? '99', 10)).toBeLessThanOrEqual(8);
+
+    const amplio = /--radio-amplio:\s*(\d+)px/.exec(CSS);
+    expect(amplio?.[1], 'no se encontró --radio-amplio').toBeDefined();
+    expect(Number.parseInt(amplio?.[1] ?? '99', 10)).toBeLessThanOrEqual(24);
+    // Y por abajo: si alguien lo iguala a `--radio` deja de ser una decisión y
+    // pasa a ser un alias que nadie se atreve a borrar.
+    expect(Number.parseInt(amplio?.[1] ?? '0', 10)).toBeGreaterThan(
+      Number.parseInt(radio?.[1] ?? '99', 10),
+    );
   });
 });
 
@@ -330,9 +348,15 @@ describe('la sombra dice qué capa recibe el clic, no adorna', () => {
     '.guia__caja',
     '.boton-ayuda',
     '.acceso__tarjeta',
+    // La sexta es el recorrido de primer acceso, y entra por el mismo motivo
+    // que `.guia__caja`: está sobre el velo, en otra capa, y la sombra dice
+    // cuál de las dos superficies recibe el clic. Que la lista crezca de una en
+    // una y con el porqué escrito es lo que la mantiene siendo una lista y no
+    // un permiso general.
+    '.recorrido__caja',
   ];
 
-  it('solo llevan sombra las cinco superficies que están en otra capa', () => {
+  it('solo llevan sombra las superficies que están en otra capa', () => {
     const intrusos: string[] = [];
     for (const [, selector, cuerpo] of sinComentariosCss(CSS).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
       /*
@@ -598,10 +622,30 @@ const PICTOGRAMAS = [
   '🎤', '🔊', '🔇', '🔑', '🖼', '⤒', '▸', '▾', '⋯', '⏱', '📋', '📁', '🗑',
 ];
 
-function tsxDeComponentes(): string[] {
+/**
+ * Los ficheros de `components/` que pueden llevar texto o glifos a la pantalla.
+ *
+ * Miraba solo los `.tsx`, y eso dejaba fuera justo la mitad donde vive la
+ * microcopia de esta base de código. La convención de aquí es que cada pantalla
+ * son dos ficheros: un `.ts` sin DOM con las decisiones y sus textos, y un
+ * `.tsx` que solo dibuja. Un barrido que solo lee el que dibuja está mirando el
+ * fichero que *no* contiene las cadenas.
+ *
+ * Se comprobó al revisar el permiso de lector de la interfaz táctil:
+ * `movil-acciones.ts` llevaba «Tienes permiso de solo lectura…» y «Lo que
+ * dibujes ahora se guarda…» —una de ellas, «tienes permiso», está literalmente
+ * en la lista de abajo— y las dos pruebas pasaban en verde desde el día que se
+ * escribieron. Ese texto se lee en un botón apagado del cajón, que es donde más
+ * importa el tono, porque es el momento en que la aplicación dice que no.
+ *
+ * Los `.test.ts` se quedan fuera a propósito: citan las cadenas que vigilan, y
+ * una prueba que castiga a otra prueba por nombrar lo que comprueba solo enseña
+ * a comprobar menos.
+ */
+function fuentesDeComponentes(): string[] {
   const dir = join(AQUI, 'components');
   return readdirSync(dir)
-    .filter((f) => f.endsWith('.tsx') && !f.endsWith('.test.tsx'))
+    .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
     .map((f) => join(dir, f));
 }
 
@@ -625,7 +669,7 @@ function sinComentarios(fuente: string): string {
 }
 
 describe('ningún pictograma de fuente hace de control', () => {
-  for (const ruta of tsxDeComponentes()) {
+  for (const ruta of fuentesDeComponentes()) {
     const nombre = ruta.split(/[\\/]/).pop() ?? ruta;
     it(nombre, () => {
       const texto = sinComentarios(readFileSync(ruta, 'utf8'));
@@ -664,7 +708,7 @@ const TUTEOS = [
 ];
 
 describe('la microcopia no tutea', () => {
-  for (const ruta of tsxDeComponentes()) {
+  for (const ruta of fuentesDeComponentes()) {
     const nombre = ruta.split(/[\\/]/).pop() ?? ruta;
     it(nombre, () => {
       const texto = sinComentarios(readFileSync(ruta, 'utf8'));
@@ -814,5 +858,119 @@ describe('el lienzo no pide clases que la hoja no tenga', () => {
     const regla = /\.lienzo--flow\s*\{([^}]*)\}/.exec(sinComentariosCss(CSS))?.[1] ?? '';
     expect(regla, 'no se encontró la regla .lienzo--flow').not.toBe('');
     expect(regla, '.lienzo--flow sin height: React Flow mediría cero').toMatch(/height:/);
+  });
+});
+
+/* --------------------------------------------------------------------------
+   Objetivos táctiles
+   -------------------------------------------------------------------------- */
+
+/**
+ * El cuerpo de una regla, buscada por su selector exacto.
+ *
+ * El `(?![\w-])` del final es el mismo cuidado que en la prueba de las clases
+ * huérfanas: sin él, `.barra-estado__boton` casaría dentro de
+ * `.barra-estado__boton--ancho` y la prueba mediría una regla distinta de la
+ * que cree estar mirando.
+ */
+function cuerpoDeRegla(fuente: string, selector: string): string {
+  const escapado = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const encontrada = new RegExp(`${escapado}(?![\\w-])\\s*\\{([^}]*)\\}`).exec(fuente);
+  expect(encontrada, `no se encontró la regla ${selector}`).not.toBeNull();
+  return encontrada?.[1] ?? '';
+}
+
+/**
+ * Una medida en píxeles de una declaración.
+ *
+ * Se ancla en principio de línea o en `;` a propósito: `height:` a secas
+ * casaría también dentro de `min-height:`, y entonces la prueba leería un
+ * número que no es el que pide.
+ */
+function pixeles(cuerpo: string, propiedad: string, donde: string): number {
+  const m = new RegExp(`(?:^|;)\\s*${propiedad}:\\s*(-?\\d+)px`, 'm').exec(cuerpo);
+  expect(m, `${donde} no fija ${propiedad} en píxeles`).not.toBeNull();
+  return Number(m?.[1] ?? 0);
+}
+
+describe('nada que se toque con el dedo baja de LADO_TACTIL', () => {
+  /*
+    Esta es la prueba que justifica que `LADO_TACTIL` viva en TypeScript en vez
+    de ser un número escrito en la hoja y otro escrito en el código. Sin ella
+    son dos cifras independientes que coinciden hoy: la primera vez que alguien
+    ajuste el CSS «para que quepa mejor», la constante seguirá diciendo 44 y la
+    interfaz medirá 32, y las pruebas de `barra-pulgar.test.ts` seguirán en
+    verde porque comprueban la constante, no la pantalla.
+  */
+  const LIMPIO = sinComentariosCss(CSS);
+
+  /*
+    Todo lo que sigue vive dentro de `@media (pointer: coarse)`, así que se
+    busca a partir de ahí. Buscar en la hoja entera encontraría las reglas base
+    —el control de React Flow mide 26 px con un ratón, y así está bien— y la
+    prueba fallaría por lo que precisamente no hay que cambiar.
+  */
+  const GRUESO = LIMPIO.slice(LIMPIO.indexOf('@media (pointer: coarse)'));
+
+  it('la hoja tiene un bloque de puntero grueso', () => {
+    // Por ancho de pantalla no valdría: una tableta en horizontal es ancha y se
+    // toca con el dedo, y una ventana estrecha en un escritorio no.
+    expect(LIMPIO, 'no hay ningún @media (pointer: coarse) en la hoja').toContain(
+      '@media (pointer: coarse)',
+    );
+  });
+
+  it('los botones de la barra del pulgar', () => {
+    const regla = cuerpoDeRegla(LIMPIO, '.barra-pulgar__boton');
+    expect(pixeles(regla, 'min-height', '.barra-pulgar__boton')).toBeGreaterThanOrEqual(
+      LADO_TACTIL,
+    );
+  });
+
+  it('los controles de zoom de React Flow, que de fábrica vienen a 26', () => {
+    const regla = cuerpoDeRegla(GRUESO, '.react-flow__controls-button');
+    expect(pixeles(regla, 'width', 'los controles')).toBeGreaterThanOrEqual(LADO_TACTIL);
+    expect(pixeles(regla, 'height', 'los controles')).toBeGreaterThanOrEqual(LADO_TACTIL);
+  });
+
+  it('los botones del aumento de la barra de estado, que medían 20', () => {
+    const regla = cuerpoDeRegla(GRUESO, '.barra-estado__boton');
+    expect(pixeles(regla, 'min-width', 'el botón de aumento')).toBeGreaterThanOrEqual(LADO_TACTIL);
+    expect(pixeles(regla, 'height', 'el botón de aumento')).toBeGreaterThanOrEqual(LADO_TACTIL);
+  });
+
+  /*
+    El conector no crece: crece su zona sensible, en un `::after` que lo
+    desborda. Cambiar su caja lo movería de sitio, porque React Flow lo coloca
+    con desplazamientos calculados sobre su tamaño.
+
+    Se comprueba la suma y no el `inset` suelto, que es el número que de verdad
+    importa: si mañana el punto pasa de 8 a 10 px, el desbordamiento puede
+    bajar a 17 sin que nadie pierda nada.
+  */
+  it('la zona sensible del conector mientras se relaciona', () => {
+    const punto = pixeles(cuerpoDeRegla(LIMPIO, '.caja__conector'), 'width', 'el conector');
+    const desborde = pixeles(
+      cuerpoDeRegla(GRUESO, '.lienzo--relacionando .caja__conector::after'),
+      'inset',
+      'el desbordamiento del conector',
+    );
+    expect(desborde, 'el inset tiene que ser negativo para agrandar, no para encoger').toBeLessThan(
+      0,
+    );
+    expect(punto + 2 * Math.abs(desborde)).toBeGreaterThanOrEqual(LADO_TACTIL);
+  });
+
+  /*
+    Y lo que no es un tamaño pero mata igual el objetivo: con navegación por
+    gestos, la barrita de inicio del sistema se superpone al canto inferior. Una
+    barra pegada abajo sin este hueco se ve entera y no responde en su tercio de
+    abajo, que es justo por donde la alcanza un pulgar que sube desde el borde.
+  */
+  it('la barra del pulgar reserva el hueco de la barra del sistema', () => {
+    const regla = cuerpoDeRegla(LIMPIO, '.barra-pulgar');
+    expect(regla, '.barra-pulgar sin env(safe-area-inset-bottom)').toContain(
+      'env(safe-area-inset-bottom)',
+    );
   });
 });

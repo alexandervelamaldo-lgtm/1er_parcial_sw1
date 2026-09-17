@@ -22,6 +22,8 @@ import {
   type Operation,
 } from '@app/shared';
 import { aBase64, api, deBase64, getToken, urlColaboracion } from '../services/api';
+import { useReconexion } from './useReconexion';
+import { useRespaldo } from './useRespaldo';
 
 /**
  * El diagrama, tal y como lo ve la interfaz.
@@ -58,6 +60,18 @@ export interface EstadoDiagrama {
   sincronizado: boolean;
   /** El documento, para quien necesite el objeto Yjs (presencia, deshacer). */
   doc: Y.Doc;
+  /**
+   * Sube uno en cada actualización del documento, venga de donde venga.
+   *
+   * Es para lo que **no** está en `diagrama`. Aquel es el diagrama de clases y
+   * es lo que casi todo el mundo mira, pero el documento guarda más cosas —los
+   * diagramas de comunicación importados, sin ir más lejos— y quien las lea con
+   * `useMemo` necesita algo que cambie para volver a leerlas. Un `Y.Doc` es
+   * siempre el mismo objeto: mutarlo no dispara ningún repintado por sí solo, y
+   * sin este contador un diagrama importado por otro colaborador no aparecería
+   * hasta que alguien tocase una clase.
+   */
+  version: number;
   /** `null` hasta que la conexión se abre por primera vez. */
   provider: CollabProvider | null;
   /**
@@ -94,6 +108,7 @@ export function useDiagrama(proyectoId: string, autor: Autor | null = null): Est
   // que hubiera sin guardar.
   const [doc] = useState(() => new Y.Doc());
   const [diagrama, setDiagrama] = useState<ClassDiagram>(() => readDiagram(doc));
+  const [version, setVersion] = useState(0);
   const [historial, setHistorial] = useState<EntradaLeida[]>([]);
   const [conexion, setConexion] = useState<EstadoConexion>('conectando');
   const [detalleConexion, setDetalleConexion] = useState<string | undefined>(undefined);
@@ -120,6 +135,21 @@ export function useDiagrama(proyectoId: string, autor: Autor | null = null): Est
     };
   }, [doc, proyectoId]);
 
+  /*
+    Y una copia fuera del navegador, para cuando el almacén de arriba no está.
+
+    No es redundancia: dentro del WebView de Android, el IndexedDB es
+    almacenamiento desechable y **no hay forma de pedir que deje de serlo**
+    —`navigator.storage.persist()` no se concede ahí—, así que el sistema puede
+    desalojarlo cuando le falte sitio. Y basta con que el APK cambie de URL para
+    que el origen sea otro y el almacén aparezca vacío sin que nadie haya
+    borrado nada. Lo que se juega es lo editado sin conexión, que es lo único
+    que no tiene copia en el servidor. El detalle está en `respaldo.ts`.
+
+    Fuera de la app esto no hace nada: si no hay puente, no hay canal.
+  */
+  useRespaldo({ doc, proyectoId, conexion, sincronizado, listoLocal });
+
   // -------------------------------------------------------------------------
   // Repintado
   // -------------------------------------------------------------------------
@@ -130,7 +160,10 @@ export function useDiagrama(proyectoId: string, autor: Autor | null = null): Est
     // tamaños que maneja un diagrama de clases —decenas de clases, no miles—
     // cuesta menos que mantener sincronizadas dos representaciones del mismo
     // estado, que es la clase de duplicidad que acaba divergiendo.
-    const alCambiar = (): void => setDiagrama(readDiagram(doc));
+    const alCambiar = (): void => {
+      setDiagrama(readDiagram(doc));
+      setVersion((n) => n + 1);
+    };
     doc.on('update', alCambiar);
     alCambiar();
     return () => doc.off('update', alCambiar);
@@ -248,6 +281,17 @@ export function useDiagrama(proyectoId: string, autor: Autor | null = null): Est
     };
   }, [doc, proyectoId]);
 
+  /*
+    Y volver en sí cuando el aparato vuelve en sí.
+
+    Va aquí, en el hook, y no en las pantallas: el fallo que cubre —el socket
+    que Android mató sin avisar mientras la pantalla estaba bloqueada— no es de
+    la interfaz táctil, es de cualquiera que se ejecute en un teléfono. Ponerlo
+    en `PantallaMovil` habría dejado al escritorio con el mismo agujero el día
+    que alguien abra el editor grande en una tableta.
+  */
+  useReconexion(provider);
+
   // -------------------------------------------------------------------------
   // Reconciliación por HTTP
   // -------------------------------------------------------------------------
@@ -353,6 +397,7 @@ export function useDiagrama(proyectoId: string, autor: Autor | null = null): Est
     listoLocal,
     sincronizado,
     doc,
+    version,
     provider,
     aplicar,
     deshacer,

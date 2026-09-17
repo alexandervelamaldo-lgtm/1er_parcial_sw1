@@ -9,7 +9,7 @@ import {
 import { CORPUS, minimoDiagram, rrhhDiagram, tiendaDiagram } from './fixtures/corpus.js';
 import { normalize } from './ir/normalize.js';
 import { buildEntityView, generateProject } from './render/generate.js';
-import { validateDiagram } from './validation/validate.js';
+import { validateDiagram } from '@app/shared';
 import { generate } from './index.js';
 import type { GeneratedFile } from './ir/types.js';
 

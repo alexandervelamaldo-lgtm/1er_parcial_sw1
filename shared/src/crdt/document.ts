@@ -52,6 +52,17 @@ const CLASSES = 'diagrama.clases';
 const RELATIONS = 'diagrama.relaciones';
 const MODULES = 'diagrama.modulos';
 const META = 'diagrama.meta';
+/**
+ * Los diagramas de comunicación importados de un XMI.
+ *
+ * El nombre se declara aquí, con los otros cuatro, aunque lo que se guarda
+ * dentro lo escriba `comunicaciones.ts`. Es a propósito: la única forma de
+ * garantizar que dos tipos raíz no chocan es tener la lista entera delante, y
+ * una clave repetida haría que dos estructuras distintas se escribieran sobre
+ * el mismo objeto Yjs, que es un fallo que no se ve hasta que el documento ya
+ * está corrupto en el disco de todos.
+ */
+const COMMUNICATIONS = 'diagrama.comunicaciones';
 
 export function getClassesMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap(CLASSES);
@@ -76,6 +87,20 @@ export function getModulesMap(doc: Y.Doc): Y.Map<unknown> {
 
 export function getMetaMap(doc: Y.Doc): Y.Map<unknown> {
   return doc.getMap(META);
+}
+
+/**
+ * Los diagramas de comunicación importados, indexados por su `xmi:id`.
+ *
+ * Vale la misma regla que para los módulos, y por el mismo motivo: un proyecto
+ * guardado antes de que esto existiera no tiene la clave y no la necesita.
+ * `getMap` sobre un tipo raíz que no existe devuelve uno vacío sin escribir
+ * nada, así que los documentos que ya están en disco y en PostgreSQL se abren
+ * sin migración y sin tocar el `DocumentStore`, que guarda el documento entero
+ * como un blob opaco y no interpreta su contenido.
+ */
+export function getCommunicationsMap(doc: Y.Doc): Y.Map<unknown> {
+  return doc.getMap(COMMUNICATIONS);
 }
 
 // ---------------------------------------------------------------------------

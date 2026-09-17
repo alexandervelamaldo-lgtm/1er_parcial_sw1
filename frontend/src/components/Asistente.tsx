@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type Aplicar,
   describeBatchImpact,
@@ -8,6 +8,7 @@ import {
   type Operation,
 } from '@app/shared';
 import { ApiError, api } from '../services/api';
+import { puntuarPorVocabulario } from '../services/dictado';
 import { dictadoDisponible, dictar, motivoSinVoz, type SesionDictado } from '../services/voz';
 import { nombreDeshacer, useTecladoFisico } from '../hooks/useDispositivo';
 import { Icono } from './iconos';
@@ -38,6 +39,19 @@ export interface AsistenteProps {
   /** Se necesita para calcular qué se pierde antes de confirmar un borrado. */
   diagrama: ClassDiagram;
   aplicar: Aplicar;
+  /**
+   * Empezar a escuchar nada más aparecer.
+   *
+   * Lo usa el móvil, donde esto no se abre desde un panel que ya estaba en
+   * pantalla sino desde un botón de micrófono: quien lo pulsa ya ha dicho que
+   * quiere dictar, y hacerle buscar otro micrófono dentro del panel que acaba de
+   * abrir con un micrófono es pedirle el mismo gesto dos veces.
+   *
+   * En el escritorio no se usa: allí el asistente está siempre visible, y un
+   * panel que se pone a escuchar solo por estar en pantalla sería un micrófono
+   * abierto que nadie pidió.
+   */
+  dictarAlAbrir?: boolean;
 }
 
 export function Asistente({
@@ -45,6 +59,7 @@ export function Asistente({
   soloLectura,
   diagrama,
   aplicar,
+  dictarAlAbrir = false,
 }: AsistenteProps): JSX.Element {
   const [texto, setTexto] = useState('');
   const [propuestas, setPropuestas] = useState<Propuesta[]>([]);
@@ -108,6 +123,28 @@ export function Asistente({
     [proyectoId],
   );
 
+  /**
+   * De lo que el micrófono creyó oír, qué se parece más a una orden.
+   *
+   * El motor de voz devuelve varias hipótesis de la misma frase ordenadas por
+   * parecido acústico, y «crea la plaza pedido» y «crea la clase pedido» suenan
+   * casi igual para él. Aquí hay algo que él no tiene: una gramática que puede
+   * intentar interpretar cada una. Que una hipótesis se convierta en operaciones
+   * es la mejor prueba posible de que es la que se dijo, así que pesa mucho más
+   * que el vocabulario suelto, que es lo único que queda cuando ninguna encaja
+   * —el caso de las órdenes que solo entiende el modelo del servidor—.
+   *
+   * Se interpreta para elegir y se tira el resultado: la propuesta que se enseña
+   * sale del camino normal, que empieza por el servidor. Hacerlo aquí sería
+   * colarse por delante de él con la gramática, justo lo que el orden de
+   * `interpretar` evita.
+   */
+  const puntuarOrden = useCallback((oida: string): number => {
+    const local = interpretCommand(oida);
+    if (local.operations.length > 0) return 10 + local.confidence;
+    return puntuarPorVocabulario(oida);
+  }, []);
+
   const alternarMicrofono = useCallback((): void => {
     if (escuchando) {
       dictadoRef.current?.detener();
@@ -116,6 +153,7 @@ export function Asistente({
     setMensaje(null);
     setEscuchando(true);
     dictadoRef.current = dictar({
+      puntuar: puntuarOrden,
       onParcial: (parcial) => setTexto(parcial),
       onFinal: (final) => {
         setTexto(final);
@@ -131,7 +169,25 @@ export function Asistente({
       onFin: () => setEscuchando(false),
     });
     if (!dictadoRef.current) setEscuchando(false);
-  }, [escuchando, interpretar]);
+  }, [escuchando, interpretar, puntuarOrden]);
+
+  /*
+    Arrancar escuchando, si quien nos puso aquí lo pidió.
+
+    El pestillo es lo que impide que un repintado vuelva a abrir el micrófono
+    después de que el usuario lo haya cerrado: `alternarMicrofono` cambia con
+    cada render que cambie `interpretar`, y sin el pestillo este efecto se
+    volvería a disparar en mitad de la sesión.
+
+    No se hace si no se puede escribir: sería abrir el micrófono para acabar en
+    una propuesta que no se puede aplicar.
+  */
+  const yaArrancado = useRef(false);
+  useEffect(() => {
+    if (!dictarAlAbrir || yaArrancado.current || soloLectura || !hayDictado) return;
+    yaArrancado.current = true;
+    alternarMicrofono();
+  }, [dictarAlAbrir, soloLectura, hayDictado, alternarMicrofono]);
 
   /**
    * Qué se pierde si se acepta la propuesta (RF-IA-05).
@@ -225,7 +281,13 @@ export function Asistente({
             <span className="asistente__onda-barra" />
             <span className="asistente__onda-barra" />
           </span>
-          <span className="asistente__escuchando-texto">Escuchando audio… Hable para dictar la orden</span>
+          {/* Se dice que las pausas no cortan, porque antes sí lo hacían y quien
+              ya se llevó ese chasco habla deprisa y atropellado para llegar antes
+              del corte. Y se dice cómo terminar: con el dictado continuo, el
+              botón es lo que cierra la frase. */}
+          <span className="asistente__escuchando-texto">
+            Escuchando… Se puede pensar a mitad de la frase. Al terminar, pulse el micrófono.
+          </span>
         </div>
       )}
 

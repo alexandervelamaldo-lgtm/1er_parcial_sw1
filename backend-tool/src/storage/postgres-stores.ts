@@ -15,12 +15,25 @@ import {
   type StoredUser,
   type UserProfile,
 } from '../auth/identity.js';
+import {
+  MAXIMO_MENSAJES_POR_PROYECTO,
+  ordenarHilo,
+  type Mensaje,
+  type TipoAudio,
+} from '@app/shared';
 import type { Membership, Project, ProjectStore, Role } from './store.js';
 import type { DocumentStore } from './documents.js';
+import type {
+  PaginaTablon,
+  PublicacionTexto,
+  PublicacionVoz,
+  TablonStore,
+} from './tablon.js';
 import {
   aIso,
   enTransaccion,
   esViolacionDeUnicidad,
+  type ClientePostgres,
   type PoolPostgres,
 } from './postgres.js';
 
@@ -430,5 +443,294 @@ export class PostgresDocumentStore implements DocumentStore {
 
   async close(): Promise<void> {
     if (this.cierraElPool) await this.pool.end();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tablón
+// ---------------------------------------------------------------------------
+
+interface FilaMensaje {
+  id: string;
+  proyecto_id: string;
+  autor_id: string;
+  secuencia: string | number;
+  version: string | number;
+  creado_en: Date | string;
+  tipo: 'texto' | 'voz';
+  texto: string;
+  audio_tipo: TipoAudio | null;
+  audio_bytes: number | null;
+  audio_ms: number | null;
+  retirado: boolean;
+}
+
+/**
+ * `bigint` llega como cadena.
+ *
+ * El driver de PostgreSQL no convierte `bigint` a `number` por su cuenta,
+ * porque no todos los `bigint` caben en un `number`. Los nuestros sí —haría
+ * falta que un proyecto pasara de nueve mil billones de mensajes— pero la
+ * conversión hay que hacerla igual: sin ella, `secuencia` sería la cadena
+ * `'10'`, y `'10' < '9'` es cierto. El hilo se ordenaría alfabéticamente y
+ * nadie entendería por qué.
+ */
+function aNumero(valor: string | number): number {
+  return typeof valor === 'number' ? valor : Number.parseInt(valor, 10);
+}
+
+function aMensaje(fila: FilaMensaje): Mensaje {
+  return {
+    id: fila.id,
+    proyectoId: fila.proyecto_id,
+    autorId: fila.autor_id,
+    secuencia: aNumero(fila.secuencia),
+    version: aNumero(fila.version),
+    creadoEn: aIso(fila.creado_en),
+    tipo: fila.tipo,
+    texto: fila.texto,
+    audio:
+      fila.audio_tipo && fila.audio_bytes !== null
+        ? {
+            tipo: fila.audio_tipo,
+            bytes: fila.audio_bytes,
+            duracionMs: fila.audio_ms ?? 0,
+          }
+        : null,
+    retirado: fila.retirado,
+  };
+}
+
+const COLUMNAS_MENSAJE =
+  'id, proyecto_id, autor_id, secuencia, version, creado_en, tipo, texto, ' +
+  'audio_tipo, audio_bytes, audio_ms, retirado';
+
+/**
+ * El tablón en PostgreSQL.
+ *
+ * Las tres lecturas son las mismas tres del almacén de fichero y cada una usa
+ * uno de los dos índices: `ultimos` y `anterioresA` van por `secuencia`,
+ * `cambiosDesde` por `version`.
+ *
+ * Las escrituras van en transacción porque cada una toca dos o tres tablas
+ * —contador, mensaje y, si es voz, audio— y dejarlas a medias produce
+ * exactamente los estados que el resto del código da por imposibles: un
+ * contador gastado sin mensaje, o una nota de voz sin bytes que reproducir.
+ */
+export class PostgresTablonStore implements TablonStore {
+  constructor(private readonly pool: PoolPostgres) {}
+
+  /**
+   * Reserva el siguiente número del proyecto.
+   *
+   * Una sola sentencia, dentro de la transacción de quien llama. Con un
+   * `select max(version) + 1` habría una ventana entre la lectura y la
+   * inserción por la que dos mensajes simultáneos se llevarían el mismo
+   * número; aquí el bloqueo de fila lo pone PostgreSQL.
+   */
+  private async siguiente(cliente: ClientePostgres, proyectoId: string): Promise<number> {
+    const { rows } = await cliente.query<{ contador: string | number }>(
+      `insert into tablon_contadores (proyecto_id, contador) values ($1, 1)
+       on conflict (proyecto_id) do update set contador = tablon_contadores.contador + 1
+       returning contador`,
+      [proyectoId],
+    );
+    return aNumero(rows[0]!.contador);
+  }
+
+  /**
+   * Borra los mensajes que sobran del tope, con sus audios por cascada.
+   *
+   * Se ejecuta dentro de la misma transacción que la publicación: si el
+   * recorte fallara aparte, el hilo crecería en silencio y el problema
+   * aparecería como un disco lleno meses después.
+   */
+  private async recortar(cliente: ClientePostgres, proyectoId: string): Promise<void> {
+    await cliente.query(
+      `delete from tablon_mensajes
+        where proyecto_id = $1
+          and secuencia <= coalesce((
+            select secuencia from tablon_mensajes
+             where proyecto_id = $1
+             order by secuencia desc
+             offset $2 limit 1
+          ), -1)`,
+      [proyectoId, MAXIMO_MENSAJES_POR_PROYECTO],
+    );
+  }
+
+  async publicarTexto(entrada: PublicacionTexto): Promise<Mensaje> {
+    return enTransaccion(this.pool, async (cliente) => {
+      const n = await this.siguiente(cliente, entrada.proyectoId);
+      const { rows } = await cliente.query<FilaMensaje>(
+        `insert into tablon_mensajes
+           (id, proyecto_id, autor_id, secuencia, version, tipo, texto, retirado)
+         values ($1, $2, $3, $4, $4, 'texto', $5, false)
+         returning ${COLUMNAS_MENSAJE}`,
+        [randomUUID(), entrada.proyectoId, entrada.autorId, n, entrada.texto],
+      );
+      await this.recortar(cliente, entrada.proyectoId);
+      return aMensaje(rows[0]!);
+    });
+  }
+
+  async publicarVoz(entrada: PublicacionVoz): Promise<Mensaje> {
+    return enTransaccion(this.pool, async (cliente) => {
+      const n = await this.siguiente(cliente, entrada.proyectoId);
+      const id = randomUUID();
+      const { rows } = await cliente.query<FilaMensaje>(
+        `insert into tablon_mensajes
+           (id, proyecto_id, autor_id, secuencia, version, tipo, texto,
+            audio_tipo, audio_bytes, audio_ms, retirado)
+         values ($1, $2, $3, $4, $4, 'voz', '', $5, $6, $7, false)
+         returning ${COLUMNAS_MENSAJE}`,
+        [
+          id,
+          entrada.proyectoId,
+          entrada.autorId,
+          n,
+          entrada.tipo,
+          entrada.audio.byteLength,
+          entrada.duracionMs,
+        ],
+      );
+      await cliente.query('insert into tablon_audios (mensaje_id, datos) values ($1, $2)', [
+        id,
+        Buffer.from(entrada.audio),
+      ]);
+      await this.recortar(cliente, entrada.proyectoId);
+      return aMensaje(rows[0]!);
+    });
+  }
+
+  async ultimos(proyectoId: string, limite: number): Promise<PaginaTablon> {
+    // Se piden uno más de los que caben: si vuelve, es que hay más. Contar con
+    // un `count(*)` aparte costaría una segunda consulta para saber lo mismo.
+    const { rows } = await this.pool.query<FilaMensaje>(
+      `select ${COLUMNAS_MENSAJE} from tablon_mensajes
+        where proyecto_id = $1 order by secuencia desc limit $2`,
+      [proyectoId, limite + 1],
+    );
+    return this.pagina(proyectoId, rows, limite, (ms) => ordenarHilo(ms));
+  }
+
+  async cambiosDesde(proyectoId: string, desde: number, limite: number): Promise<PaginaTablon> {
+    const { rows } = await this.pool.query<FilaMensaje>(
+      `select ${COLUMNAS_MENSAJE} from tablon_mensajes
+        where proyecto_id = $1 and version > $2 order by version asc limit $3`,
+      [proyectoId, desde, limite + 1],
+    );
+
+    const hayMas = rows.length > limite;
+    const mensajes = rows.slice(0, limite).map(aMensaje);
+    return {
+      mensajes: ordenarHilo(mensajes),
+      // Truncada: el cursor se queda en el último entregado por versión —que no
+      // es el último de la lista ya reordenada por secuencia— para que el
+      // siguiente sondeo continúe justo donde se cortó.
+      cursor: hayMas
+        ? aNumero(rows[limite - 1]!.version)
+        : await this.contador(proyectoId),
+      hayMas,
+    };
+  }
+
+  async anterioresA(proyectoId: string, secuencia: number, limite: number): Promise<PaginaTablon> {
+    const { rows } = await this.pool.query<FilaMensaje>(
+      `select ${COLUMNAS_MENSAJE} from tablon_mensajes
+        where proyecto_id = $1 and secuencia < $2 order by secuencia desc limit $3`,
+      [proyectoId, secuencia, limite + 1],
+    );
+    return this.pagina(proyectoId, rows, limite, (ms) => ordenarHilo(ms));
+  }
+
+  /** Lo común de `ultimos` y `anterioresA`: las dos piden en orden inverso. */
+  private async pagina(
+    proyectoId: string,
+    filas: FilaMensaje[],
+    limite: number,
+    ordenar: (mensajes: Mensaje[]) => Mensaje[],
+  ): Promise<PaginaTablon> {
+    const hayMas = filas.length > limite;
+    return {
+      mensajes: ordenar(filas.slice(0, limite).map(aMensaje)),
+      cursor: await this.contador(proyectoId),
+      hayMas,
+    };
+  }
+
+  /**
+   * Se lee del contador y no de `max(version)`: si el último mensaje acaba de
+   * ser podado por el tope, su versión ya no está en la tabla y el cursor
+   * retrocedería, haciendo que el cliente volviera a recibir lo que ya tenía.
+   */
+  private async contador(proyectoId: string): Promise<number> {
+    const { rows } = await this.pool.query<{ contador: string | number }>(
+      'select contador from tablon_contadores where proyecto_id = $1',
+      [proyectoId],
+    );
+    return rows[0] ? aNumero(rows[0].contador) : 0;
+  }
+
+  async obtener(proyectoId: string, mensajeId: string): Promise<Mensaje | null> {
+    if (!ES_UUID.test(mensajeId)) return null;
+    const { rows } = await this.pool.query<FilaMensaje>(
+      `select ${COLUMNAS_MENSAJE} from tablon_mensajes where proyecto_id = $1 and id = $2`,
+      [proyectoId, mensajeId],
+    );
+    return rows[0] ? aMensaje(rows[0]) : null;
+  }
+
+  async leerAudio(proyectoId: string, mensajeId: string): Promise<Uint8Array | null> {
+    if (!ES_UUID.test(mensajeId)) return null;
+    // El `join` contra el mensaje no es decorativo: sin él, conocer el
+    // identificador de un audio bastaría para descargarlo desde cualquier
+    // proyecto, y la comprobación de permiso de la ruta miraría un proyecto
+    // que no es el del mensaje.
+    const { rows } = await this.pool.query<{ datos: Buffer }>(
+      `select a.datos from tablon_audios a
+         join tablon_mensajes m on m.id = a.mensaje_id
+        where m.proyecto_id = $1 and m.id = $2 and m.retirado = false`,
+      [proyectoId, mensajeId],
+    );
+    return rows[0] ? new Uint8Array(rows[0].datos) : null;
+  }
+
+  async retirar(proyectoId: string, mensajeId: string): Promise<Mensaje | null> {
+    if (!ES_UUID.test(mensajeId)) return null;
+    return enTransaccion(this.pool, async (cliente) => {
+      const actual = await cliente.query<FilaMensaje>(
+        `select ${COLUMNAS_MENSAJE} from tablon_mensajes
+          where proyecto_id = $1 and id = $2 for update`,
+        [proyectoId, mensajeId],
+      );
+      const fila = actual.rows[0];
+      if (!fila) return null;
+      if (fila.retirado) return aMensaje(fila);
+
+      const n = await this.siguiente(cliente, proyectoId);
+      const { rows } = await cliente.query<FilaMensaje>(
+        `update tablon_mensajes
+            set texto = '', audio_tipo = null, audio_bytes = null, audio_ms = null,
+                retirado = true, version = $3
+          where proyecto_id = $1 and id = $2
+          returning ${COLUMNAS_MENSAJE}`,
+        [proyectoId, mensajeId, n],
+      );
+      // Los bytes se van de verdad. La fila sobrevive como lápida para que el
+      // sondeo pueda contar que el mensaje ya no está; el audio no tiene por
+      // qué sobrevivir a nada.
+      await cliente.query('delete from tablon_audios where mensaje_id = $1', [mensajeId]);
+      return aMensaje(rows[0]!);
+    });
+  }
+
+  async borrarProyecto(proyectoId: string): Promise<void> {
+    // Las dos tablas cuelgan de `proyectos` con `on delete cascade`, así que
+    // borrar el proyecto ya se las lleva. Esto existe para el caso en que se
+    // vacíe el tablón sin borrar el proyecto, y para que la interfaz signifique
+    // lo mismo en las dos implementaciones.
+    await this.pool.query('delete from tablon_mensajes where proyecto_id = $1', [proyectoId]);
+    await this.pool.query('delete from tablon_contadores where proyecto_id = $1', [proyectoId]);
   }
 }

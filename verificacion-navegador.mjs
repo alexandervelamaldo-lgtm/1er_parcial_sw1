@@ -1,4 +1,4 @@
-/**
+l/**
  * Verificación en navegadores reales de la edición colaborativa.
  *
  * Lanza dos instancias de Chrome independientes —perfiles distintos, IndexedDB

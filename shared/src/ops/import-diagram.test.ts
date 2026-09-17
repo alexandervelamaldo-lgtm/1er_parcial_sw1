@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import { initializeEmpty, readDiagram } from '../crdt/document.js';
 import { applyOperations } from '../crdt/operations.js';
-import type { ClassDiagram } from '../model/uml.js';
+import { llevaCardinalidad, type ClassDiagram } from '../model/uml.js';
 import { isDestructiveOperation } from './operations.js';
 import {
   interpretarDiagramaExtraido,
   parseDiagramaExtraido,
+  sugerirCardinalidades,
+  type ClaseExtraida,
   type DiagramaExtraido,
+  type RelacionExtraida,
 } from './import-diagram.js';
 
 /**
@@ -49,6 +52,26 @@ function extraido(overrides: Partial<DiagramaExtraido> = {}): DiagramaExtraido {
 }
 
 /**
+ * Una clase leída de la foto, con todo lo que no interesa a la prueba ya puesto.
+ *
+ * Existe por una asimetría de Zod que muerde en cuanto el esquema crece: un
+ * campo con `.default([])` es opcional al *entrar* y obligatorio al *salir*, y
+ * estas pruebas construyen el tipo de salida a mano. El día que se añadió
+ * `metodos` aparecieron dieciséis errores de tipos idénticos, todos en pruebas
+ * que no hablaban de métodos. Con la fábrica, el siguiente campo con valor por
+ * defecto se añade una vez aquí y no dieciséis veces ahí abajo.
+ */
+function clase(parcial: Partial<ClaseExtraida> & { nombre: string }): ClaseExtraida {
+  return {
+    estereotipo: 'class',
+    atributos: [],
+    metodos: [],
+    filas: [],
+    ...parcial,
+  };
+}
+
+/**
  * El diagrama exacto de la imagen que trajo el usuario.
  *
  * Tres clases sin atributos y dos asociaciones con roles, una con `0..*` en un
@@ -58,9 +81,9 @@ function extraido(overrides: Partial<DiagramaExtraido> = {}): DiagramaExtraido {
 function diagramaDeLaFoto(): DiagramaExtraido {
   return extraido({
     clases: [
-      { nombre: 'Class A', estereotipo: 'class', atributos: [], filas: [] },
-      { nombre: 'Class B', estereotipo: 'class', atributos: [], filas: [] },
-      { nombre: 'Class C', estereotipo: 'class', atributos: [], filas: [] },
+      clase({ nombre: 'Class A' }),
+      clase({ nombre: 'Class B' }),
+      clase({ nombre: 'Class C' }),
     ],
     relaciones: [
       {
@@ -208,8 +231,8 @@ describe('interpretarDiagramaExtraido: cardinalidades dudosas', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          { nombre: 'Animal', estereotipo: 'abstract', atributos: [], filas: [] },
-          { nombre: 'Perro', estereotipo: 'class', atributos: [], filas: [] },
+          clase({ nombre: 'Animal', estereotipo: 'abstract' }),
+          clase({ nombre: 'Perro' }),
         ],
         relaciones: [
           {
@@ -248,15 +271,14 @@ describe('interpretarDiagramaExtraido: orden de las operaciones', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Empleado',
-            estereotipo: 'class',
             atributos: [
               { nombre: 'id', tipo: 'Long', esClave: true },
               { nombre: 'nombre', tipo: 'String', esClave: false },
             ],
             filas: [['1', 'Ana']],
-          },
+          }),
         ],
         relaciones: [],
       }),
@@ -278,9 +300,8 @@ describe('interpretarDiagramaExtraido: los datos no se pierden', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Empleado',
-            estereotipo: 'class',
             atributos: [
               { nombre: 'id', tipo: 'Long', esClave: true },
               { nombre: 'correo', tipo: 'String', esClave: false },
@@ -289,7 +310,7 @@ describe('interpretarDiagramaExtraido: los datos no se pierden', () => {
               ['1', 'ana@rrhh.com'],
               ['2', 'luis@rrhh.com'],
             ],
-          },
+          }),
         ],
       }),
       readDiagram(doc),
@@ -299,24 +320,23 @@ describe('interpretarDiagramaExtraido: los datos no se pierden', () => {
     const aplicado = applyOperations(doc, resultado.operaciones);
     expect(aplicado.ok).toBe(true);
 
-    const clase = Object.values(readDiagram(doc).classes).find((c) => c.name === 'Empleado');
-    expect(clase?.seedRows).toHaveLength(2);
-    expect(clase?.seedRows?.[0]?.correo).toBe('ana@rrhh.com');
+    const empleado = Object.values(readDiagram(doc).classes).find((c) => c.name === 'Empleado');
+    expect(empleado?.seedRows).toHaveLength(2);
+    expect(empleado?.seedRows?.[0]?.correo).toBe('ana@rrhh.com');
   });
 
   it('descarta la fila desalineada y solo esa', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Empleado',
-            estereotipo: 'class',
             atributos: [
               { nombre: 'id', tipo: 'Long', esClave: true },
               { nombre: 'correo', tipo: 'String', esClave: false },
             ],
             filas: [['1', 'ana@rrhh.com'], ['2'], ['3', 'luis@rrhh.com']],
-          },
+          }),
         ],
       }),
       diagramaVacio(),
@@ -341,7 +361,7 @@ describe('interpretarDiagramaExtraido: seguridad y prudencia', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          { nombre: "Robert'); DROP TABLE alumnos;--", estereotipo: 'class', atributos: [], filas: [] },
+          clase({ nombre: "Robert'); DROP TABLE alumnos;--" }),
         ],
       }),
       diagramaVacio(),
@@ -357,15 +377,14 @@ describe('interpretarDiagramaExtraido: seguridad y prudencia', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Empleado',
-            estereotipo: 'class',
             atributos: [
               { nombre: 'id', tipo: 'Long', esClave: true },
               { nombre: '¿¿??', tipo: 'String', esClave: false },
             ],
             filas: [],
-          },
+          }),
         ],
       }),
       diagramaVacio(),
@@ -379,12 +398,11 @@ describe('interpretarDiagramaExtraido: seguridad y prudencia', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Empleado',
-            estereotipo: 'class',
             atributos: [{ nombre: 'sueldo', tipo: 'MonedaFuerte', esClave: false }],
             filas: [],
-          },
+          }),
         ],
       }),
       diagramaVacio(),
@@ -398,7 +416,7 @@ describe('interpretarDiagramaExtraido: seguridad y prudencia', () => {
   it('descarta que una clase herede de sí misma', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
-        clases: [{ nombre: 'Nodo', estereotipo: 'class', atributos: [], filas: [] }],
+        clases: [clase({ nombre: 'Nodo' })],
         relaciones: [
           {
             origen: 'Nodo',
@@ -420,7 +438,7 @@ describe('interpretarDiagramaExtraido: seguridad y prudencia', () => {
   it('permite la autorrelación que sí es legítima', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
-        clases: [{ nombre: 'Empleado', estereotipo: 'class', atributos: [], filas: [] }],
+        clases: [clase({ nombre: 'Empleado' })],
         relaciones: [
           {
             origen: 'Empleado',
@@ -506,15 +524,14 @@ describe('interpretarDiagramaExtraido: clave primaria', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Empleado',
-            estereotipo: 'class',
             atributos: [
               { nombre: 'nombre', tipo: 'String', esClave: false },
               { nombre: 'correo', tipo: 'String', esClave: false },
             ],
             filas: [],
-          },
+          }),
         ],
       }),
       diagramaVacio(),
@@ -533,12 +550,12 @@ describe('interpretarDiagramaExtraido: clave primaria', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
         clases: [
-          {
+          clase({
             nombre: 'Imprimible',
             estereotipo: 'interface',
             atributos: [{ nombre: 'formato', tipo: 'String', esClave: false }],
             filas: [],
-          },
+          }),
         ],
       }),
       diagramaVacio(),
@@ -551,7 +568,7 @@ describe('interpretarDiagramaExtraido: clave primaria', () => {
   it('conserva el estereotipo abstracto', () => {
     const resultado = interpretarDiagramaExtraido(
       extraido({
-        clases: [{ nombre: 'Animal', estereotipo: 'abstract', atributos: [], filas: [] }],
+        clases: [clase({ nombre: 'Animal', estereotipo: 'abstract' })],
       }),
       diagramaVacio(),
     );
@@ -559,5 +576,373 @@ describe('interpretarDiagramaExtraido: clave primaria', () => {
     // `abstract` es un tipo de clase, no una marca aparte: si se tradujera a
     // `class` la jerarquía generada perdería su raíz abstracta.
     expect(resultado.operaciones[0]).toMatchObject({ op: 'addClass', kind: 'abstract' });
+  });
+});
+
+/**
+ * El tercer compartimento del recuadro.
+ *
+ * Un recuadro UML tiene tres: nombre, atributos y operaciones. Durante un tiempo
+ * este lector solo preguntó por dos, y el resultado fue de los que no se
+ * denuncian solos: la importación decía «7 clases · 8 relaciones», todo verde, y
+ * los nueve métodos dibujados en la foto —«+deposit()», «+withdraw()»,
+ * «+verifyPassword()»— no aparecían por ninguna parte. Nadie echa de menos lo
+ * que nunca vio. Estas pruebas existen para que el compartimento de operaciones
+ * no vuelva a desaparecer en silencio.
+ */
+describe('interpretarDiagramaExtraido: métodos', () => {
+  it('emite los métodos de la foto como addMethod', () => {
+    const doc = docVacio();
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [
+          clase({
+            nombre: 'Account',
+            atributos: [{ nombre: 'id', tipo: 'Long', esClave: true }],
+            metodos: [
+              {
+                nombre: 'deposit',
+                tipoRetorno: 'Boolean',
+                visibilidad: '+',
+                // «BigDecimal» es como se escribe en una pizarra y como lo lee el
+                // modelo; el nombre canónico del modelo de datos es «Decimal».
+                parametros: [{ nombre: 'amount', tipo: 'BigDecimal' }],
+              },
+              { nombre: 'withdraw', tipoRetorno: '', visibilidad: '-', parametros: [] },
+            ],
+          }),
+        ],
+      }),
+      readDiagram(doc),
+    );
+
+    expect(resultado.resumen.metodos).toBe(2);
+    expect(resultado.operaciones).toContainEqual({
+      op: 'addMethod',
+      classRef: { name: 'Account' },
+      name: 'deposit',
+      returnType: 'Boolean',
+      parameters: [{ name: 'amount', type: 'Decimal' }],
+      visibility: '+',
+    });
+
+    // Sin tipo escrito es `void`, y `void` en el modelo es `null`. Inventarle un
+    // retorno cambiaría la firma del método generado.
+    expect(resultado.operaciones).toContainEqual({
+      op: 'addMethod',
+      classRef: { name: 'Account' },
+      name: 'withdraw',
+      returnType: null,
+      parameters: [],
+      visibility: '-',
+    });
+
+    // Y que de verdad se puedan aplicar, no solo que tengan buena pinta.
+    expect(applyOperations(doc, resultado.operaciones).ok).toBe(true);
+    const account = Object.values(readDiagram(doc).classes).find((c) => c.name === 'Account');
+    expect(account?.methods.map((m) => m.name).sort()).toEqual(['deposit', 'withdraw']);
+  });
+
+  it('quita los paréntesis que vengan pegados al nombre', () => {
+    // El modelo de visión lee la firma tal como está escrita en la pizarra, y a
+    // veces devuelve «deposit()» entero. Un paréntesis en el nombre no es un
+    // identificador Java válido y se perdería el método por un detalle de forma.
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [
+          clase({
+            nombre: 'Cuenta',
+            metodos: [
+              { nombre: 'deposit(amount)', tipoRetorno: '', visibilidad: '+', parametros: [] },
+            ],
+          }),
+        ],
+      }),
+      diagramaVacio(),
+    );
+
+    expect(resultado.operaciones).toContainEqual(
+      expect.objectContaining({ op: 'addMethod', name: 'deposit' }),
+    );
+  });
+
+  it('rechaza un nombre de método hostil en vez de limpiarlo (RNF-SEG-06)', () => {
+    // El nombre acaba escrito en un fichero .java generado. Vale el mismo
+    // criterio que para las clases: se descarta y se dice, no se «arregla».
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [
+          clase({
+            nombre: 'Cuenta',
+            atributos: [{ nombre: 'id', tipo: 'Long', esClave: true }],
+            metodos: [
+              { nombre: '¿¿??', tipoRetorno: '', visibilidad: '+', parametros: [] },
+              { nombre: 'saldo', tipoRetorno: '', visibilidad: '+', parametros: [] },
+            ],
+          }),
+        ],
+      }),
+      diagramaVacio(),
+    );
+
+    expect(resultado.resumen.metodos).toBe(1);
+    expect(resultado.avisos.some((a) => a.mensaje.includes('¿¿??'))).toBe(true);
+    // La clase sobrevive: un método ilegible no invalida el recuadro entero.
+    expect(resultado.aplicable).toBe(true);
+  });
+
+  it('no se inventa métodos cuando el recuadro no tenía tercer compartimento', () => {
+    const resultado = interpretarDiagramaExtraido(diagramaDeLaFoto(), diagramaVacio());
+
+    expect(resultado.resumen.metodos).toBe(0);
+    expect(resultado.operaciones.some((o) => o.op === 'addMethod')).toBe(false);
+  });
+});
+
+/**
+ * Dos clases unidas por más de una línea.
+ *
+ * Un banco tiene «Customer —Has→ Account» y «Customer —Owns→ Account», y son dos
+ * relaciones distintas con significados distintos. El modelo siempre lo admitió
+ * —`relations` va por id— y el lienzo también —`desviosPorPar` las abre en
+ * abanico para que no se pisen—. El único que las juntaba era este lector, y lo
+ * hacía con un `continue` mudo: la segunda desaparecía sin aviso, que es la
+ * peor forma de perder algo, porque quien revisa mira lo que hay y no lo que
+ * falta.
+ */
+describe('interpretarDiagramaExtraido: varias relaciones entre el mismo par', () => {
+  it('conserva dos relaciones distintas entre las mismas dos clases', () => {
+    const doc = docVacio();
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [clase({ nombre: 'Customer' }), clase({ nombre: 'Account' })],
+        relaciones: [
+          {
+            origen: 'Customer',
+            destino: 'Account',
+            tipo: 'association',
+            cardinalidadOrigen: '1',
+            cardinalidadDestino: '0..*',
+            nombre: 'Has',
+          },
+          {
+            origen: 'Customer',
+            destino: 'Account',
+            tipo: 'association',
+            cardinalidadOrigen: '1',
+            cardinalidadDestino: '0..*',
+            nombre: 'Owns',
+          },
+        ],
+      }),
+      readDiagram(doc),
+    );
+
+    expect(resultado.resumen.relaciones).toBe(2);
+    expect(applyOperations(doc, resultado.operaciones).ok).toBe(true);
+    expect(Object.values(readDiagram(doc).relations)).toHaveLength(2);
+  });
+
+  it('el rótulo de la línea llega hasta la operación', () => {
+    // «Has», «Account Transaction», «Savings-Checking»: el nombre estaba escrito
+    // sobre la línea en la foto, se leía, y se tiraba a la basura al construir la
+    // operación. Es además lo que distingue una relación de la otra.
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [clase({ nombre: 'Customer' }), clase({ nombre: 'Account' })],
+        relaciones: [
+          {
+            origen: 'Customer',
+            destino: 'Account',
+            tipo: 'association',
+            cardinalidadOrigen: '1',
+            cardinalidadDestino: '0..*',
+            nombre: 'Has',
+          },
+        ],
+      }),
+      diagramaVacio(),
+    );
+
+    expect(resultado.operaciones).toContainEqual(
+      expect.objectContaining({ op: 'addRelation', name: 'Has' }),
+    );
+  });
+
+  it('sigue quitando la relación repetida de verdad, y lo dice', () => {
+    // Que se admitan varias no significa que se admita la misma dos veces: el
+    // modelo de visión repite líneas cuando la foto está torcida. El criterio es
+    // el nombre, porque es lo único que las distingue en el dibujo.
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [clase({ nombre: 'Customer' }), clase({ nombre: 'Account' })],
+        relaciones: [
+          {
+            origen: 'Customer',
+            destino: 'Account',
+            tipo: 'association',
+            cardinalidadOrigen: '1',
+            cardinalidadDestino: '0..*',
+            nombre: 'Has',
+          },
+          {
+            origen: 'Customer',
+            destino: 'Account',
+            tipo: 'association',
+            cardinalidadOrigen: '1',
+            cardinalidadDestino: '0..*',
+            nombre: 'Has',
+          },
+        ],
+      }),
+      diagramaVacio(),
+    );
+
+    expect(resultado.resumen.relaciones).toBe(1);
+    expect(resultado.avisos.some((a) => a.mensaje.includes('repite la relación'))).toBe(true);
+  });
+});
+
+/** Una relación leída de la foto, con lo que no interesa a la prueba ya puesto. */
+function relacion(parcial: Partial<RelacionExtraida> = {}): RelacionExtraida {
+  return {
+    origen: 'Cliente',
+    destino: 'Cuenta',
+    tipo: 'association',
+    cardinalidadOrigen: '',
+    cardinalidadDestino: '',
+    nombre: '',
+    ...parcial,
+  };
+}
+
+describe('llevaCardinalidad', () => {
+  it('la herencia y la realización no llevan cardinalidad', () => {
+    expect(llevaCardinalidad('inheritance')).toBe(false);
+    expect(llevaCardinalidad('realization')).toBe(false);
+  });
+
+  it('las demás sí', () => {
+    expect(llevaCardinalidad('association')).toBe(true);
+    expect(llevaCardinalidad('aggregation')).toBe(true);
+    expect(llevaCardinalidad('composition')).toBe(true);
+    expect(llevaCardinalidad('dependency')).toBe(true);
+  });
+
+  /**
+   * La prueba que corresponde a la captura del usuario: dos herencias hacia la
+   * misma clase padre, ninguna con cardinalidad, y ni un solo aviso. Estaba
+   * pasando en el servidor y fallando en la pantalla, así que aquí se fija el
+   * comportamiento correcto para que la pantalla no vuelva a divergir.
+   */
+  it('una herencia sin cardinalidad no es dudosa ni genera aviso', () => {
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [clase({ nombre: 'User' }), clase({ nombre: 'Staff' }), clase({ nombre: 'Student' })],
+        relaciones: [
+          relacion({ origen: 'Staff', destino: 'User', tipo: 'inheritance' }),
+          relacion({ origen: 'Student', destino: 'User', tipo: 'inheritance' }),
+        ],
+      }),
+      diagramaVacio(),
+    );
+
+    expect(resultado.resumen.relaciones).toBe(2);
+    expect(resultado.resumen.cardinalidadesDudosas).toBe(0);
+    expect(resultado.avisos.filter((a) => a.mensaje.includes('cardinalidad'))).toEqual([]);
+  });
+});
+
+describe('sugerirCardinalidades', () => {
+  it('rellena los dos extremos cuando no se leyó ninguno', () => {
+    expect(sugerirCardinalidades([relacion()])).toEqual([
+      { indice: 0, cardinalidadOrigen: '1', cardinalidadDestino: '*' },
+    ]);
+  });
+
+  /**
+   * Lo importante de esta: rellena *el hueco*, no la relación. Si sustituyera
+   * también el `0..1` leído en la pizarra dejaría de ser una ayuda y sería una
+   * fuente de errores imposible de auditar, porque nadie distingue después qué
+   * puso el modelo y qué puso el botón.
+   */
+  it('no toca el extremo que sí se leyó', () => {
+    expect(sugerirCardinalidades([relacion({ cardinalidadOrigen: '0..1' })])).toEqual([
+      { indice: 0, cardinalidadDestino: '*' },
+    ]);
+    expect(sugerirCardinalidades([relacion({ cardinalidadDestino: '1..5' })])).toEqual([
+      { indice: 0, cardinalidadOrigen: '1' },
+    ]);
+  });
+
+  it('no propone nada cuando la relación ya está completa', () => {
+    expect(
+      sugerirCardinalidades([relacion({ cardinalidadOrigen: '1', cardinalidadDestino: '*' })]),
+    ).toEqual([]);
+  });
+
+  it('se salta la herencia y la realización', () => {
+    expect(
+      sugerirCardinalidades([
+        relacion({ tipo: 'inheritance' }),
+        relacion({ tipo: 'realization' }),
+      ]),
+    ).toEqual([]);
+  });
+
+  it('cuenta un valor ilegible como hueco, no como valor', () => {
+    // «muchos» no es una multiplicidad; `canonizarCardinalidad` lo rechaza y por
+    // tanto es un hueco. Si esto se colase como leído, el generador emitiría el
+    // esquema equivocado sin que nadie hubiera visto un aviso.
+    expect(sugerirCardinalidades([relacion({ cardinalidadOrigen: 'muchos' })])).toEqual([
+      { indice: 0, cardinalidadOrigen: '1', cardinalidadDestino: '*' },
+    ]);
+  });
+
+  it('devuelve el índice de la relación en la lista original, no el de las que rellena', () => {
+    // Con la herencia en medio, los índices de entrada y de salida ya no
+    // coinciden. Si aquí se devolviera un contador propio, el botón escribiría
+    // la cardinalidad en la fila de al lado.
+    const sugerencias = sugerirCardinalidades([
+      relacion({ cardinalidadOrigen: '1', cardinalidadDestino: '1' }),
+      relacion({ tipo: 'inheritance' }),
+      relacion({ origen: 'Cuenta', destino: 'Movimiento' }),
+    ]);
+    expect(sugerencias).toEqual([{ indice: 2, cardinalidadOrigen: '1', cardinalidadDestino: '*' }]);
+  });
+
+  it('sobre una lista vacía no propone nada', () => {
+    expect(sugerirCardinalidades([])).toEqual([]);
+  });
+
+  /**
+   * La sugerencia tiene que dejar el diagrama listo para importar: si lo que
+   * propone no sobreviviera a `interpretarDiagramaExtraido`, el botón sería un
+   * adorno. Se comprueba de punta a punta.
+   */
+  it('lo que propone deja el diagrama sin extremos dudosos', () => {
+    const relaciones = [relacion(), relacion({ origen: 'Cuenta', destino: 'Movimiento' })];
+    const sugerencias = sugerirCardinalidades(relaciones);
+    const rellenas: RelacionExtraida[] = relaciones.map((r, i) => {
+      const s = sugerencias.find((x) => x.indice === i);
+      if (!s) return r;
+      const { indice: _, ...valores } = s;
+      return { ...r, ...valores };
+    });
+
+    const resultado = interpretarDiagramaExtraido(
+      extraido({
+        clases: [
+          clase({ nombre: 'Cliente' }),
+          clase({ nombre: 'Cuenta' }),
+          clase({ nombre: 'Movimiento' }),
+        ],
+        relaciones: rellenas,
+      }),
+      diagramaVacio(),
+    );
+
+    expect(resultado.resumen.cardinalidadesDudosas).toBe(0);
+    expect(resultado.resumen.relaciones).toBe(2);
   });
 });

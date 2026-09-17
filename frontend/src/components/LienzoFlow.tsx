@@ -39,6 +39,7 @@ import {
   type Medida,
 } from './geometria-lienzo';
 import type { LienzoProps } from './Lienzo';
+import { usePantallaEstrecha } from '../hooks/useDispositivo';
 
 /**
  * El lienzo, sobre React Flow.
@@ -493,10 +494,72 @@ function LienzoInterno({
         // excluye al construir la lista, porque nadie necesita ver su propia
         // selección duplicada con el retraso de una ida y vuelta.
         const ajeno = participantes.find((p) => p.seleccion === cls.id);
+        const medida = medidas.get(cls.id) ?? { ancho: ANCHO_MINIMO, alto: 80 };
         return {
           id: cls.id,
           type: 'claseUml' as const,
           position: cls.position,
+          /*
+            El tamaño se declara aquí además de en el `<div>` de la caja, y no
+            es una repetición inofensiva: sin esto el minimapa sale vacío.
+
+            React Flow mide los nodos con un `ResizeObserver` y emite el
+            resultado como un cambio de tipo `dimensions` por `onNodesChange`.
+            Ese cambio hay que aplicarlo sobre el array de nodos para que quede
+            registrado como `measured`, y aquí no se aplica: `alCambiarNodos`
+            solo atiende `position`, porque los nodos no son estado local sino
+            una proyección del documento Yjs, que guarda posiciones y no
+            píxeles.
+
+            El lienzo no lo nota —dibuja el nodo interno, que sí está medido—,
+            pero el minimapa lee el nodo **del usuario** (`internals.userNode`)
+            y descarta el que no tenga medidas: `width ?? height ?? measured`
+            todos indefinidos, y se salta el `<rect>`. De ahí el panel con el
+            marco del viewport y ni una caja dentro.
+
+            Como `medidasDe` ya calcula el tamaño exacto a partir del modelo, se
+            lo damos hecho. Además de arreglar el minimapa, evita que el primer
+            `fitView` ocurra antes de la medición, que es lo que hacía que el
+            encuadre inicial bailara un fotograma.
+          */
+          width: medida.ancho,
+          height: medida.alto,
+          /*
+            Y `measured` con lo mismo, que es lo que mantiene las relaciones
+            dibujadas al mover una caja.
+
+            Aquí no se declara un tamaño por segunda vez por gusto: `measured`
+            es la bandera de la que depende React Flow para decidir si conserva
+            o tira las posiciones de los conectores. En `adoptUserNodes`, cada
+            vez que el array de nodos se reconstruye:
+
+                handleBounds: parseHandles(userNode, internalNode)
+
+            y `parseHandles` empieza así —`@xyflow/system`, con su comentario
+            original al lado—:
+
+                if (!userNode.handles) {
+                  return !userNode.measured ? undefined : internalNode?.internals.handleBounds;
+                }
+
+            Sin `measured`, devuelve `undefined` y **borra los conectores ya
+            medidos**. Y sin conectores el nodo deja de estar inicializado
+            (`isNodeInitialized`), así que `getEdgePosition` devuelve `null` y
+            `EdgeWrapper` no pinta la arista: `react-flow__edges` se queda
+            literalmente vacío.
+
+            Encaja con el síntoma exacto: al arrastrar una caja se escribe la
+            posición en Yjs, el diagrama cambia, este `useMemo` reconstruye los
+            nodos, y las relaciones desaparecen **todas a la vez**, no solo las
+            de la caja movida. Y no vuelven, porque el `ResizeObserver` que las
+            volvería a medir solo se dispara cuando cambia el **tamaño** del
+            elemento, y arrastrar no cambia el tamaño de nada.
+
+            Se notaba más cuanto más grande el diagrama, pero no por el número
+            de clases: con dos cajas también pasa. Lo que crece con el tamaño es
+            la probabilidad de mover algo, que es lo que lo dispara.
+          */
+          measured: { width: medida.ancho, height: medida.alto },
           selected: cls.id === seleccion,
           draggable: !soloLectura,
           // El envoltorio de React Flow es quien recibe el foco, así que es él
@@ -505,7 +568,7 @@ function LienzoInterno({
           ariaRole: 'button',
           data: {
             cls,
-            medida: medidas.get(cls.id) ?? { ancho: ANCHO_MINIMO, alto: 80 },
+            medida,
             seleccionada: cls.id === seleccion,
             soloLectura,
             colorAjeno: ajeno?.color ?? null,
@@ -626,6 +689,22 @@ function LienzoInterno({
   */
   const clase = `lienzo lienzo--flow${herramienta === 'relacion' ? ' lienzo--relacionando' : ''}`;
 
+  /*
+    En un teléfono no se dibuja el cromo de React Flow.
+
+    No es que estorbe de vista: es que las dos piezas ocupan las dos esquinas de
+    abajo, que son las únicas dos zonas del lienzo a las que el pulgar llega
+    cómodamente. El minimapa además recibe el toque —es `pannable`— así que cada
+    intento de arrastrar el diagrama que empiece en su rectángulo mueve el mapa
+    en vez del lienzo, sin ningún aviso de que se ha tocado otra cosa. En un
+    móvil de 360 px ese rectángulo es la sexta parte del ancho.
+
+    Lo que hacían los controles —acercar, alejar, encuadrar— no se pierde: está
+    en la barra de estado, en el menú, en la barra del pulgar y en el pellizco,
+    que es como se hace el zoom en una pantalla táctil de todas formas.
+  */
+  const estrecha = usePantallaEstrecha();
+
   return (
     <div className={clase}>
       <Marcadores />
@@ -657,7 +736,20 @@ function LienzoInterno({
         connectionMode={ConnectionMode.Loose}
         onNodeClick={(_, nodo) => onSeleccionar(nodo.id)}
         onPaneClick={() => onSeleccionar(null)}
+        /*
+          Solo el ratón emite cursor de presencia.
+
+          Un puntero táctil solo existe mientras el dedo toca el cristal, así que
+          lo que llegaba a los demás no era «dónde está mirando» sino el rastro
+          de cada arrastre, congelado en el último punto al levantar el dedo:
+          una flecha con un nombre clavada sobre una clase que nadie está
+          tocando, y que se queda ahí hasta el siguiente gesto. Peor aún, el
+          dedo tapa su propio cursor, así que quien lo emite no ve el disparate
+          que está enviando. Con un lápiz pasa lo mismo, y por eso el filtro es
+          por `mouse` y no por «no es táctil».
+        */
         onPointerMove={(evento) => {
+          if (evento.pointerType !== 'mouse') return;
           onCursor(flow.screenToFlowPosition({ x: evento.clientX, y: evento.clientY }));
         }}
         onPointerLeave={() => onCursor(null)}
@@ -686,8 +778,8 @@ function LienzoInterno({
         deleteKeyCode={null}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="var(--borde)" />
-        <Controls showInteractive={false} />
-        <MiniMap pannable zoomable ariaLabel="Mapa del diagrama" />
+        {!estrecha && <Controls showInteractive={false} />}
+        {!estrecha && <MiniMap pannable zoomable ariaLabel="Mapa del diagrama" />}
 
         {/*
           Los cursores ajenos van dentro del portal del viewport, así que se

@@ -5,6 +5,7 @@ import {
   describeOperation,
   leerXmi,
   type ClassDiagram,
+  type DiagramaComunicacionUml,
   type Operation,
 } from '@app/shared';
 import { Icono } from './iconos';
@@ -36,6 +37,18 @@ export interface ImportarXmiProps {
   soloLectura: boolean;
   diagrama: ClassDiagram;
   aplicar: Aplicar;
+  /**
+   * Guarda los diagramas de comunicación del fichero como documentos del
+   * proyecto.
+   *
+   * Va aparte de `aplicar` porque no es lo mismo. `aplicar` escribe
+   * *operaciones* sobre el diagrama de clases, revisables una a una y
+   * reversibles con Ctrl+Z; esto guarda el diagrama importado entero, que no es
+   * una operación sobre el diagrama de clases y no tiene ninguna que lo
+   * represente. Meterlo por el mismo sitio habría obligado a inventar una
+   * operación `addComunicacion` que ninguna otra parte del programa emite.
+   */
+  guardarComunicaciones: (diagramas: readonly DiagramaComunicacionUml[]) => void;
   onCerrar: () => void;
 }
 
@@ -43,6 +56,7 @@ export function ImportarXmi({
   soloLectura,
   diagrama,
   aplicar,
+  guardarComunicaciones,
   onCerrar,
 }: ImportarXmiProps): JSX.Element {
   const [contenido, setContenido] = useState<string | null>(null);
@@ -79,16 +93,27 @@ export function ImportarXmi({
 
   const importar = (): void => {
     if (!revision || !revision.aplicable) return;
-    // El nombre del fichero es el «quién lo propuso» de esta vía: es lo que
-    // permite rastrear un modelo raro hasta el XMI del que salió.
-    const resultado = aplicar(revision.operaciones, {
-      origen: 'xmi',
-      ...(nombreFichero ? { propuestoPor: nombreFichero } : {}),
-    });
-    if (!resultado.ok) {
-      setError(resultado.error);
-      return;
+    // Un fichero puede traer un diagrama de comunicación y ni una operación
+    // sobre el diagrama de clases —objetos de clases que ya existen y sin
+    // mensajes—. Aplicar un lote vacío dejaría una entrada en el historial
+    // diciendo que alguien importó algo y ningún cambio detrás.
+    if (revision.operaciones.length > 0) {
+      // El nombre del fichero es el «quién lo propuso» de esta vía: es lo que
+      // permite rastrear un modelo raro hasta el XMI del que salió.
+      const resultado = aplicar(revision.operaciones, {
+        origen: 'xmi',
+        ...(nombreFichero ? { propuestoPor: nombreFichero } : {}),
+      });
+      if (!resultado.ok) {
+        setError(resultado.error);
+        return;
+      }
     }
+    // Después de las operaciones y solo si salieron bien: si el diagrama de
+    // clases se rechaza, guardar igualmente el de comunicación dejaría el
+    // proyecto con un diagrama importado cuyos objetos no están en ninguna
+    // parte. Con el orden al revés no habría forma de deshacer eso.
+    guardarComunicaciones(revision.diagramas);
     onCerrar();
   };
 
@@ -205,6 +230,40 @@ export function ImportarXmi({
                   </p>
                 )}
 
+                {/* Lo que se guarda *además* del diagrama de clases. Se dice
+                    aparte porque no son operaciones y no sale en la lista de
+                    abajo: quien confirme tiene que saber que el proyecto se
+                    queda también con el diagrama entero. */}
+                {revision.diagramas.length > 0 && (
+                  <div className="importar-xmi__comunicacion">
+                    <p>
+                      Se guarda
+                      {revision.diagramas.length === 1
+                        ? ' además el diagrama de comunicación '
+                        : ` además ${revision.diagramas.length} diagramas de comunicación `}
+                      en el proyecto, con su numeración y sin traducir:{' '}
+                      {revision.diagramas.map((d) => (
+                        <span key={d.id} className="etiqueta">
+                          {d.nombre} ({d.participantes.length}/{d.mensajes.length})
+                        </span>
+                      ))}
+                    </p>
+                    {revision.problemas.length > 0 && (
+                      <details className="importar-xmi__detalle">
+                        <summary>
+                          {revision.problemas.length} cosa
+                          {revision.problemas.length === 1 ? '' : 's'} que revisar en ese diagrama
+                        </summary>
+                        <ul className="importar__avisos">
+                          {revision.problemas.map((p, indice) => (
+                            <li key={`${p.codigo}-${indice}`}>{p.mensaje}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                )}
+
                 <details className="importar-xmi__detalle">
                   <summary>Ver las {revision.operaciones.length} operaciones</summary>
                   <ol>
@@ -242,7 +301,9 @@ export function ImportarXmi({
           <button type="button" className="boton boton--discreto" onClick={onCerrar}>
             Cancelar
           </button>
-          {revision?.aplicable && (
+          {/* Sin nada que aplicar ni nada que guardar no hay botón: uno que no
+              cambia nada al pulsarlo es peor que ninguno. */}
+          {revision?.aplicable && (revision.operaciones.length > 0 || revision.diagramas.length > 0) && (
             <button
               type="button"
               className="boton boton--primario"
@@ -250,10 +311,15 @@ export function ImportarXmi({
               onClick={importar}
             >
               {/* Con un diagrama de comunicación de clases ya existentes no se
-                  crea ninguna: el botón no puede decir «Importar 0 clases». */}
-              {revision.resumen.clases === 0
-                ? `Aplicar ${revision.operaciones.length} cambios`
-                : `Importar ${revision.resumen.clases} clase${revision.resumen.clases === 1 ? '' : 's'}`}
+                  crea ninguna: el botón no puede decir «Importar 0 clases». Y
+                  el fixture real de Enterprise Architect va más lejos —tres
+                  objetos, tres enlaces y ni un mensaje— y no deja ni una
+                  operación: ahí lo único que se importa es el diagrama. */}
+              {revision.resumen.clases > 0
+                ? `Importar ${revision.resumen.clases} clase${revision.resumen.clases === 1 ? '' : 's'}`
+                : revision.operaciones.length > 0
+                  ? `Aplicar ${revision.operaciones.length} cambios`
+                  : `Guardar ${revision.diagramas.length === 1 ? 'el diagrama' : `los ${revision.diagramas.length} diagramas`}`}
             </button>
           )}
         </footer>

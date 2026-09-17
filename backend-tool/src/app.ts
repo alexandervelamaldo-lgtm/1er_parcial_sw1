@@ -5,6 +5,7 @@ import type { Config } from './config.js';
 import { LocalIdentityProvider, type IdentityProvider } from './auth/identity.js';
 import { FileProjectStore, type ProjectStore } from './storage/store.js';
 import { FileDocumentStore } from './storage/documents.js';
+import { FileTablonStore, type TablonStore } from './storage/tablon.js';
 import { RoomManager } from './collab/rooms.js';
 import { CollabServer } from './collab/server.js';
 import { createAssistant, type AssistantEngine } from './ai/assistant.js';
@@ -18,6 +19,7 @@ import { diagramsRouter } from './api/diagrams.js';
 import { generationRouter } from './api/generation.js';
 import { assistantRouter } from './api/assistant.js';
 import { importRouter } from './api/import.js';
+import { tablonRouter } from './api/tablon.js';
 import { errorHandler, notFound, requireAuth } from './api/http.js';
 import { cabecerasDeSeguridad, limiteDeTasa } from './api/proteccion.js';
 
@@ -48,6 +50,8 @@ export interface AppDependencies {
   identity: IdentityProvider;
   store: ProjectStore;
   rooms: RoomManager;
+  /** El tablón del proyecto: comunicación interna por texto y por voz. */
+  tablon: TablonStore;
   assistant: AssistantEngine;
   /** Ausente si esta instalación no tiene modelo de visión configurado. */
   vision?: VisionEngine;
@@ -65,10 +69,10 @@ export interface BuiltApp {
  * Construye las dependencias a partir de la configuración.
  *
  * La presencia de `DATABASE_URL` es lo único que decide dónde se guarda todo.
- * Los tres almacenes se eligen juntos y nunca por separado: media aplicación en
- * PostgreSQL y media en disco significaría, por ejemplo, permisos que sobreviven
- * al despliegue apuntando a usuarios que no, y nadie podría entrar en su propio
- * proyecto.
+ * Los cuatro almacenes se eligen juntos y nunca por separado: media aplicación
+ * en PostgreSQL y media en disco significaría, por ejemplo, permisos que
+ * sobreviven al despliegue apuntando a usuarios que no, y nadie podría entrar en
+ * su propio proyecto.
  */
 export async function createDependencies(config: Config): Promise<AppDependencies> {
   const almacenes = config.databaseUrl
@@ -108,7 +112,7 @@ async function abrirGuia(config: Config): Promise<GuiaDelManual | undefined> {
   }
 }
 
-type Almacenes = Pick<AppDependencies, 'identity' | 'store' | 'rooms'>;
+type Almacenes = Pick<AppDependencies, 'identity' | 'store' | 'rooms' | 'tablon'>;
 
 async function almacenesDeFichero(config: Config): Promise<Almacenes> {
   return {
@@ -119,6 +123,7 @@ async function almacenesDeFichero(config: Config): Promise<Almacenes> {
     ),
     store: await FileProjectStore.open(config.dataDir),
     rooms: new RoomManager(new FileDocumentStore(config.dataDir), config.persistIntervalMs),
+    tablon: new FileTablonStore(config.dataDir),
   };
 }
 
@@ -128,9 +133,12 @@ async function almacenesDeFichero(config: Config): Promise<Almacenes> {
  */
 async function almacenesPostgres(config: Config, databaseUrl: string): Promise<Almacenes> {
   const { abrirPool, aplicarEsquema } = await import('./storage/postgres.js');
-  const { PostgresDocumentStore, PostgresIdentityProvider, PostgresProjectStore } = await import(
-    './storage/postgres-stores.js'
-  );
+  const {
+    PostgresDocumentStore,
+    PostgresIdentityProvider,
+    PostgresProjectStore,
+    PostgresTablonStore,
+  } = await import('./storage/postgres-stores.js');
 
   const pool = await abrirPool(databaseUrl);
   await aplicarEsquema(pool);
@@ -141,11 +149,14 @@ async function almacenesPostgres(config: Config, databaseUrl: string): Promise<A
     // El almacén de documentos es el dueño del pool porque su `close()` lo llama
     // `RoomManager.shutdown()`, que es el último paso del apagado.
     rooms: new RoomManager(new PostgresDocumentStore(pool), config.persistIntervalMs),
+    // Comparte el pool y no lo cierra: un segundo dueño del mismo pool haría
+    // que el primer apagado dejara al otro escribiendo contra un pool cerrado.
+    tablon: new PostgresTablonStore(pool),
   };
 }
 
 export function createApp(deps: AppDependencies): BuiltApp {
-  const { config, identity, store, rooms, assistant, vision, guia } = deps;
+  const { config, identity, store, rooms, tablon, assistant, vision, guia } = deps;
   const app = express();
 
   app.disable('x-powered-by');
@@ -210,8 +221,12 @@ export function createApp(deps: AppDependencies): BuiltApp {
   // gasto, y con contadores separados el máximo real sería el doble.
   protectedApi.use('/:proyectoId/importar-tabla', tasaDeImagen);
   protectedApi.use('/:proyectoId/importar-diagrama', tasaDeImagen);
-  protectedApi.use(projectsRouter({ store, identity, rooms }));
+  protectedApi.use(projectsRouter({ store, identity, rooms, tablon }));
   protectedApi.use(diagramsRouter({ store, rooms }));
+  // El tablón no lleva límite de tasa montado aquí: su cuota se aplica ruta a
+  // ruta dentro del router, porque el sondeo comparte camino con la publicación
+  // y un límite común lo apagaría solo. Ver la cabecera de `api/tablon.ts`.
+  protectedApi.use(tablonRouter({ store, identity, tablon }));
   protectedApi.use(generationRouter({ store, rooms }));
   protectedApi.use(assistantRouter({ store, rooms, assistant }));
   protectedApi.use(importRouter({ store, rooms, vision, maxImageBytes: config.maxImageBytes }));

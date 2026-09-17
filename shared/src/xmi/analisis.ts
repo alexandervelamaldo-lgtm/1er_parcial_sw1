@@ -165,7 +165,7 @@ export interface ProblemaDeAnalisis {
  * Revisa el catálogo entero antes de dibujar nada.
  *
  * Se comprueba todo y se devuelve la lista completa en vez de parar en el primer
- * fallo. Con catorce casos de uso, arreglarlos de uno en uno —regenerar, ver el
+ * fallo. Con diecinueve casos de uso, arreglarlos de uno en uno —regenerar, ver el
  * siguiente error, regenerar— es media tarde; verlos todos juntos es un rato.
  */
 export function revisarModelo(modelo: ModeloDeCasosDeUso): ProblemaDeAnalisis[] {

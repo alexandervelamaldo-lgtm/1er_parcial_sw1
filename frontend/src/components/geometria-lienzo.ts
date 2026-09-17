@@ -50,11 +50,35 @@ export interface Medida {
 
 const SIMBOLO_VISIBILIDAD: Record<string, string> = { '+': '+', '-': '−', '#': '#', '~': '~' };
 
+/**
+ * La marca del atributo identificador.
+ *
+ * Fue un emoji de llave, y tenía tres problemas a la vez. El de aspecto es el
+ * mismo que hizo retirar los demás pictogramas de la interfaz: la llave no está
+ * en Fira Code, así que el navegador cae a la fuente de emoji del sistema y el
+ * glifo sale distinto en cada teléfono —y en algunos, en color— dentro de una
+ * caja que por lo demás es un dibujo plano.
+ *
+ * El de medida es propio de este fichero: la anchura de la caja se estima
+ * multiplicando caracteres por `ANCHO_CARACTER_MIEMBRO`, y esa cuenta es exacta
+ * *porque* el texto va en monoespaciada. Un glifo que viene de otra fuente ocupa
+ * lo que diga esa fuente, así que la fila del identificador era justo la que se
+ * medía mal, y se medía mal por debajo: el texto sobresalía de la caja.
+ *
+ * Y el de lectura: un lector de pantalla en castellano anuncia este emoji por su
+ * nombre en inglés.
+ *
+ * `{id}` no es un apaño para esquivar esas tres cosas: es la notación de UML para
+ * una propiedad de identidad, cabe en la monoespaciada y se lee en voz alta como
+ * lo que es.
+ */
+const MARCA_IDENTIFICADOR = ' {id}';
+
 /** El texto de una fila, en el mismo sitio donde se mide y donde se pinta. */
 export function textoAtributo(atributo: UmlClass['attributes'][number]): string {
   return `${SIMBOLO_VISIBILIDAD[atributo.visibility] ?? atributo.visibility} ${atributo.name}: ${
     atributo.type.name
-  }${atributo.isIdentifier ? ' 🔑' : ''}`;
+  }${atributo.isIdentifier ? MARCA_IDENTIFICADOR : ''}`;
 }
 
 export function textoMetodo(metodo: UmlClass['methods'][number]): string {

@@ -41,7 +41,7 @@ import type {
  * cada combinación de multiplicidades, cómo se llama cada columna y en qué orden
  * se crean las tablas.
  *
- * Presupone un diagrama ya validado (`validation/validate.ts`). Llamar aquí con
+ * Presupone un diagrama ya validado (`shared/src/validation/validate.ts`). Llamar aquí con
  * un diagrama inválido es un error de programación, no una entrada esperada.
  */
 

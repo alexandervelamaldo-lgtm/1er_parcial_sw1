@@ -5,10 +5,13 @@ import { isValidJavaIdentifier, toCamelCase, toPascalCase } from '../model/namin
 import { listSupportedTypes, resolveTypeName } from '../model/type-catalog.js';
 import {
   ClassKindSchema,
+  llevaCardinalidad,
   MULTIPLICITY_PATTERN,
   RelationKindSchema,
+  VisibilitySchema,
   type ClassKind,
   type RelationKind,
+  type Visibility,
 } from '../model/uml.js';
 
 /**
@@ -47,6 +50,8 @@ import {
 /** Tope de clases en una sola imagen. Una pizarra legible no da para más. */
 const MAX_CLASES = 40;
 const MAX_ATRIBUTOS = 40;
+const MAX_METODOS = 40;
+const MAX_PARAMETROS = 10;
 const MAX_RELACIONES = 80;
 
 /**
@@ -81,6 +86,46 @@ const ClaseExtraidaSchema = z.object({
       }),
     )
     .max(MAX_ATRIBUTOS)
+    .default([]),
+  /**
+   * El tercer compartimento del recuadro, que hasta ahora se tiraba entero.
+   *
+   * Un recuadro UML tiene tres pisos: nombre, atributos y **operaciones**. Este
+   * lector leía dos. Con una foto de un diagrama de banca —`+deposit()`,
+   * `+withdraw()`, `+verifyPassword()`, `+createTransaction()`— el resultado
+   * importado salía con las siete clases y las ocho relaciones correctas, y sin
+   * una sola operación, que es la mitad de lo que el ingeniero dibujó.
+   *
+   * Lo llamativo es que no faltaba capacidad en ningún sitio: el modelo tiene
+   * `methods`, existe la operación `addMethod`, el lienzo sabe pintarlos con
+   * `textoMetodo` y el generador valida sus nombres y sus parámetros antes de
+   * llevarlos a la plantilla Java. El único ciego era este lector, y lo era
+   * porque la instrucción nunca se los pidió al modelo. No es un fallo de
+   * lectura: es una pregunta que no se hacía.
+   *
+   * `tipoRetorno` vacío significa `void`, que es lo que se dibuja en la práctica
+   * cuando nadie escribe el tipo. Se distingue de «no lo leo» a propósito: en un
+   * método, a diferencia de una cardinalidad, suponer `void` no cambia el
+   * esquema de la base de datos.
+   */
+  metodos: z
+    .array(
+      z.object({
+        nombre: z.string().trim().min(1).max(64),
+        tipoRetorno: z.string().trim().max(64).default(''),
+        visibilidad: VisibilitySchema.default('+'),
+        parametros: z
+          .array(
+            z.object({
+              nombre: z.string().trim().min(1).max(64),
+              tipo: z.string().trim().max(64).default('String'),
+            }),
+          )
+          .max(MAX_PARAMETROS)
+          .default([]),
+      }),
+    )
+    .max(MAX_METODOS)
     .default([]),
   /**
    * Filas de datos, si la imagen las trae. Es lo que permite que este lector
@@ -132,6 +177,7 @@ export interface AvisoDiagrama {
 export interface ResumenDiagrama {
   readonly clases: number;
   readonly atributos: number;
+  readonly metodos: number;
   readonly relaciones: number;
   readonly filas: number;
   /** Relaciones cuya cardinalidad hubo que suponer. */
@@ -152,6 +198,8 @@ export interface ResultadoImportacionDiagrama {
     readonly tipo: RelationKind;
     readonly cardinalidadOrigen: string;
     readonly cardinalidadDestino: string;
+    /** El rótulo de la línea, si el dibujo lo traía. Vacío si no. */
+    readonly nombre: string;
     readonly dudosa: boolean;
   }[];
 }
@@ -177,6 +225,53 @@ export function canonizarCardinalidad(bruta: string): string | null {
   return MULTIPLICITY_PATTERN.test(limpia) ? limpia : null;
 }
 
+/** Un extremo que hay que rellenar, con el valor que se propone. */
+export interface SugerenciaCardinalidad {
+  readonly indice: number;
+  readonly cardinalidadOrigen?: string;
+  readonly cardinalidadDestino?: string;
+}
+
+/**
+ * Propone cardinalidad para los extremos que la foto no dejó leer.
+ *
+ * Tres reglas, y las tres importan:
+ *
+ * 1. **Solo rellena huecos.** Lo que el modelo sí leyó no se toca nunca, ni
+ *    siquiera para «mejorarlo». Si esto pudiera cambiar un `0..1` leído en la
+ *    pizarra, dejaría de ser una ayuda y pasaría a ser una fuente de errores
+ *    imposible de auditar.
+ * 2. **No inventa donde no hay hueco.** Una herencia no tiene cardinalidad, así
+ *    que no se le pone ninguna.
+ * 3. **Es determinista.** No pregunta a ningún modelo. Podría hacerlo —volver a
+ *    mirar la foto ampliada sobre esa línea concreta—, pero para elegir entre
+ *    cuatro valores con una convención tan marcada, una llamada de red añade
+ *    espera, coste y una forma nueva de fallar justo durante la defensa, a
+ *    cambio de nada. Y sobre todo: una suposición del modelo es indistinguible
+ *    de una lectura del modelo, mientras que ésta el revisor la puede comprobar
+ *    en dos segundos porque la regla cabe en una frase.
+ *
+ * Quien llame a esto tiene que dejar ver qué ha rellenado. Rellenar en silencio
+ * sería exactamente el fallo que esta pantalla existe para evitar.
+ */
+export function sugerirCardinalidades(
+  relaciones: readonly RelacionExtraida[],
+): SugerenciaCardinalidad[] {
+  const sugerencias: SugerenciaCardinalidad[] = [];
+  for (const [indice, relacion] of relaciones.entries()) {
+    if (!llevaCardinalidad(relacion.tipo)) continue;
+    const origen = canonizarCardinalidad(relacion.cardinalidadOrigen);
+    const destino = canonizarCardinalidad(relacion.cardinalidadDestino);
+    if (origen !== null && destino !== null) continue;
+    sugerencias.push({
+      indice,
+      ...(origen === null ? { cardinalidadOrigen: CARDINALIDAD_POR_DEFECTO.origen } : {}),
+      ...(destino === null ? { cardinalidadDestino: CARDINALIDAD_POR_DEFECTO.destino } : {}),
+    });
+  }
+  return sugerencias;
+}
+
 /**
  * Convierte un diagrama leído de una imagen en operaciones de dominio.
  *
@@ -192,6 +287,7 @@ export function interpretarDiagramaExtraido(
   const vacio: ResumenDiagrama = {
     clases: 0,
     atributos: 0,
+    metodos: 0,
     relaciones: 0,
     filas: 0,
     cardinalidadesDudosas: 0,
@@ -199,10 +295,18 @@ export function interpretarDiagramaExtraido(
 
   // ---- clases -------------------------------------------------------------
 
+  interface MetodoListo {
+    nombre: string;
+    tipoRetorno: string | null;
+    visibilidad: Visibility;
+    parametros: { nombre: string; tipo: string }[];
+  }
+
   interface ClaseLista {
     nombre: string;
     kind: ClassKind;
     atributos: { nombre: string; tipo: string; esClave: boolean }[];
+    metodos: MetodoListo[];
     filas: Record<string, string>[];
   }
 
@@ -307,6 +411,90 @@ export function interpretarDiagramaExtraido(
       atributos.push({ nombre: atributo, tipo: tipo ?? 'String', esClave: attr.esClave });
     }
 
+    // ---- métodos ----------------------------------------------------------
+
+    /*
+      Mismo trato que los atributos, y por la misma razón (RNF-SEG-06): lo que
+      sale de una foto es entrada externa y acaba siendo un identificador Java en
+      un fichero generado. Se rechaza lo que no vale; no se «limpia» quitando
+      caracteres, que es como se cuelan nombres que parecen válidos y no lo son.
+
+      Un nombre de método se lee de la foto con el paréntesis pegado —«+deposit()»
+      llega a veces como «deposit()»— así que se quitan los paréntesis y lo que
+      lleven dentro antes de normalizar. Si dentro había parámetros, el modelo
+      los trae aparte en `parametros`; no se intentan sacar de aquí, porque
+      partir «(monto: Decimal, fecha)» a mano es justo el tipo de análisis que se
+      equivoca en silencio.
+    */
+    const metodos: MetodoListo[] = [];
+    const metodosVistos = new Set<string>();
+    for (const met of bruta.metodos) {
+      const sinParentesis = met.nombre.replace(/\(.*$/, '');
+      const metodo = toCamelCase(sinParentesis);
+      if (!metodo || !isValidJavaIdentifier(metodo)) {
+        avisos.push({
+          severidad: 'aviso',
+          mensaje: `El método «${met.nombre}» de «${nombre}» no da un nombre válido y se descarta.`,
+        });
+        continue;
+      }
+      if (metodosVistos.has(metodo.toLowerCase())) {
+        // Sin sobrecarga: dos métodos con el mismo nombre y distinta firma son
+        // legales en Java, pero aquí la única forma de distinguirlos sería
+        // fiarse de unos parámetros leídos de una foto. Se queda el primero y se
+        // dice, que es mejor que generar dos métodos que no compilan.
+        avisos.push({
+          severidad: 'aviso',
+          mensaje: `«${nombre}» repite el método «${metodo}»: se queda el primero.`,
+        });
+        continue;
+      }
+      metodosVistos.add(metodo.toLowerCase());
+
+      // Vacío es `void`, y `void` es `null` en el modelo. Un tipo escrito pero
+      // desconocido sí se avisa: ahí el modelo leyó algo y no lo entendimos.
+      let tipoRetorno: string | null = null;
+      if (met.tipoRetorno.trim() !== '' && met.tipoRetorno.trim().toLowerCase() !== 'void') {
+        tipoRetorno = resolveTypeName(met.tipoRetorno) ?? null;
+        if (!tipoRetorno) {
+          avisos.push({
+            severidad: 'aviso',
+            mensaje:
+              `Tipo de retorno «${met.tipoRetorno}» desconocido en «${nombre}.${metodo}»: ` +
+              'se deja sin retorno.',
+          });
+        }
+      }
+
+      const parametros: { nombre: string; tipo: string }[] = [];
+      const parametrosVistos = new Set<string>();
+      for (const par of met.parametros) {
+        const nombreParametro = toCamelCase(par.nombre);
+        if (!nombreParametro || !isValidJavaIdentifier(nombreParametro)) {
+          avisos.push({
+            severidad: 'aviso',
+            mensaje:
+              `El parámetro «${par.nombre}» de «${nombre}.${metodo}» no da un nombre válido ` +
+              'y se descarta.',
+          });
+          continue;
+        }
+        // Dos parámetros con el mismo nombre no compilan, y el fallo aparecería
+        // al construir el proyecto generado, muy lejos de la foto que lo causó.
+        if (parametrosVistos.has(nombreParametro.toLowerCase())) {
+          avisos.push({
+            severidad: 'aviso',
+            mensaje: `«${nombre}.${metodo}» repite el parámetro «${nombreParametro}»: se queda el primero.`,
+          });
+          continue;
+        }
+        parametrosVistos.add(nombreParametro.toLowerCase());
+        parametros.push({ nombre: nombreParametro, tipo: resolveTypeName(par.tipo) ?? 'String' });
+      }
+
+      metodos.push({ nombre: metodo, tipoRetorno, visibilidad: met.visibilidad, parametros });
+    }
+
     // `abstract` es un tipo de clase más, no una marca aparte: `addClass` solo
     // lleva `kind`. Tratarlo como booleano perdía la abstracción en silencio.
     const kind: ClassKind = bruta.estereotipo;
@@ -352,7 +540,7 @@ export function interpretarDiagramaExtraido(
       filas.push(fila);
     }
 
-    listas.push({ nombre, kind, atributos, filas });
+    listas.push({ nombre, kind, atributos, metodos, filas });
   }
 
   if (listas.length === 0) {
@@ -403,15 +591,44 @@ export function interpretarDiagramaExtraido(
       }
     }
 
-    const clave = `${bruta.tipo}|${origen}|${destino}`;
-    if (conocidas.has(clave)) continue;
+    /*
+      Dos clases SÍ pueden estar unidas por varias relaciones.
+
+      El lienzo lo contempla desde hace tiempo —`desviosPorPar` las abre en
+      abanico para que no se pisen— y el modelo también: `relations` es un mapa
+      por identificador, no por par de clases. Quien no lo contemplaba era este
+      lector, y de la peor manera posible.
+
+      La clave de deduplicación era `tipo|origen|destino`, sin el nombre. Con
+      eso, «Cliente —atiende→ Pedido» y «Cliente —cancela→ Pedido» daban la misma
+      clave, y la segunda se iba con un `continue` mudo: sin aviso, sin rastro.
+      El diagrama importado salía con una relación de menos y con aspecto de
+      estar completo, que es exactamente la clase de fallo que nadie encuentra
+      revisando —se ve lo que hay, no lo que falta— y que al generar produce un
+      esquema al que le sobra o le falta una clave foránea.
+
+      Ahora el nombre entra en la clave, así que dos relaciones con papeles
+      distintos conviven. Y cuando el descarte ocurre de verdad —misma pareja,
+      mismo tipo y mismo nombre, o sea el modelo repitiéndose— se dice. Un
+      duplicado real avisado cuesta una línea de ruido; uno callado cuesta el
+      esquema.
+    */
+    const clave = `${bruta.tipo}|${origen}|${destino}|${bruta.nombre.toLowerCase()}`;
+    if (conocidas.has(clave)) {
+      avisos.push({
+        severidad: 'aviso',
+        mensaje:
+          `La imagen repite la relación «${origen} → ${destino}» (${bruta.tipo}): ` +
+          'se queda una sola. Si en el dibujo hay dos líneas distintas entre esas clases, ' +
+          'dales un nombre a cada una y vuelve a importar.',
+      });
+      continue;
+    }
     conocidas.add(clave);
 
     const leidaOrigen = canonizarCardinalidad(bruta.cardinalidadOrigen);
     const leidaDestino = canonizarCardinalidad(bruta.cardinalidadDestino);
-    // La herencia y la realización no llevan cardinalidad; pedirla sería ruido.
-    const llevaCardinalidad = bruta.tipo !== 'inheritance' && bruta.tipo !== 'realization';
-    const dudosa = llevaCardinalidad && (leidaOrigen === null || leidaDestino === null);
+    const dudosa = llevaCardinalidad(bruta.tipo) && (leidaOrigen === null || leidaDestino === null);
 
     const cardinalidadOrigen = leidaOrigen ?? CARDINALIDAD_POR_DEFECTO.origen;
     const cardinalidadDestino = leidaDestino ?? CARDINALIDAD_POR_DEFECTO.destino;
@@ -439,6 +656,11 @@ export function interpretarDiagramaExtraido(
       tipo: bruta.tipo,
       cardinalidadOrigen,
       cardinalidadDestino,
+      // El nombre venía leyéndose del dibujo y tirándose aquí mismo. En el
+      // diagrama de banca eran «Has», «Account Transaction» y
+      // «Savings-Checking»: precisamente lo que explica *por qué* están unidas
+      // dos clases, y lo único que distingue dos líneas entre el mismo par.
+      nombre: bruta.nombre,
       dudosa,
     });
   }
@@ -465,6 +687,16 @@ export function interpretarDiagramaExtraido(
         isUnique: atributo.esClave,
       });
     }
+    for (const metodo of clase.metodos) {
+      operaciones.push({
+        op: 'addMethod',
+        classRef: { name: clase.nombre },
+        name: metodo.nombre,
+        returnType: metodo.tipoRetorno,
+        parameters: metodo.parametros.map((p) => ({ name: p.nombre, type: p.tipo })),
+        visibility: metodo.visibilidad,
+      });
+    }
   }
 
   // Las relaciones van después de TODAS las clases: una relación entre la
@@ -477,6 +709,9 @@ export function interpretarDiagramaExtraido(
       target: { name: relacion.destino },
       sourceMultiplicity: relacion.cardinalidadOrigen,
       targetMultiplicity: relacion.cardinalidadDestino,
+      // `undefined` y no `''`: el campo es opcional en el modelo, y una cadena
+      // vacía llegaría al lienzo como una etiqueta en blanco colgada de la línea.
+      ...(relacion.nombre ? { name: relacion.nombre } : {}),
     });
   }
 
@@ -500,6 +735,7 @@ export function interpretarDiagramaExtraido(
     resumen: {
       clases: listas.length,
       atributos: listas.reduce((total, c) => total + c.atributos.length, 0),
+      metodos: listas.reduce((total, c) => total + c.metodos.length, 0),
       relaciones: relaciones.length,
       filas: filasTotales,
       cardinalidadesDudosas: relaciones.filter((r) => r.dudosa).length,

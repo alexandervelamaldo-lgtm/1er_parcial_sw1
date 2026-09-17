@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  diagramaAXmi,
+  writeComunicacion,
   type ClassKind,
   type ContextoCambio,
   type Operation,
@@ -13,6 +13,7 @@ import { usePaneles } from '../hooks/usePaneles';
 import { useTema } from '../hooks/useTema';
 import { useSesion } from '../services/sesion';
 import { type Proyecto } from '../services/api';
+import { exportarXmiDelDiagrama } from '../services/exportar';
 import type { OrdenVista } from './Lienzo';
 import { LienzoFlow } from './LienzoFlow';
 import { PanelPropiedades } from './PanelPropiedades';
@@ -22,14 +23,19 @@ import { ImportarXmi } from './ImportarXmi';
 import { PrevisualizarGeneracion } from './PrevisualizarGeneracion';
 import { CatalogoModulos } from './CatalogoModulos';
 import { VisorComunicacion } from './VisorComunicacion';
+import { VisorComunicacionImportada } from './VisorComunicacionImportada';
+import { RevisionDiagrama } from './RevisionDiagrama';
 import { HistorialCambios } from './HistorialCambios';
 import { ColumnaAcoplada } from './PanelAcoplado';
+import { PanelTablon } from './PanelTablon';
 import type { Acoplado, EstadoColumna } from './paneles';
 import { ArbolProyecto } from './ArbolProyecto';
 import { Paleta } from './Paleta';
 import { BarraEstado } from './BarraEstado';
 import { BarraMenu } from './BarraMenu';
 import type { MenuDesplegable } from './barra-menu';
+import { BarraPulgar } from './BarraPulgar';
+import type { IdAccionPulgar } from './barra-pulgar';
 import { Icono } from './iconos';
 
 /**
@@ -107,6 +113,8 @@ export function EditorDiagrama({
   const [generando, setGenerando] = useState(false);
   const [modulos, setModulos] = useState(false);
   const [comunicacion, setComunicacion] = useState(false);
+  const [comunicacionImportada, setComunicacionImportada] = useState(false);
+  const [revisando, setRevisando] = useState(false);
   const ultimoCursor = useRef(0);
 
   // El encuadre se pide como una acción numerada; el lienzo la atiende una vez y
@@ -274,27 +282,13 @@ export function EditorDiagrama({
   /**
    * Exportar el diagrama a XMI (RF-DIAG-12).
    *
-   * No pasa por el servidor: el fichero se arma aquí con el diagrama que ya
-   * tenemos en memoria, de modo que funciona sin conexión y no hay una segunda
-   * versión de la verdad que pueda quedar desfasada respecto a lo que se ve.
+   * El cómo está en `services/exportar.ts`, compartido con la pantalla del móvil:
+   * lo que queda aquí es traducir el resultado a un aviso, que es lo único propio
+   * de esta pantalla.
    */
-  const exportarXmi = (): void => {
+  const exportarXmi = async (): Promise<void> => {
     try {
-      const xmi = diagramaAXmi(estado.diagrama);
-      // `application/xml` y no `text/xml`: así el navegador lo descarga en vez
-      // de intentar renderizarlo en una pestaña.
-      const blob = new Blob([xmi], { type: 'application/xml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const enlace = document.createElement('a');
-      enlace.href = url;
-      // El nombre del proyecto lo escribe una persona y acaba siendo un nombre
-      // de fichero. Nos quedamos con lo que es seguro en cualquier sistema en
-      // lugar de confiar en que el navegador lo arregle.
-      const nombre = proyecto.name.replace(/[^A-Za-z0-9 _.-]/g, '').trim();
-      enlace.download = `${nombre || 'diagrama'}.xmi`;
-      enlace.click();
-      URL.revokeObjectURL(url);
-      avisar('Diagrama exportado a XMI.');
+      avisar(await exportarXmiDelDiagrama(estado.diagrama, proyecto.name));
     } catch (error) {
       avisar(error instanceof Error ? error.message : 'No se pudo exportar el diagrama');
     }
@@ -392,6 +386,12 @@ export function EditorDiagrama({
             icono: 'historial',
             marcado: paneles.disposicion.abiertos.historial,
           },
+          {
+            id: 'ver:tablon',
+            etiqueta: 'Comunicación interna',
+            icono: 'personas',
+            marcado: paneles.disposicion.abiertos.tablon,
+          },
           { id: 'zoom:acercar', etiqueta: 'Acercar', separadorAntes: true },
           { id: 'zoom:alejar', etiqueta: 'Alejar' },
           { id: 'zoom:ajustar', etiqueta: 'Encuadrar el diagrama' },
@@ -427,17 +427,35 @@ export function EditorDiagrama({
             icono: 'enumeracion',
             deshabilitado: soloLectura,
           },
+          // La primera del grupo de abajo porque es la que se pulsa antes de
+          // generar nada: contesta a «¿está bien hecho?», que es una pregunta
+          // distinta de la que contesta «Generar» («¿se puede compilar?»).
+          {
+            id: 'revisar',
+            etiqueta: 'Revisar el diagrama…',
+            icono: 'revisar',
+            separadorAntes: true,
+          },
           {
             id: 'modulos',
             etiqueta: 'Módulos del proyecto…',
             icono: 'modulo',
-            separadorAntes: true,
           },
           // En «Modelo» y no en «Ver» porque no enseña este diagrama desde otro
           // ángulo: enseña el backend que saldría de él.
           {
             id: 'comunicacion',
             etiqueta: 'Diagrama de comunicación…',
+            icono: 'comunicacion',
+          },
+          // Entrada aparte y no una pestaña dentro de la anterior: son dos
+          // cosas distintas con el mismo nombre. Aquella la deduce esta
+          // herramienta del backend que generaría; esta viene de un fichero
+          // que trajo alguien. Juntarlas invitaría a leer la importada como si
+          // también estuviera respaldada por el código.
+          {
+            id: 'comunicacion-importada',
+            etiqueta: 'Comunicación importada…',
             icono: 'comunicacion',
           },
         ],
@@ -468,16 +486,25 @@ export function EditorDiagrama({
           setImportandoXmi(true);
           return;
         case 'exportar-xmi':
-          exportarXmi();
+          // `void` a conciencia: la exportación es asíncrona desde que pasa por
+          // el puente nativo, pero el menú no tiene nada que esperar —el aviso
+          // lo da ella misma, tanto si acaba bien como si falla—.
+          void exportarXmi();
           return;
         case 'generar':
           setGenerando(true);
+          return;
+        case 'revisar':
+          setRevisando(true);
           return;
         case 'modulos':
           setModulos(true);
           return;
         case 'comunicacion':
           setComunicacion(true);
+          return;
+        case 'comunicacion-importada':
+          setComunicacionImportada(true);
           return;
         case 'salir':
           onSalir();
@@ -509,6 +536,58 @@ export function EditorDiagrama({
     [alternarTema, aplicar, avisar, crearClase, estado, onSalir, paneles, pedirZoom, seleccion],
   );
 
+  /**
+   * Si la ficha se está viendo ahora mismo.
+   *
+   * Son dos condiciones y no una: el panel puede estar marcado como abierto
+   * dentro de una columna plegada, que es justo como arranca el editor en un
+   * teléfono. Mirar solo `abiertos.propiedades` haría que el botón saliera
+   * hundido con la ficha invisible, y pulsarlo la cerraría del todo en vez de
+   * enseñarla.
+   */
+  const propiedadesVisibles =
+    !paneles.disposicion.derecha.plegada && paneles.disposicion.abiertos.propiedades;
+
+  /**
+   * Las cinco de la barra del pulgar.
+   *
+   * Ninguna hace nada que no se pueda hacer ya desde el menú o la paleta: esto
+   * es un acceso corto a lo que se repite, no una segunda aplicación con su
+   * propia lógica. Por eso todas terminan llamando a las mismas funciones que
+   * usa el resto de la pantalla.
+   */
+  const accionDePulgar = useCallback(
+    (id: IdAccionPulgar) => {
+      switch (id) {
+        case 'clase':
+          crearClase('class');
+          return;
+        case 'relacion':
+          // `armarRelacion` con el tipo que ya está armado lo desarma, que es la
+          // salida que en el escritorio da la tecla Escape.
+          armarRelacion(tipoRelacion);
+          return;
+        case 'deshacer':
+          estado.deshacer();
+          return;
+        case 'propiedades':
+          // Abrir y alternar no son lo mismo aquí: si la ficha no se ve, se
+          // pide verla —venga de una columna plegada o de otro panel al
+          // frente—; si se ve, el mismo botón la quita de en medio, que en un
+          // teléfono es tapar o destapar el lienzo entero.
+          if (propiedadesVisibles) paneles.alternarLado('derecha');
+          else paneles.abrir('propiedades');
+          return;
+        case 'encuadrar':
+          pedirZoom('ajustar');
+          return;
+        default:
+          return;
+      }
+    },
+    [armarRelacion, crearClase, estado, paneles, pedirZoom, propiedadesVisibles, tipoRelacion],
+  );
+
   return (
     <div className="editor">
       <header className="barra">
@@ -528,45 +607,47 @@ export function EditorDiagrama({
           Nada de lo que hay aquí es exclusivo de la barra: todo tiene su entrada
           de menú y su atajo. Una barra de herramientas es un acceso rápido, no la
           única puerta.
+
+          En pantalla estrecha no se monta, y su sitio lo ocupa la barra del
+          pulgar de abajo. No es que estorbe: es que la cabecera es la franja más
+          lejos del pulgar de la mano que sujeta el teléfono, así que estos
+          iconos estaban donde más cuesta llegar precisamente por ser los que más
+          se pulsan. Dejar de dibujarla devuelve además su fila entera de alto al
+          lienzo, que es lo que escasea en un móvil.
         */}
-        <div className="barra__herramientas" role="group" aria-label="Herramientas del diagrama">
-          <div className="barra__grupo">
-            {/* Con `title` a secas, un lector de pantalla anuncia el icono y nada
-                más. La etiqueta accesible dice el verbo. */}
-            <button
-              type="button"
-              className="boton boton--icono"
-              onClick={estado.deshacer}
-              aria-label="Deshacer"
-              title={hayTeclado ? 'Deshacer (Ctrl+Z)' : 'Deshacer'}
-            >
-              <Icono nombre="deshacer" />
-            </button>
-            <button
-              type="button"
-              className="boton boton--icono"
-              onClick={estado.rehacer}
-              aria-label="Rehacer"
-              title={hayTeclado ? 'Rehacer (Ctrl+Mayús+Z)' : 'Rehacer'}
-            >
-              <Icono nombre="rehacer" />
-            </button>
-          </div>
+        {!estrecha && (
+          <div className="barra__herramientas" role="group" aria-label="Herramientas del diagrama">
+            <div className="barra__grupo">
+              {/* Con `title` a secas, un lector de pantalla anuncia el icono y nada
+                  más. La etiqueta accesible dice el verbo. */}
+              <button
+                type="button"
+                className="boton boton--icono"
+                onClick={estado.deshacer}
+                aria-label="Deshacer"
+                title={hayTeclado ? 'Deshacer (Ctrl+Z)' : 'Deshacer'}
+              >
+                <Icono nombre="deshacer" />
+              </button>
+              <button
+                type="button"
+                className="boton boton--icono"
+                onClick={estado.rehacer}
+                aria-label="Rehacer"
+                title={hayTeclado ? 'Rehacer (Ctrl+Mayús+Z)' : 'Rehacer'}
+              >
+                <Icono nombre="rehacer" />
+              </button>
+            </div>
 
-          {/*
-            Mostrar y ocultar las columnas.
+            {/*
+              Mostrar y ocultar las columnas.
 
-            Las canaletas ya pliegan con doble clic y los rieles vuelven a abrir,
-            pero las dos cosas hay que descubrirlas. Estos dos botones dicen que
-            los paneles se pueden quitar de en medio, que es lo primero que quiere
-            hacer quien viene a mirar un diagrama en una pantalla pequeña.
-
-            Se dejan de renderizar en vez de esconderse con CSS: un botón con
-            `display:none` sigue en el árbol, y hay lectores de pantalla y
-            recorridos de tabulación que lo encuentran igualmente. Aquí lo que se
-            quiere decir es «esta acción no está ahora», no «no se ve».
-          */}
-          {!estrecha && (
+              Las canaletas ya pliegan con doble clic y los rieles vuelven a
+              abrir, pero las dos cosas hay que descubrirlas. Estos dos botones
+              dicen que los paneles se pueden quitar de en medio, que es lo
+              primero que quiere hacer quien viene a mirar un diagrama.
+            */}
             <div className="barra__grupo">
               <button
                 type="button"
@@ -589,15 +670,15 @@ export function EditorDiagrama({
                 <Icono nombre="columna-derecha" />
               </button>
             </div>
-          )}
 
-          {/*
-            Aquí había un botón «Más» que desplegaba en el móvil los grupos que
-            no cabían. Sobra desde que hay menú: el menú ya es esa segunda capa, y
-            además es la misma en el teléfono y en el escritorio, así que no hay
-            dos organizaciones distintas que aprender según el aparato.
-          */}
-        </div>
+            {/*
+              Aquí había un botón «Más» que desplegaba en el móvil los grupos que
+              no cabían. Sobra desde que hay menú: el menú ya es esa segunda capa,
+              y además es la misma en el teléfono y en el escritorio, así que no
+              hay dos organizaciones distintas que aprender según el aparato.
+            */}
+          </div>
+        )}
       </header>
 
       {/*
@@ -731,6 +812,24 @@ export function EditorDiagrama({
               acoplado: 'historial',
               contenido: <HistorialCambios historial={estado.historial} />,
             },
+            {
+              acoplado: 'tablon',
+              /*
+                Solo se monta cuando el panel está abierto, y no con `display:
+                none` como los demás. El tablón no es pintura: mientras esté
+                montado sondea al servidor cada pocos segundos. Dejarlo vivo
+                dentro de un panel plegado sería tráfico permanente por una
+                conversación que nadie está mirando.
+              */
+              contenido:
+                usuario && paneles.disposicion.abiertos.tablon ? (
+                  <PanelTablon
+                    proyectoId={proyecto.id}
+                    usuarioId={usuario.id}
+                    rol={proyecto.role}
+                  />
+                ) : null,
+            },
           ]}
         />
       </main>
@@ -756,6 +855,32 @@ export function EditorDiagrama({
         aplicar={aplicar}
       />
 
+      {/*
+        La barra del pulgar, solo en pantalla estrecha.
+
+        Va la última y pegada al canto de abajo, que es el sitio al que el pulgar
+        de la mano que sujeta el teléfono llega sin recolocarlo. Podría parecer
+        más ordenado ponerla justo debajo del lienzo, pero entonces quedaría
+        encima de la franja del asistente, que crece hasta 30vh cuando hay una
+        propuesta que leer: la barra subiría y bajaría sola. Una barra que cambia
+        de sitio no se aprende, y aprenderla de memoria es justo lo que la hace
+        rápida —a 16 px y de reojo el icono no se distingue; la posición sí—.
+
+        Se monta y se desmonta en vez de esconderse con CSS. Con `display: none`
+        los cinco botones seguirían en el árbol: encontrables por tabulador en un
+        portátil y anunciados por el lector de pantalla como si existieran.
+      */}
+      {estrecha && (
+        <BarraPulgar
+          soloLectura={soloLectura}
+          herramienta={herramienta}
+          tipoRelacion={tipoRelacion}
+          nombreSeleccion={claseSeleccionada?.name ?? null}
+          propiedadesVisibles={propiedadesVisibles}
+          onAccion={accionDePulgar}
+        />
+      )}
+
       {importando && (
         <ImportarDiagrama
           proyectoId={proyecto.id}
@@ -779,12 +904,32 @@ export function EditorDiagrama({
             if (resultado.ok) setAviso({ texto: 'XMI importado.', deshacer: true });
             return resultado;
           }}
+          guardarComunicaciones={(diagramas) => {
+            for (const d of diagramas) writeComunicacion(estado.doc, d);
+            if (diagramas.length > 0) {
+              // Sin `deshacer`: el diagrama importado no entra por el gestor de
+              // deshacer —no es una operación— y ofrecer un botón que no lo
+              // quitaría sería mentir. Para quitarlo está el visor.
+              setAviso({
+                texto: `${diagramas.length === 1 ? 'Diagrama' : `${diagramas.length} diagramas`} de comunicación en el proyecto. Menú Modelo → Comunicación importada.`,
+              });
+            }
+          }}
           onCerrar={() => setImportandoXmi(false)}
         />
       )}
 
       {generando && (
-        <PrevisualizarGeneracion proyecto={proyecto} onCerrar={() => setGenerando(false)} />
+        <PrevisualizarGeneracion
+          proyecto={proyecto}
+          // El diagrama va desde aquí y no lo pide la ventana al servidor: lo
+          // que hay que validar es lo que se ve en el lienzo, incluidos los
+          // cambios que el documento todavía no ha sincronizado.
+          diagrama={estado.diagrama}
+          aplicar={aplicar}
+          soloLectura={soloLectura}
+          onCerrar={() => setGenerando(false)}
+        />
       )}
 
       {modulos && (
@@ -798,6 +943,30 @@ export function EditorDiagrama({
 
       {comunicacion && (
         <VisorComunicacion diagrama={estado.diagrama} onCerrar={() => setComunicacion(false)} />
+      )}
+
+      {comunicacionImportada && (
+        <VisorComunicacionImportada
+          doc={estado.doc}
+          version={estado.version}
+          soloLectura={soloLectura}
+          onCerrar={() => setComunicacionImportada(false)}
+        />
+      )}
+
+      {revisando && (
+        <RevisionDiagrama
+          diagrama={estado.diagrama}
+          // Ir a la clase la selecciona y cierra la revisión: el panel de
+          // propiedades queda con ella cargada y el arreglo se hace ahí mismo.
+          // Dejar el modal abierto encima del lienzo sería enseñar una
+          // selección que tapa la propia ventana.
+          onIrA={(classId) => {
+            setSeleccion(classId);
+            setRevisando(false);
+          }}
+          onCerrar={() => setRevisando(false)}
+        />
       )}
     </div>
   );

@@ -10,7 +10,7 @@ import { leerXmi } from './import.js';
 /**
  * El catálogo de casos de uso, comprobado de dos maneras distintas.
  *
- * La primera es la revisión estática: `revisarModelo` mira los catorce casos y
+ * La primera es la revisión estática: `revisarModelo` mira los diecinueve casos y
  * dice qué está mal sin dibujar nada. La segunda es la vuelta entera: se genera
  * el `.xmi` de cada caso y se vuelve a leer con nuestro propio importador, que es
  * el mismo que lee los ficheros de Enterprise Architect. Si un participante o un
@@ -24,7 +24,7 @@ import { leerXmi } from './import.js';
 
 const vacio = (): ClassDiagram => createDiagram({ name: 'Proyecto' });
 
-describe('el catálogo de los catorce casos de uso', () => {
+describe('el catálogo de los diecinueve casos de uso', () => {
   it('pasa la revisión entera sin un solo problema', () => {
     // Se compara contra la lista completa y no contra su longitud: cuando esto
     // falle, el mensaje del fallo tiene que decir *qué* está mal, no cuántas
@@ -62,9 +62,9 @@ describe('el catálogo de los catorce casos de uso', () => {
     expect(problemas).toContain('exactamente un nodo de inicio');
   });
 
-  it('son catorce, numerados del CU1 al CU14', () => {
+  it('son diecinueve, numerados del CU1 al CU19', () => {
     const ids = modeloDeCasosDeUso.casos.map((c) => c.id);
-    expect(ids).toEqual(Array.from({ length: 14 }, (_, i) => `CU${i + 1}`));
+    expect(ids).toEqual(Array.from({ length: 19 }, (_, i) => `CU${i + 1}`));
   });
 
   it('cada caso pertenece a un paquete declarado y ninguno se queda vacío', () => {
@@ -125,7 +125,7 @@ describe('el catálogo de los catorce casos de uso', () => {
   });
 });
 
-describe('los catorce, generados y vueltos a leer', () => {
+describe('los diecinueve, generados y vueltos a leer', () => {
   it('cada caso produce un XMI que nuestro importador entiende', () => {
     for (const caso of modeloDeCasosDeUso.casos) {
       const resultado = leerXmi(exportarComunicacionEa(caso), vacio());
@@ -188,7 +188,7 @@ describe('los catorce, generados y vueltos a leer', () => {
     }
   });
 
-  it('los catorce ficheros se llaman distinto', () => {
+  it('los diecinueve ficheros se llaman distinto', () => {
     const nombres = modeloDeCasosDeUso.casos.map((c) => nombreDeFichero(c, 'comunicacion'));
     expect(new Set(nombres).size).toBe(nombres.length);
     expect(nombres[0]).toBe('CU1-comunicacion.xmi');
