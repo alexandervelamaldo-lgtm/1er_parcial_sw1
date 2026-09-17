@@ -146,6 +146,12 @@ Esta es la parte del stack con más incertidumbre. Las cifras de tamaño son ór
 
 Todos se descargan **bajo demanda**, con progreso visible y cancelable (RNF-IA-02), y se cachean aparte del App Shell.
 
+> **Lo que se hizo en realidad.** De esta tabla solo se construyó la última fila. No
+> se empaquetó ningún modelo: la lectura de diagramas fotografiados va a un modelo
+> de visión remoto ([§5.4 de la guía](05-guia-voz-y-ocr.md)) y la transcripción de
+> voz se apoya en el navegador o en el reconocedor del sistema (ver §Voz). El
+> presupuesto de 150 MB quedó, por tanto, sin tocar.
+
 ### Runtime: ONNX Runtime Web como principal
 
 | Opción | Papel |
@@ -156,7 +162,27 @@ Todos se descargan **bajo demanda**, con progreso visible y cancelable (RNF-IA-0
 
 Ambos se mencionan en el enunciado y ambos tienen sitio, pero la elección por defecto es ONNX Runtime Web; TensorFlow.js entra solo si un modelo concreto lo justifica. Tener dos runtimes cargados a la vez duplica el peso en WASM y debe evitarse.
 
+> **Lo que se hizo en realidad.** Ninguno de los tres llegó a instalarse: no hay
+> `onnxruntime-web`, `@tensorflow/tfjs` ni `@xenova/transformers` en el proyecto. La
+> elección se mantiene registrada porque sigue siendo la que se haría el día que un
+> modelo baje al navegador, pero a día de hoy no se ejecuta ningún modelo en el
+> cliente. La tabla es una decisión tomada, no una dependencia en uso.
+
 ### Voz (RF-IA-02)
+
+> **Lo que se hizo en realidad.** El escalón 2 no se construyó: no hay Whisper ni
+> ningún otro modelo de transcripción en el paquete. Su objetivo —dictar sin que el
+> audio salga del aparato— se cubre en Android **delegando en el reconocedor del
+> sistema operativo** (`onDevice: true`, `mobile/lib/voz_nativa.dart`), que es
+> reconocimiento local sin gastar los 40–75 MB del presupuesto. Cuando el teléfono
+> no tiene el español descargado se avisa y se sigue por internet, diciéndolo.
+>
+> Ese puente nativo existe además por una razón que no estaba prevista aquí: el
+> WebView de Android **no implementa la Web Speech API**, así que dentro de la app
+> el escalón 1 tampoco está disponible. Sin puente no habría voz de ninguna clase.
+>
+> En un navegador de escritorio **no hay dictado sin conexión**: solo el escalón 1.
+> Lo de abajo se conserva como lo que se planeó, no como lo que se construyó.
 
 Dos escalones, en este orden:
 
@@ -306,7 +332,7 @@ El detalle del Service Worker no es menor: una cabecera de caché agresiva sobre
 | T8 | `ws` en crudo | Socket.IO | `y-websocket` ya trae protocolo y reconexión; se solaparían |
 | T9 | Drizzle | Prisma | Cercanía a SQL, menor peso en ejecución |
 | T10 | pnpm workspaces | npm, Turborepo | Estricto y eficiente; Turborepo no se justifica con 4 paquetes |
-| T11 | Voz: API del navegador con respaldo local | Solo Whisper local | 40–75 MB no se imponen a quien tiene conexión |
+| T11 | Voz: API del navegador y, en Android, reconocedor del sistema | Whisper `tiny` empaquetado | 40–75 MB no se imponen a quien tiene conexión. El respaldo local acabó siendo el del sistema operativo y no un modelo propio: mismo objetivo, coste de descarga cero (ver [§Voz](#voz-rf-ia-02)) |
 | T12 | Interpretación NL en servidor | Modelo local | Ningún modelo dentro del presupuesto alcanza RNF-IA-05 |
 | T13 | Guía por RAG sobre `docs/` | Afinar un modelo con el manual | Un modelo afinado envejece con cada edición del manual; el RAG se actualiza solo |
 | T14 | Búsqueda léxica (BM25) | Embeddings | Un embedding exige otro modelo **con red**, que es justo lo que rompe el modo sin conexión |

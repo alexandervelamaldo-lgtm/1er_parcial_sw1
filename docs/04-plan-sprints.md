@@ -221,7 +221,11 @@ SP-2 es el más importante del proyecto. Requiere resolver antes la pregunta abi
 
 **Voz** — RF-IA-02, RF-IA-06
 - Web Speech API con aviso claro de que requiere conexión.
-- Whisper `tiny` en ONNX como alternativa local, descargado bajo demanda (RNF-IA-02).
+- ~~Whisper `tiny` en ONNX como alternativa local, descargado bajo demanda (RNF-IA-02).~~
+  **No se construyó.** El dictado sin conexión se resolvió en Android delegando en el
+  reconocedor del sistema operativo, que no gasta presupuesto de descarga; en navegador
+  de escritorio no hay dictado sin conexión. Detalle en
+  [§Voz del stack](03-stack-tecnologico.md#voz-rf-ia-02).
 - Síntesis de voz opcional.
 
 **Consultas** — RF-IA-07
