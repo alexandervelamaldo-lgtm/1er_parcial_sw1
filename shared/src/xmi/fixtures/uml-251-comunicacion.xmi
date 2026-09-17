@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Diagrama de comunicación en UML 2.5.1 / XMI 2.5.1 canónico.
+
+  El otro fixture (`ea-comunicacion.xmi`) es una exportación real de Sparx
+  Enterprise Architect. Este no lo es de ninguna herramienta: está escrito a
+  mano contra el estándar de la OMG, y su razón de existir es que el dialecto
+  canónico dice las mismas cosas de otra manera, y son justo las maneras en las
+  que un importador escrito solo contra EA se rompe sin avisar:
+
+  1. La cadena del objeto acaba antes:
+       EA         lifeline -> represents -> Property -> type -> InstanceSpecification
+                             -> classifier -> Component
+       aquí       lifeline -> represents -> Property -> type -> Class
+  2. Los extremos de un conector apuntan a la **Property** (el rol de la
+     colaboración), no a una InstanceSpecification.
+  3. Los mensajes **no** declaran `sendEvent`/`receiveEvent`. El enlace va al
+     revés: cada `MessageOccurrenceSpecification` lleva `message="..."`, y el
+     orden de los fragmentos dentro de la interacción es el orden en que
+     ocurren. Un fichero así, leído con un importador que solo busca
+     `sendEvent`, se importa con cero mensajes sin que nada falle.
+  4. El último mensaje no tiene `name`: apunta con `signature` a la
+     `uml:Operation` a la que llama, que es lo que hacen las herramientas que
+     mantienen el modelo y el diagrama enganchados.
+
+  También lleva tildes y eñes a propósito, en el nombre del paquete y dentro de
+  una guarda, porque la declaración de codificación de este fichero es UTF-8 y
+  la del de EA es windows-1252: si el lector se cree la declaración en un caso
+  y no en el otro, aquí se ve.
+
+  Numeración esperada: cinco mensajes la traen escrita (1, 1.1, 1.2, 2, 2.1) y
+  el sexto no, así que se le deduce el 3 y el lector avisa de que la numeración
+  viene mezclada. `comprobarIntegridad` no debe encontrar nada: la jerarquía es
+  completa, la respuesta contesta a una llamada que existe y todo par que se
+  habla tiene su conector declarado.
+-->
+<xmi:XMI xmi:version="2.5.1"
+         xmlns:xmi="http://www.omg.org/spec/XMI/20131001"
+         xmlns:uml="http://www.omg.org/spec/UML/20161101">
+  <uml:Model xmi:type="uml:Model" xmi:id="modelo" name="Tienda">
+    <packagedElement xmi:type="uml:Package" xmi:id="paq_compra" name="Compra en línea">
+
+      <!-- Los clasificadores. `Cliente` es un actor: quien compra no es una
+           caja del sistema, y el visor lo dibuja distinto. -->
+      <packagedElement xmi:type="uml:Actor" xmi:id="cls_cliente" name="Cliente"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_carrito" name="Carrito"/>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_pedido" name="Pedido">
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_notificar" name="notificar">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="par_correo" name="correo" direction="in"/>
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="par_ret" name="entregado" direction="return"/>
+        </ownedOperation>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_pasarela" name="Pasarela"/>
+
+      <packagedElement xmi:type="uml:Collaboration" xmi:id="col_compra" name="ProcesoDeCompra">
+
+        <!-- Los participantes de una colaboración son sus roles, y un rol es
+             una Property con `type` apuntando al clasificador. -->
+        <ownedAttribute xmi:type="uml:Property" xmi:id="rol_c" name="c" type="cls_cliente"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="rol_ca" name="ca" type="cls_carrito"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="rol_p" name="p" type="cls_pedido"/>
+        <ownedAttribute xmi:type="uml:Property" xmi:id="rol_pa" name="pa" type="cls_pasarela"/>
+
+        <!-- Los enlaces. Los extremos apuntan al rol, no a una instancia. -->
+        <ownedConnector xmi:type="uml:Connector" xmi:id="con_c_ca" name="usa">
+          <end xmi:type="uml:ConnectorEnd" xmi:id="fin_c_ca_1" role="rol_c"/>
+          <end xmi:type="uml:ConnectorEnd" xmi:id="fin_c_ca_2" role="rol_ca"/>
+        </ownedConnector>
+        <ownedConnector xmi:type="uml:Connector" xmi:id="con_ca_p">
+          <end xmi:type="uml:ConnectorEnd" xmi:id="fin_ca_p_1" role="rol_ca"/>
+          <end xmi:type="uml:ConnectorEnd" xmi:id="fin_ca_p_2" role="rol_p"/>
+        </ownedConnector>
+        <ownedConnector xmi:type="uml:Connector" xmi:id="con_p_pa">
+          <end xmi:type="uml:ConnectorEnd" xmi:id="fin_p_pa_1" role="rol_p"/>
+          <end xmi:type="uml:ConnectorEnd" xmi:id="fin_p_pa_2" role="rol_pa"/>
+        </ownedConnector>
+
+        <ownedBehavior xmi:type="uml:Interaction" xmi:id="int_compra" name="Compra">
+
+          <lifeline xmi:type="uml:Lifeline" xmi:id="lv_c" name="c" represents="rol_c"/>
+          <lifeline xmi:type="uml:Lifeline" xmi:id="lv_ca" name="ca" represents="rol_ca"/>
+          <lifeline xmi:type="uml:Lifeline" xmi:id="lv_p" name="p" represents="rol_p"/>
+          <lifeline xmi:type="uml:Lifeline" xmi:id="lv_pa" name="pa" represents="rol_pa"/>
+
+          <!-- Los fragmentos, en orden de ocurrencia. Para cada mensaje, el
+               envío primero y la recepción después: es lo único que dice de
+               quién a quién va, porque el mensaje no lo declara. -->
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_1_e" covered="lv_c" message="msj_1"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_1_r" covered="lv_ca" message="msj_1"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_11_e" covered="lv_ca" message="msj_11"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_11_r" covered="lv_p" message="msj_11"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_12_e" covered="lv_ca" message="msj_12"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_12_r" covered="lv_p" message="msj_12"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_2_e" covered="lv_p" message="msj_2"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_2_r" covered="lv_pa" message="msj_2"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_21_e" covered="lv_pa" message="msj_21"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_21_r" covered="lv_pa" message="msj_21"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_3_e" covered="lv_pa" message="msj_3"/>
+          <fragment xmi:type="uml:MessageOccurrenceSpecification" xmi:id="oc_3_r" covered="lv_p" message="msj_3"/>
+
+          <message xmi:type="uml:Message" xmi:id="msj_1" name="1: confirmar()" messageSort="synchCall"/>
+          <message xmi:type="uml:Message" xmi:id="msj_11" name="1.1: crearPedido(lineas)" messageSort="synchCall"/>
+          <!-- Iteración y guarda en el mismo rótulo. -->
+          <message xmi:type="uml:Message" xmi:id="msj_12" name="*[por cada línea] 1.2: añadirLinea(linea)" messageSort="synchCall"/>
+          <!-- Asignación: el resultado se guarda en `total`. -->
+          <message xmi:type="uml:Message" xmi:id="msj_2" name="2: total := cobrar(importe)" messageSort="synchCall"/>
+          <!-- Mensaje a sí mismo, con guarda. -->
+          <message xmi:type="uml:Message" xmi:id="msj_21" name="[hay saldo] 2.1: autorizar(tarjeta)" messageSort="synchCall"/>
+          <!-- Sin `name` y sin número: el rótulo sale de la operación que firma
+               y el número se deduce del orden. -->
+          <message xmi:type="uml:Message" xmi:id="msj_3" signature="op_notificar" messageSort="reply"/>
+
+        </ownedBehavior>
+      </packagedElement>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

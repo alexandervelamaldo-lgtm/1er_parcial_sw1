@@ -309,7 +309,7 @@ describe('lo que Enterprise Architect necesita para dibujarlo', () => {
     const otros = atributos(exportarComunicacionEa(minimo), 'xmi:id').filter(propios);
     const compartidos = otros.filter((id) => unos.has(id));
 
-    // Los catorce ficheros se importan en el mismo proyecto de EA. Si dos casos
+    // Los diecinueve ficheros se importan en el mismo proyecto de EA. Si dos casos
     // usan el mismo id para su pantalla, el segundo import pisa al primero.
     expect(compartidos).toEqual([]);
   });

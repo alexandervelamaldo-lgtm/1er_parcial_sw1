@@ -307,7 +307,7 @@ interface Mensaje {
  * No valida: eso lo hace `revisarModelo` sobre el catálogo entero, antes de
  * llegar aquí. Si a este punto llega un caso con un paso que apunta a un alias
  * que no existe, lo que sale es un fichero roto — y el orden correcto de las
- * comprobaciones es revisar los catorce casos de una vez y no descubrir el fallo
+ * comprobaciones es revisar los diecinueve casos de una vez y no descubrir el fallo
  * en el séptimo fichero.
  */
 export function exportarComunicacionEa(caso: CasoDeUso, opciones: OpcionesEa = {}): string {

@@ -2,6 +2,7 @@ import { isValidJavaIdentifier, toCamelCase, toPascalCase } from '../model/namin
 import { resolveTypeName } from '../model/type-catalog.js';
 import type { Operation } from '../ops/operations.js';
 import { idDe, indexarPorId, refDe, tipoUml, type AvisoXmi } from './comun.js';
+import { analizarEtiqueta } from './etiqueta-mensaje.js';
 import { attr, descendientes, hijos, type XmlNode } from './xml.js';
 
 /**
@@ -96,13 +97,6 @@ export interface ResultadoComunicacion {
 // Nombres de mensaje
 // ---------------------------------------------------------------------------
 
-/** `1`, `1.2`, `2.3.1`, `A1`, `1.2a`, seguidos de dos puntos. */
-const SECUENCIA = /^[A-Za-z]?\d+(?:\.\d+)*[a-z]?\s*:/;
-/** `[i > 0]`, `*[i := 1..n]`: guardas y marcas de iteración. */
-const GUARDA = /^\*?\s*\[[^\]]*\]/;
-/** `resultado :=` delante de la llamada. */
-const ASIGNACION = /^[A-Za-z_$][\w$]*\s*:=\s*/;
-
 /**
  * Separa el nombre real de la llamada de todo lo que lo adorna.
  *
@@ -112,39 +106,19 @@ const ASIGNACION = /^[A-Za-z_$][\w$]*\s*:=\s*/;
  * y no en el nombre del método, porque `2.3: calcular` no es un identificador
  * Java y, si lo fuera, sería peor: nadie querría ver `_23_calcular` en la clase
  * generada.
+ *
+ * El despiece de verdad está en `etiqueta-mensaje.ts`, que devuelve también el
+ * número y la guarda. Este lector no los usa —traduce a un diagrama de clases,
+ * donde no hay dónde ponerlos— pero el lector de `diagrama-comunicacion.ts` sí,
+ * y las expresiones regulares tenían que quedarse en un solo sitio: son
+ * exactamente la clase de código que se corrige aquí y se olvida allí.
  */
 function partirMensaje(
   bruto: string,
-): { nombre: string; argumentos: string[]; sobra: boolean } | null {
-  let resto = bruto.trim();
-  // En bucle porque el orden en que aparecen no está fijado por nada: hay
-  // herramientas que escriben la guarda antes del número y otras después.
-  for (let vuelta = 0; vuelta < 4; vuelta += 1) {
-    const antes = resto;
-    resto = resto.replace(GUARDA, '').trim();
-    resto = resto.replace(SECUENCIA, '').trim();
-    resto = resto.replace(ASIGNACION, '').trim();
-    if (resto === antes) break;
-  }
-
-  const abre = resto.indexOf('(');
-  const nombre = (abre === -1 ? resto : resto.slice(0, abre)).trim();
-  if (nombre === '') return null;
-
-  if (abre === -1) return { nombre, argumentos: [], sobra: false };
-  const cierra = resto.lastIndexOf(')');
-  // Lo que venga detrás del paréntesis de cierre no es parte de la llamada.
-  // Ignorarlo en silencio es justo lo que convierte «borrar(); DROP TABLE x»
-  // en un inocente método `borrar`: el resto de la línea desaparece del aviso
-  // y nadie llega a ver lo que traía el fichero.
-  const sobra = cierra !== -1 && resto.slice(cierra + 1).trim() !== '';
-  const dentro = resto.slice(abre + 1, cierra === -1 ? resto.length : cierra).trim();
-  if (dentro === '') return { nombre, argumentos: [], sobra };
-  return {
-    nombre,
-    argumentos: dentro.split(',').map((a) => a.trim()).filter((a) => a !== ''),
-    sobra,
-  };
+): { nombre: string; argumentos: readonly string[]; sobra: boolean } | null {
+  const piezas = analizarEtiqueta(bruto);
+  if (piezas === null) return null;
+  return { nombre: piezas.nombre, argumentos: piezas.argumentos, sobra: piezas.sobra };
 }
 
 /**
@@ -365,7 +339,7 @@ export function leerComunicacion(
 
   // ---- parámetros ---------------------------------------------------------
 
-  const parametrosDe = (argumentos: string[]): { name: string; type: string }[] => {
+  const parametrosDe = (argumentos: readonly string[]): { name: string; type: string }[] => {
     const salida: { name: string; type: string }[] = [];
     const usados = new Set<string>();
 
