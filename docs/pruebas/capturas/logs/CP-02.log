@@ -1,0 +1,84 @@
+$ npx vitest run --reporter=verbose backend-tool/src/auth/identity.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/auth/identity.test.ts > generarCodigoRecuperacion > sale en grupos legibles 2ms
+ ✓ backend-tool/src/auth/identity.test.ts > generarCodigoRecuperacion > no usa los caracteres que se confunden al copiar 3ms
+ ✓ backend-tool/src/auth/identity.test.ts > generarCodigoRecuperacion > no repite 7ms
+ ✓ backend-tool/src/auth/identity.test.ts > generarCodigoRecuperacion > usa el alfabeto entero 5ms
+ ✓ backend-tool/src/auth/identity.test.ts > normalizarCodigo > quita los guiones con los que se enseña 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > normalizarCodigo > perdona las minúsculas y los espacios de pegar desde otro sitio 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > normalizarCodigo > deja fuera lo que no puede formar parte de un código 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > lee el token que ella misma emitió 1ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > el token deja de valer si cambia la marca de la credencial 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > rechaza el token de un usuario que ya no está 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > rechaza un token caducado sin llegar a preguntar por el usuario 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > rechaza la firma hecha con otro secreto 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > rechaza lo que ni siquiera tiene forma de token 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > SesionFirmada > rechaza una caducidad que no es un número 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > marcaDeCredencial > cambia cuando cambia el hash de la contraseña 1ms
+ ✓ backend-tool/src/auth/identity.test.ts > marcaDeCredencial > no entrega el hash entero 0ms
+ ✓ backend-tool/src/auth/identity.test.ts > LocalIdentityProvider en memoria > el código emitido sirve una vez y deja la sesión iniciada 232ms
+ ✓ backend-tool/src/auth/identity.test.ts > LocalIdentityProvider en memoria > sin código emitido no hay recuperación posible 112ms
+ ✓ backend-tool/src/auth/identity.test.ts > LocalIdentityProvider en memoria > no se puede emitir un código para un usuario que no existe 1ms
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  01:41:05
+   Duration  907ms (transform 63ms, setup 0ms, collect 68ms, tests 368ms, environment 0ms, prepare 174ms)
+
+
+
+$ npx vitest run --reporter=verbose backend-tool/src/api.test.ts -t "autenticación"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/api.test.ts > autenticación > registra y devuelve un token utilizable 297ms
+ ✓ backend-tool/src/api.test.ts > autenticación > rechaza una contraseña demasiado corta 54ms
+ ✓ backend-tool/src/api.test.ts > autenticación > no distingue correo inexistente de contraseña incorrecta 387ms
+ ✓ backend-tool/src/api.test.ts > autenticación > rechaza sin token 61ms
+ ✓ backend-tool/src/api.test.ts > autenticación > rechaza un token manipulado 283ms
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > el registro entrega un código y el código cambia la contraseña
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > la contraseña anterior deja de servir
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > el código no vale dos veces
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > acepta el código con o sin guiones y en minúsculas
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > el código de otra cuenta no sirve
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > no distingue un correo desconocido de un código equivocado
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > la contraseña nueva pasa por la misma regla que el registro
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > cambiar la contraseña invalida las sesiones anteriores
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > emitir un código nuevo anula el anterior
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > pedir un código nuevo exige sesión
+ ↓ backend-tool/src/api.test.ts > proyectos > crea el proyecto con su documento ya inicializado
+ ↓ backend-tool/src/api.test.ts > proyectos > solo lista los proyectos del usuario
+ ↓ backend-tool/src/api.test.ts > proyectos > responde 404 y no 403 a un extraño, para no revelar que existe
+ ↓ backend-tool/src/api.test.ts > proyectos > invita a un colaborador por correo
+ ↓ backend-tool/src/api.test.ts > proyectos > no deja expulsar al propietario
+ ↓ backend-tool/src/api.test.ts > proyectos > al borrar el proyecto borra también su documento
+ ↓ backend-tool/src/api.test.ts > diagrama > aplica operaciones y las refleja en el diagrama
+ ↓ backend-tool/src/api.test.ts > diagrama > devuelve 422 y no aplica nada si una operación del lote falla
+ ↓ backend-tool/src/api.test.ts > diagrama > rechaza una operación mal formada antes de tocar el documento
+ ↓ backend-tool/src/api.test.ts > diagrama > un usuario de solo lectura puede leer pero no escribir
+ ↓ backend-tool/src/api.test.ts > diagrama > fusiona el trabajo hecho offline con el del servidor
+ ↓ backend-tool/src/api.test.ts > generación > avisa de que un diagrama vacío todavía no puede generarse
+ ↓ backend-tool/src/api.test.ts > generación > genera las cuatro capas a partir del diagrama del documento
+ ↓ backend-tool/src/api.test.ts > generación > devuelve un ZIP descargable
+ ↓ backend-tool/src/api.test.ts > generación > rechaza un paquete base que no es un paquete Java
+ ↓ backend-tool/src/api.test.ts > asistente > propone operaciones sin aplicarlas
+ ↓ backend-tool/src/api.test.ts > asistente > pide una aclaración en lugar de inventar
+ ↓ backend-tool/src/api.test.ts > panel > exige sesión
+ ↓ backend-tool/src/api.test.ts > panel > resume solo los proyectos de quien pregunta
+ ↓ backend-tool/src/api.test.ts > panel > trae las cifras que la pantalla necesita, contadas del documento
+ ↓ backend-tool/src/api.test.ts > panel > reparte los cambios por vía de entrada y no cuenta deshacer como modelo
+ ↓ backend-tool/src/api.test.ts > panel > un lector ve por el panel lo mismo que ya podía pedir suelto
+ ↓ backend-tool/src/api.test.ts > panel > no deja los documentos abiertos detrás de sí
+ ✓ backend-tool/src/api.test.ts > salud > responde sin autenticación 69ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed | 33 skipped (39)
+   Start at  01:41:07
+   Duration  3.12s (transform 574ms, setup 0ms, collect 1.46s, tests 1.15s, environment 0ms, prepare 162ms)
+

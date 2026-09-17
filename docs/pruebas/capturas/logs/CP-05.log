@@ -1,0 +1,134 @@
+$ npx vitest run --reporter=verbose backend-tool/src/import.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/import.test.ts > lectura de la foto > devuelve la tabla leída y la interpretación, sin tocar el diagrama 315ms
+ ✓ backend-tool/src/import.test.ts > lectura de la foto > acepta la imagen con el prefijo «data:» que pone el navegador 246ms
+ ✓ backend-tool/src/import.test.ts > lectura de la foto > expone la confianza como dato y no como permiso 230ms
+ ✓ backend-tool/src/import.test.ts > lectura de la foto > traslada los avisos del modelo para que la revisión los vea de entrada 234ms
+ ✓ backend-tool/src/import.test.ts > lectura de la foto > avisa de que la clase ya existe en vez de proponer un duplicado 241ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > rechaza a quien solo puede leer el proyecto (RNF-SEG-04) 407ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > deja pasar a un editor invitado 386ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > rechaza sin sesión 227ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > rechaza lo que no está codificado en base64 227ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > rechaza un contenido que no es la imagen que dice ser 226ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > rechaza un mimeType que no está en la lista blanca 222ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > rechaza una imagen que supera el máximo, diciendo cuánto pesa 263ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > un cuerpo desmesurado lo corta Express antes de llegar a la ruta 320ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > explica qué configurar cuando la instalación no tiene modelo de visión 228ms
+ ✓ backend-tool/src/import.test.ts > lo que la ruta de lectura rechaza antes de gastar la clave > propaga el motivo del proveedor en vez de un error genérico 218ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir de la tabla revisada > devuelve operaciones con su descripción, y tampoco escribe 224ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir de la tabla revisada > revalida la tabla aunque venga de nuestra propia ruta de lectura 217ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir de la tabla revisada > rechaza un nombre de tabla que no da un identificador Java (RNF-SEG-06) 222ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir de la tabla revisada > exige permiso de edición 403ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir de la tabla revisada > funciona sin modelo de visión: la revisión no depende del proveedor 218ms
+ ✓ backend-tool/src/import.test.ts > el recorrido entero, hasta el SQL generado > foto → revisión → propuesta → aplicación → data.sql 309ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > traduce un 503 del proveedor en vez de escupir su JSON 217ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > distingue «no queda nada por probar» de «este modelo está saturado» 232ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > la cadena agotada manda sobre el 404, que se explica de otra forma 241ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > un 404 manda a mirar LLM_VISION_MODEL, no la foto 235ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > un 404 en HTML manda a mirar la URL, que es otra avería distinta 239ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > devuelve las clases y las relaciones, sin tocar el diagrama 238ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > canoniza «0..*» y conserva «0..1» 235ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > cuenta las cardinalidades dudosas para que la pantalla las destaque 219ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > rechaza a quien solo puede leer, sin gastar la clave 411ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > aplica las mismas comprobaciones de imagen que la ruta de tablas 230ms
+ ✓ backend-tool/src/import.test.ts > lectura de un diagrama de clases fotografiado > propaga el motivo del proveedor 214ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir del diagrama revisado > devuelve operaciones con su descripción, y tampoco escribe 232ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir del diagrama revisado > revalida aunque venga de nuestra propia ruta de lectura 236ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir del diagrama revisado > rechaza un nombre de clase hostil sin limpiarlo (RNF-SEG-06) 244ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir del diagrama revisado > exige permiso de edición 391ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir del diagrama revisado > funciona sin modelo de visión: la revisión no depende del proveedor 219ms
+ ✓ backend-tool/src/import.test.ts > propuesta a partir del diagrama revisado > foto → revisión → aplicación deja el diagrama con sus relaciones 235ms
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  01:41:37
+   Duration  11.70s (transform 532ms, setup 0ms, collect 1.34s, tests 9.85s, environment 0ms, prepare 137ms)
+
+
+
+$ npx vitest run --reporter=verbose shared/src/ops/import-diagram.test.ts shared/src/ops/import-table.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/ops/import-table.test.ts > parseTablaExtraida > acepta la forma que promete la instrucción del modelo 3ms
+ ✓ shared/src/ops/import-table.test.ts > parseTablaExtraida > rechaza una tabla sin columnas en lugar de dejarla pasar vacía 1ms
+ ✓ shared/src/ops/import-table.test.ts > parseTablaExtraida > rechaza celdas que no son texto: un número suelto rompería el escapado 0ms
+ ✓ shared/src/ops/import-table.test.ts > parseTablaExtraida > pone valores por defecto en lo que el modelo omite 1ms
+ ✓ shared/src/ops/import-table.test.ts > parseTablaExtraida > corta una tabla desmesurada antes de que llegue al diagrama 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > convierte una tabla limpia en clase, atributos y filas 7ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > pone las filas en la última operación, cuando los atributos ya existen 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > traduce el tipo dicho en castellano usando el catálogo 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > degrada a String un tipo que el modelo se ha inventado, y lo avisa 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > rechaza un nombre de tabla que no da un identificador Java (RNF-SEG-06) 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > no pisa una clase que ya existe: obliga a decidir en la revisión 3ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > detecta dos columnas que colapsarían en el mismo atributo 0ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > descarta entera la fila desalineada en lugar de colocar los valores que hay 2ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > marca clave la primera columna si el modelo no marcó ninguna, y lo dice 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > trata la celda vacía como ausencia de dato y no como cadena vacía 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > traslada a avisos lo que el modelo declara ilegible 0ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > la confianza declarada por el modelo no cambia el resultado 1ms
+ ✓ shared/src/ops/import-table.test.ts > interpretarTablaExtraida > las operaciones que produce se aplican de verdad sobre el documento 3ms
+ ✓ shared/src/ops/import-table.test.ts > salvaguardas de acciones destructivas > reconoce como destructivo todo lo que quita información 0ms
+ ✓ shared/src/ops/import-table.test.ts > salvaguardas de acciones destructivas > enumera lo que se pierde al borrar una clase, incluidas sus filas 2ms
+ ✓ shared/src/ops/import-table.test.ts > salvaguardas de acciones destructivas > avisa de las relaciones que caen en cascada al borrar una clase 1ms
+ ✓ shared/src/ops/import-table.test.ts > salvaguardas de acciones destructivas > no llama destructivo a sembrar filas en una clase que no tenía ninguna 1ms
+ ✓ shared/src/ops/import-table.test.ts > salvaguardas de acciones destructivas > el lote entero es destructivo si lo es una sola de sus operaciones 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > parseDiagramaExtraido > acepta lo mínimo que puede devolver el modelo 4ms
+ ✓ shared/src/ops/import-diagram.test.ts > parseDiagramaExtraido > rechaza una respuesta que no es un diagrama 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > parseDiagramaExtraido > rechaza un tipo de relación que no existe en el modelo 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: el diagrama de la foto > reconoce las tres clases y las dos asociaciones 7ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: el diagrama de la foto > canoniza «0..*» a «*» para que el panel pueda mostrarla 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: el diagrama de la foto > las operaciones se aplican de verdad sobre un documento 6ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: cardinalidades dudosas > propone 1→* y lo marca cuando el modelo no pudo leerla 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: cardinalidades dudosas > el aviso dice qué extremo falló y por qué importa 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: cardinalidades dudosas > la relación se conserva aunque la cardinalidad sea dudosa 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: cardinalidades dudosas > una cardinalidad ininteligible se trata como ilegible, no se cuela 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: cardinalidades dudosas > la herencia no se marca dudosa por no traer cardinalidad 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: orden de las operaciones > todas las clases van antes que cualquier relación 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: orden de las operaciones > las filas van al final, después de sus atributos 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: los datos no se pierden > una tabla fotografiada con filas sigue cargando sus filas 2ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: los datos no se pierden > descarta la fila desalineada y solo esa 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: seguridad y prudencia > nunca propone borrar nada 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: seguridad y prudencia > rechaza un nombre de clase hostil en vez de limpiarlo (RNF-SEG-06) 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: seguridad y prudencia > rechaza un atributo con nombre inválido sin tocar el resto de la clase 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: seguridad y prudencia > un tipo inventado cae a String y se avisa, no se manda al generador 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: seguridad y prudencia > descarta que una clase herede de sí misma 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: seguridad y prudencia > permite la autorrelación que sí es legítima 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: contra un diagrama que ya tiene contenido > no duplica una clase que ya existe pero conserva sus relaciones 2ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: contra un diagrama que ya tiene contenido > casa el extremo aunque el modelo lo escriba de otra forma 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: contra un diagrama que ya tiene contenido > no importa dos veces la misma relación 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: contra un diagrama que ya tiene contenido > descarta la relación cuyo extremo no es ninguna clase leída 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: contra un diagrama que ya tiene contenido > no es aplicable si la imagen no traía ninguna clase nueva 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: clave primaria > marca una clave si la clase no traía ninguna 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: clave primaria > no le inventa clave primaria a una interfaz 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: clave primaria > conserva el estereotipo abstracto 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: métodos > emite los métodos de la foto como addMethod 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: métodos > quita los paréntesis que vengan pegados al nombre 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: métodos > rechaza un nombre de método hostil en vez de limpiarlo (RNF-SEG-06) 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: métodos > no se inventa métodos cuando el recuadro no tenía tercer compartimento 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: varias relaciones entre el mismo par > conserva dos relaciones distintas entre las mismas dos clases 1ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: varias relaciones entre el mismo par > el rótulo de la línea llega hasta la operación 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > interpretarDiagramaExtraido: varias relaciones entre el mismo par > sigue quitando la relación repetida de verdad, y lo dice 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > llevaCardinalidad > la herencia y la realización no llevan cardinalidad 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > llevaCardinalidad > las demás sí 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > llevaCardinalidad > una herencia sin cardinalidad no es dudosa ni genera aviso 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > rellena los dos extremos cuando no se leyó ninguno 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > no toca el extremo que sí se leyó 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > no propone nada cuando la relación ya está completa 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > se salta la herencia y la realización 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > cuenta un valor ilegible como hueco, no como valor 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > devuelve el índice de la relación en la lista original, no el de las que rellena 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > sobre una lista vacía no propone nada 0ms
+ ✓ shared/src/ops/import-diagram.test.ts > sugerirCardinalidades > lo que propone deja el diagrama sin extremos dudosos 0ms
+
+ Test Files  2 passed (2)
+      Tests  70 passed (70)
+   Start at  01:41:50
+   Duration  818ms (transform 218ms, setup 0ms, collect 566ms, tests 81ms, environment 0ms, prepare 321ms)
+

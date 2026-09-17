@@ -10,7 +10,10 @@ Esta guía cubre las dos funcionalidades pedidas expresamente:
 
 Y una tercera que comparte con ellas el mismo principio —nada entra en el diagrama
 sin que alguien lo confirme—: la **importación y exportación en XMI** (§5.5), para
-intercambiar el diagrama con otras herramientas UML.
+intercambiar el diagrama con otras herramientas UML. Por esa misma vía entran los
+**diagramas de comunicación** hechos en otra herramienta, que además de traducirse
+se guardan enteros y se dibujan: §5.14, donde están también los requisitos de
+formato de cada dialecto admitido.
 
 Además, este mismo documento es lo que contesta la **guía** de la aplicación
 (§5.7): el botón «? Ayuda» busca aquí dentro y responde en castellano, con un
@@ -124,7 +127,7 @@ LLM_VISION_API_KEY=...
 |---|---|---|
 | `LLM_API_KEY` | Autenticación con el proveedor de texto | El asistente funciona solo con la gramática local; el OCR se desactiva |
 | `LLM_MODEL` | Interpretación de órdenes de voz y texto | Igual que arriba, y la guía del manual contesta buscando en `docs/` sin pasar por el modelo, diciendo que falta esta variable |
-| `LLM_VISION_MODEL` | Lectura de fotografías | La ruta de OCR responde `SIN_MODELO_VISION` y explica qué definir |
+| `LLM_VISION_MODEL` | Lectura de fotografías. Admite **varios nombres separados por comas**: el primero es el preferido y los demás son la reserva («Un modelo de reserva, por si el preferido está saturado») | La ruta de OCR responde `SIN_MODELO_VISION` y explica qué definir |
 | `LLM_VISION_BASE_URL` | Proveedor de visión, si es distinto del de texto | Se hereda `LLM_BASE_URL` |
 | `LLM_VISION_API_KEY` | Clave de visión, si es distinta | Se hereda `LLM_API_KEY` **solo si la visión apunta al mismo proveedor**; si apunta a otro, la lectura de fotos se queda desactivada |
 
@@ -173,6 +176,48 @@ proveedor que lo hable. Por orden de recomendación para este proyecto:
 Para Gemini, la clave se saca en <https://aistudio.google.com/apikey> y la URL
 base es `https://generativelanguage.googleapis.com/v1beta/openai`.
 
+#### Cómo saber qué modelos puede usar *esta* clave
+
+El listado de `GET /v1beta/models` dice qué modelos **existen**, y eso no es lo
+mismo que lo que su clave puede llamar. Comprobado: `gemini-2.5-flash` aparece en
+el listado y al llamarlo contesta *«no longer available to new users»*. La
+entitlement es por cuenta y el catálogo no la refleja, así que la única prueba
+que vale es **llamar de verdad**.
+
+Este bucle prueba una lista de candidatos contra el mismo endpoint que usa el
+backend, con una imagen de 1×1 y `max_tokens: 16` —coste despreciable— e imprime
+solo el nombre y el código. La clave sale del `.env` a una variable y **no se
+imprime**; viaja en la cabecera, nunca en la URL:
+
+```powershell
+$k = (Select-String -Path .env -Pattern '^LLM_API_KEY=(.+)$').Matches[0].Groups[1].Value
+$img = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+foreach ($m in 'gemini-3.7-flash','gemini-3.5-flash','gemini-3.5-flash-lite') {
+  $body = @{ model = $m; max_tokens = 16; messages = @(@{ role = 'user'; content = @(@{ type = 'text'; text = 'di ok' }, @{ type = 'image_url'; image_url = @{ url = $img } }) }) } | ConvertTo-Json -Depth 10
+  try {
+    Invoke-RestMethod -Method Post -Uri 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' -Headers @{ authorization = "Bearer $k" } -ContentType 'application/json' -Body $body | Out-Null
+    "$m -> OK"
+  } catch { "$m -> " + $_.Exception.Response.StatusCode.value__ }
+}
+Remove-Variable k
+```
+
+Una tanda real, en septiembre de 2026 y sobre una clave de capa gratuita:
+
+| Modelo | | Modelo | |
+|---|---|---|---|
+| `gemini-3.8-flash` | `503` | `gemini-3.5-flash` | **OK** |
+| `gemini-3.6-flash` | `503` | `gemini-3.5-flash-lite` | **OK** |
+| `gemini-pro-latest` | `429` | `gemini-3.1-flash-lite` | **OK** |
+| `gemini-3.1-pro-preview` | `429` | `gemini-3.7-flash` | **OK** |
+
+El patrón se lee solo, y es el que hay que tener en cuenta al elegir: **los
+modelos más nuevos y más potentes son justo los que dan `503`**, y los `pro` de
+la capa gratuita ni siquiera llegan a saturarse porque la cuota se agota antes
+(`429`). O sea, «el mejor» y «el que contesta» tiran en direcciones opuestas.
+Una cadena resuelve la tensión sin tener que elegir: el potente delante, el
+disponible detrás.
+
 **Lo que no recomiendo aquí es un OCR clásico** tipo Tesseract, aunque sea
 gratis y funcione sin conexión: devuelve caracteres sueltos y deja sin resolver
 lo difícil —qué es cabecera, qué es dato, dónde acaba cada celda—, que es
@@ -187,6 +232,103 @@ ve la clave.
 > ⚠️ **La clave que hay ahora en `.env` debe rotarse.** Se transmitió por chat y
 > quedó en el historial de PowerShell. Genera una nueva en el panel de DeepSeek,
 > sustitúyela en `.env` y revoca la antigua.
+
+### Un modelo de reserva, por si el preferido está saturado
+
+`LLM_VISION_MODEL` admite **varios nombres separados por comas**. El primero es
+el que se prueba; los demás se prueban en orden, y solo si el anterior no está
+disponible:
+
+```env
+LLM_VISION_MODEL=gemini-3.6-flash,gemini-2.5-flash
+```
+
+Un solo nombre —lo que hay hoy en casi todas las instalaciones— se comporta
+exactamente igual que antes: es una cadena de uno.
+
+Esto existe por un error concreto, y conviene contarlo porque explica por qué la
+solución no fue la obvia:
+
+```
+503 [{"error":{"code":503,"message":"This model is currently experiencing
+high demand. Spikes in demand are usually temporary. Please try again
+later.","status":"UNAVAILABLE"}}]
+```
+
+La lectura de fotos ya reintentaba: tres intentos con espera creciente. Lo que
+no funciona es que **un reintento no puede durar más que la saturación**. Los
+tres intentos suman unos dos segundos y medio; un `503 UNAVAILABLE` de la capa
+gratuita de Gemini dura *minutos*. Insistirle más veces al mismo modelo, o
+esperar más entre intentos, solo alarga el rato que la pantalla se pasa
+bloqueada antes de enseñar el mismo error. El eje equivocado era *cuántas
+veces*; el bueno es *a quién*.
+
+**Cuándo se pasa al siguiente y cuándo no.** La lista corta es la parte que
+importa:
+
+| Respuesta del proveedor | ¿Pregunta al siguiente? | Por qué |
+|---|---|---|
+| `429`, `502`, `503`, `504` | Sí | El modelo está saturado; otro puede contestar |
+| `404` | Sí | El nombre lo retiró el proveedor; el de reserva sigue vivo |
+| `401`, `403` | **No** | Es la clave, y **la cadena entera comparte la misma clave**: probar el siguiente solo alargaría la espera para enseñar el mismo mensaje |
+| `402` | **No** | Sin saldo tampoco lo hay para el segundo |
+| `400` | **No** | La petición está mal formada; irá igual de mal al siguiente |
+| Contestó, pero la respuesta no servía | **No** | Ver abajo |
+
+Ese último caso es el que más fácil se hace mal. Si el modelo devolvió una
+respuesta vacía, sin JSON, cortada por el límite de tokens, o diciendo que en la
+foto no hay ningún diagrama, **no** se pasa al siguiente. Eso no es un modelo
+caído: es un modelo que miró la foto y dijo algo. Encadenar ahí convertiría
+«esta foto no se entiende» en tres llamadas de pago para acabar en el mismo
+sitio, y de paso taparía el diagnóstico bueno, que es justo el que hace falta
+cuando el problema está en la imagen.
+
+**Quién leyó la foto se dice en la pantalla de revisión.** El modelo que aparece
+ahí es el que *contestó*, no el que está configurado, y con una cadena esos dos
+dejan de coincidir. Guardarlo en el motor habría sido más corto y habría mentido
+en cuanto dos personas importan una foto a la vez: la respuesta de una llevaría
+el modelo que contestó a la otra. Esa línea es la que alguien mirará dentro de
+un mes para explicar por qué dos lecturas de la misma pizarra salieron
+distintas, así que tiene que ser cierta.
+
+**Agotar la cadena y fallar el primer intento dicen cosas distintas.** El
+mensaje también:
+
+- *«El modelo de visión está saturado… conviene reintentar en un momento; y para
+  que no vuelva a bloquear, se puede añadir un modelo de reserva»* — se probó
+  uno. Esperar suele bastar, y hay un arreglo que quita el problema de en medio.
+- *«Ninguno de los modelos de visión configurados ha podido leer la imagen: se
+  probó la cadena entera… la vía que no depende del proveedor es importar el
+  diagrama en XMI»* — no queda nada por probar. Esperar puede ser tirar tiempo.
+
+Cuando se agota la cadena, el detalle lleva **qué contestó cada modelo**:
+
+```
+[se probaron 2 modelos → gemini-3.6-flash: 503 saturado;
+                         gemini-2.5-flash: 404 el proveedor no lo conoce]
+```
+
+Eso es lo accionable. «Saturado» se arregla esperando; «el proveedor no lo
+conoce» se arregla editando el `.env`; y una mezcla de los dos —el caso real que
+salió en la primera prueba— no se parece a ninguna de las dos por separado.
+
+> **Por qué el titular es el fallo del *primero* y no el del último.** Esto
+> empezó al revés y salió mal a la primera. Con
+> `LLM_VISION_MODEL=gemini-3.6-flash,gemini-2.5-flash`, el preferido cayó y la
+> reserva contestó *«gemini-2.5-flash ya no está disponible, use
+> gemini-3.6-flash»*. Como se propagaba el último error, lo que llegó a la
+> pantalla fue ese 404, con una explicación que mandaba a corregir
+> `LLM_VISION_MODEL` **nombrando como sustituto el modelo que ya estaba en
+> primera posición**: un error que describe al suplente y manda a arreglar lo que
+> ya estaba bien. El fallo que importa es el del preferido —es el que se quiere
+> que funcione, y el que explica por qué se llegó a la reserva siquiera—; del
+> resto basta el resumen de una línea.
+
+**Una limitación que conviene saber antes del examen.** La cadena varía el
+*nombre del modelo*, no el proveedor: todos sus eslabones comparten
+`LLM_VISION_BASE_URL` y la misma clave. Sirve para cubrir «este modelo de Gemini
+está saturado», no para «Google entero está caído». Para eso el plan B real es
+el XMI, que no depende de nadie.
 
 ### Arrancar
 
@@ -214,6 +356,79 @@ exactamente las mismas órdenes escritas.
 3. Aparece la propuesta numerada, con el origen (`deepseek-v4-flash` o
    `gramática local (sin conexión)`).
 4. Pulsa **Aplicar** para aceptarla o **Descartar** para tirarla.
+
+### Cuánto escucha, y en qué castellano
+
+Se puede pensar a mitad de la frase. El micrófono no se cierra en la primera
+pausa: se cierra tras **6 segundos** de silencio, o pulsando otra vez el botón, y
+la orden se envía entera y una sola vez. Antes cada pausa enviaba un trozo, y
+«crea la clase… Pedido» llegaba al modelo como dos órdenes, la primera sin
+nombre. El tope de una sesión es de 2 minutos, para que un micrófono olvidado se
+apague solo.
+
+| Espera | Cuánto | Por qué |
+|---|---|---|
+| Antes de la primera palabra | 15 s | Leer el campo, decidir qué se pide y coger aire |
+| Entre palabras, ya hablando | 6 s | Más que cualquier pausa al pensar la frase |
+| Tope de la sesión | 2 min | Ninguna orden dura tanto; un micrófono abierto sí |
+| Pausa en la app Android | 8 s | El valor de Android son ~2 s y cortaba a media orden |
+
+El idioma **no está fijo**. Se pide la variante que declara el aparato (`es-BO`,
+`es-MX`…), y en el móvil solo de entre las que el teléfono tiene instaladas. Esto
+importa más de lo que parece: un modelo entrenado en la pronunciación de España
+devuelve otra palabra por cada palabra que dice quien habla castellano de
+América, y visto desde fuera eso no parece un idioma mal elegido, parece que el
+micrófono no entiende. Cuando el aparato no dice ninguna variante útil se usa
+`es-US` —latinoamericano— y nunca `es-ES` por descarte.
+
+Del mismo audio, el motor devuelve **varias transcripciones** ordenadas por
+parecido acústico, y se queda la que tiene sentido aquí: «crea la plaza pedido» y
+«crea la clase pedido» suenan casi igual, pero solo una se convierte en una
+operación. En el asistente se decide probando cada candidata contra la gramática
+local; en la guía, contando palabras de la herramienta. Empate: manda el motor.
+
+En la app Android hay un caso más. El reconocimiento sin conexión es el que
+promete el enunciado, pero entiende bastante peor: si dice que no ha entendido lo
+dicho, la app pasa a reconocer por internet para el resto de la sesión y **lo
+avisa**. Se cambia una vez y avisando, porque deja de ser cierto que el audio se
+queda en el teléfono.
+
+### Dónde está en el teléfono
+
+En la interfaz táctil (`/movil`) el asistente es **el mismo componente** que en el
+escritorio, con las mismas órdenes, la misma propuesta revisable y el mismo
+origen escrito debajo. Lo que cambia es dónde se abre, porque en un teléfono no
+hay sitio para una barra permanente bajo el lienzo:
+
+| Entrada | Qué hace |
+|---|---|
+| El **micrófono** fijo abajo a la izquierda, sobre «encuadrar» | Abre el asistente **y empieza a escuchar**, sin un segundo toque |
+| **«Dictar un cambio»**, en el cajón, grupo «Dibujar» | Abre el asistente sin encender el micrófono |
+
+Son dos entradas y no una porque son dos intenciones. Quien pulsa el micrófono
+ya ha decidido hablar, y pedirle que vuelva a pulsar otro botón dentro del panel
+es cobrarle dos veces el mismo gesto; quien entra por el cajón puede estar solo
+mirando qué hay ahí, y abrirle el micrófono en la cara sería grabar a alguien que
+no lo ha pedido.
+
+El micrófono vive **fuera** del botón flotante a propósito: ese despliegue está
+limitado a tres acciones —hay una prueba que lo vigila— y meterlo dentro obligaba
+a echar a otra. Y, aparte del sitio, dictar es lo contrario de una acción
+rebuscada: es la forma rápida de editar cuando no apetece pelearse con el teclado
+encima del diagrama.
+
+**Sigue encendido sin conexión**, y ahí se separa de «Generar el backend», que el
+cajón sí apaga sin red. La diferencia es real: generar lo compila el servidor,
+pero interpretar una orden tiene camino de reserva en el propio teléfono —la
+gramática local que viaja en la aplicación—, y la propuesta aparece etiquetada
+como `gramática local (sin conexión)` para que se sepa quién la escribió. A un
+lector sí se le apaga, con el motivo escrito: una propuesta que no va a poder
+aplicar no es una función, es una pérdida de tiempo.
+
+El reconocimiento no es el del navegador. Un WebView de Android no trae la API de
+voz, así que el dictado baja al reconocedor del sistema por el puente nativo, y
+con él vienen la variante del castellano que tenga instalada el teléfono y la
+pausa de 8 segundos de la tabla de arriba.
 
 ### Repertorio de órdenes
 
@@ -402,6 +617,15 @@ sale a internet— y de dónde se instala el paquete (*Ajustes › Sistema › I
 Reconocimiento de voz sin conexión*). A partir de ahí, la primera orden de cada
 sesión recuerda que el dictado está viajando.
 
+Hay un segundo camino al mismo sitio, y es el incómodo: el paquete está instalado
+pero el modelo local **no entiende lo que se le dice**. El que cabe en un teléfono
+es notablemente peor que el de la red, y esa diferencia se nota sobre todo en
+nombres propios dictados. Cuando Android contesta `error_no_match`, la app deja de
+insistir con el modelo local y pasa al de internet para el resto de la sesión,
+avisando. Es la única forma de que «no se me entiende» tenga salida sin obligar a
+repetir la misma frase tres veces contra el mismo modelo que ya falló; y se avisa
+porque a partir de ese momento la promesa sobre el audio ya no es cierta.
+
 > Para dictar de verdad sin internet en la defensa: instala el paquete de voz
 > **antes**, y compruébalo en modo avión. Es un ajuste del teléfono, no de esta
 > aplicación, y no se puede arreglar desde aquí en el momento.
@@ -431,11 +655,12 @@ sesión recuerda que el dictado está viajando.
    Corrige lo que haga falta:
    - el nombre y el estereotipo de cada clase (clase, abstracta, interfaz, enumerado),
    - el nombre y el tipo de cada atributo, y cuál es la clave primaria,
+   - el nombre, la visibilidad y el tipo de retorno de cada método,
    - **el tipo de cada relación y la cardinalidad de sus dos extremos**,
-   - y puedes descartar clases o relaciones enteras.
+   - y puedes descartar clases, métodos o relaciones enteras.
 5. Pulsa **«He comparado con la imagen: importar N clases»**.
-6. Las clases, sus atributos, sus relaciones y sus filas de datos entran en el
-   diagrama en un solo paso. `Ctrl+Z` lo deshace entero.
+6. Las clases, sus atributos, sus métodos, sus relaciones y sus filas de datos
+   entran en el diagrama en un solo paso. `Ctrl+Z` lo deshace entero.
 
 > **Si el diagrama lo hiciste en otra herramienta y aún tienes el fichero, no uses
 > una foto.** Expórtalo a XMI desde allí y usa **⤒ Importar XMI** (§5.5): es
@@ -455,6 +680,28 @@ lo demás sin decirlo.
 `filas` por clase, así que fotografiar una tabla con datos dentro sigue cargando
 los datos, y todo lo de «migración sin pérdidas» de más abajo sigue en pie. La
 diferencia es que ahora, además, se leen las relaciones.
+
+#### Los tres compartimentos del recuadro
+
+Un recuadro UML tiene tres compartimentos —nombre, atributos y **operaciones**— y
+se leen los tres. Un `+deposit()` dibujado en el compartimento de abajo entra como
+método, con su visibilidad (`+`, `-`, `#`, `~`), sus parámetros y su tipo de
+retorno; si la firma no lleva tipo, el método es `void`, y no se le inventa uno.
+
+Durante un tiempo solo se preguntaba por dos compartimentos, y el fallo era de los
+que no se denuncian solos: la revisión decía «7 clases · 8 relaciones», todo en
+verde, y los nueve métodos de la pizarra no aparecían. Por eso el recuento de la
+pantalla de revisión **siempre** muestra los métodos, incluso cuando son cero: un
+«0 métodos» junto a una foto que tiene un compartimento lleno se contradice solo.
+
+#### Dos clases pueden estar unidas por varias líneas
+
+`Cliente —Tiene→ Cuenta` y `Cliente —Administra→ Cuenta` son dos relaciones, no
+una repetida, y entran las dos. Lo que las distingue es el **rótulo de la línea**,
+que también se lee y se conserva. Si en la pizarra hay dos líneas entre las mismas
+dos clases y ninguna lleva nombre, no hay forma de saber si son dos relaciones o
+la misma dibujada dos veces: se queda una y se avisa. Ponles nombre en el dibujo,
+o añade la segunda a mano después.
 
 ### Las cardinalidades: lo que más caro sale de leer mal
 
@@ -496,6 +743,59 @@ Lo que el modelo escribe se **canoniza** antes de entrar: `0..*` y `0..n` pasan 
 `*`, y `1..1` pasa a `1`. La misma función (`canonizarCardinalidad`, en `shared/`)
 la usan la pantalla para decidir qué resaltar y el servidor para decidir qué
 avisar, de modo que no puedan discrepar.
+
+#### La herencia no tiene cardinalidad, y ya no se pide
+
+«Perro hereda de Animal» no tiene multiplicidad en ninguno de sus dos extremos.
+No es que se desconozca: es que no existe. En su fila, donde las asociaciones
+llevan un desplegable, la herencia y la realización llevan una raya gris.
+
+Durante un tiempo no fue así, y conviene dejar escrito por qué, porque el fallo
+es más instructivo que el arreglo. La regla —«qué relaciones llevan cardinalidad»—
+estaba escrita **tres veces**: en el intérprete de fotos, en el descriptor de
+operaciones y, a medias, en la pantalla de revisión. Las copias se separaron. El
+servidor sabía que una herencia sin cardinalidad está bien y no la contaba como
+dudosa; la pantalla no lo sabía y pintaba de rojo filas correctas, pidiendo que
+se arreglara algo que no estaba roto.
+
+Un aviso que no corresponde a un problema es peor que no tener aviso: enseña a
+ignorarlos, y el día que uno sea de verdad también se ignorará. La regla vive
+ahora una sola vez, en `llevaCardinalidad` (`shared/src/model/uml.ts`), junto al
+propio tipo `RelationKind`, que es de quien habla.
+
+#### El botón «Sugerir lo que falta»
+
+Revisar y teclear son dos trabajos distintos, y solo uno de los dos aporta algo.
+Comparar la foto con lo leído hay que hacerlo. Abrir ocho desplegables para poner
+en cada uno el valor que el servidor iba a suponer de todas formas, no; y además
+cansa lo justo para que alguien empiece a pulsar sin mirar, que es exactamente
+como se cuela un error de verdad.
+
+El botón aparece junto al aviso rojo —no en el pie, al lado de «Importar», para
+que no se pulsen los dos seguidos sin leer ninguno— y hace tres cosas, con sus
+tres límites:
+
+1. **Solo rellena huecos.** Lo que el modelo sí leyó no se toca nunca, ni
+   siquiera para «mejorarlo». Si pudiera cambiar un `0..1` leído en la pizarra,
+   dejaría de ser una ayuda y sería una fuente de errores imposible de auditar,
+   porque después nadie distingue qué puso el modelo y qué puso el botón.
+2. **No inventa donde no hay hueco.** Se salta la herencia y la realización.
+3. **Es determinista.** No pregunta a ningún modelo. Podría hacerlo —volver a
+   mirar la foto ampliada sobre esa línea concreta—, pero para elegir entre
+   cuatro valores con una convención tan marcada, una llamada de red añade
+   espera, coste y una forma nueva de fallar justo durante la defensa, a cambio
+   de nada. Y sobre todo: **una suposición del modelo es indistinguible de una
+   lectura del modelo**, mientras que ésta se puede comprobar en dos segundos
+   porque la regla cabe en una frase.
+
+Lo que rellena queda **marcado en ámbar y subrayado** hasta que se confirme o se
+cambie a mano; tocar la celda a mano quita la marca, porque a partir de ahí el
+valor lo eligió una persona mirando la foto, que es más de lo que dice la marca.
+
+Un botón que dejara la pantalla entera en verde sería más cómodo y sería una
+mentira: la diferencia entre «lo leí de la pizarra» y «lo supuse por convención»
+tiene que sobrevivir hasta el final, porque es justo la que decide si el backend
+generado lleva una clave foránea o una tabla de unión.
 
 ### Por qué la revisión es obligatoria
 
@@ -767,8 +1067,16 @@ inferior se aplica **1**, que es lo que dice UML 2.5, no 0.
 ### Diagramas de comunicación (y de secuencia)
 
 Un `.xmi` que traiga un **diagrama de comunicación** —o de colaboración, o de
-secuencia— también se aprovecha. No se dibuja: se **traduce** a lo único que este
-editor sabe guardar, que es un diagrama de clases.
+secuencia— se aprovecha por dos vías a la vez, en la misma importación:
+
+1. Se **traduce** al diagrama de clases, que es lo que describe este apartado:
+   los mensajes se vuelven métodos y los enlaces, dependencias.
+2. Se **guarda entero y sin traducir** como un documento más del proyecto, y se
+   dibuja tal cual. Eso es **§5.14**, y es donde sobrevive todo lo que la
+   traducción tira: la numeración, las guardas, las respuestas y quién habla con
+   quién.
+
+La tabla de abajo describe solo la primera vía.
 
 | En el diagrama de comunicación | Qué llega al diagrama de clases |
 |---|---|
@@ -793,12 +1101,15 @@ Detalles que conviene saber antes de usarlo:
   comunicación **normalmente son** clases que ya están en el diagrama, y omitirlas
   dejaría la importación en nada. Se le añaden los métodos que le falten, nunca se
   le quita ni se le cambia nada, y la pantalla de revisión dice cuáles se amplían.
-- **El orden de los mensajes se pierde.** Los números `1`, `1.1`, `2`… son la
-  esencia del diagrama y un diagrama de clases no tiene dónde guardarlos. Se
-  quitan del nombre —un método llamado `_23_confirmar` sería peor que perderlos— y
-  se avisa de la pérdida en vez de callarla.
-- **También se quitan las guardas y las asignaciones.** De
-  `*[i:=1..n] 2.3: total := calcular(iva)` queda `calcular(iva: String)`.
+- **El orden de los mensajes no llega al diagrama de clases.** Los números `1`,
+  `1.1`, `2`… son la esencia del diagrama y una clase no tiene dónde guardarlos.
+  Se quitan del nombre —un método llamado `_23_confirmar` sería peor que
+  perderlos— y se avisa. No se pierden del proyecto: quedan en el diagrama
+  guardado (§5.14).
+- **También se quitan las guardas y las asignaciones**, por lo mismo y con el
+  mismo destino. De `*[i:=1..n] 2.3: total := calcular(iva)` el diagrama de
+  clases se queda `calcular(iva: String)`; la etiqueta entera sigue estando en
+  §5.14.
 - **Los tipos de los parámetros casi nunca están.** Si el mensaje los declara
   (`aplicar(descuento: Double)`) se respetan; si no, se supone `String` y se avisa
   una vez, no una por parámetro. Los valores literales (`42`, `"hola"`) no generan
@@ -830,9 +1141,12 @@ Cuatro cosas que EA escribe de otra manera, todas legales:
 | `ownedConnector` dentro de la `Collaboration` | Los saca al paquete de instancias, un nivel arriba |
 | Los mensajes como `uml:Message` | **No emite ninguno**: solo están en su bloque de extensión |
 
-Las tres primeras ya se leen. La cuarta no, y es deliberado: los mensajes de EA
-viven en `<xmi:Extension extender="Enterprise Architect">`, y este lector no
-interpreta extensiones ajenas. En la práctica no se pierde casi nada, porque las
+Las tres primeras ya se leen, y las lee igual la vía de §5.14. La cuarta no, y
+es deliberado: los mensajes de EA viven en
+`<xmi:Extension extender="Enterprise Architect">`, y este lector no interpreta
+extensiones ajenas. Es también el motivo de que un fichero de EA se guarde como
+un diagrama de comunicación con sus objetos y sus enlaces pero **sin ninguna
+flecha**: no hay ningún mensaje que leer fuera de esa extensión. En la práctica no se pierde casi nada, porque las
 operaciones que los mensajes invocan **ya vienen declaradas** en los componentes,
 y los enlaces ya vienen como conectores. Lo que no llega es qué operación concreta
 se llama en cada flecha.
@@ -1076,6 +1390,39 @@ confianza, y quien lee tiene derecho a saber cuál está leyendo.
 4. La respuesta redactada aparece arriba y **las secciones del manual debajo**.
    El botón **🔊 Escuchar** la lee en voz alta.
 
+### Lo que entra por voz sale por voz
+
+**Si la pregunta se hizo hablando, la respuesta se lee sola. Si se escribió, no.**
+No hay ajuste que cambiarlo: el disparador es cómo entró la pregunta.
+
+La regla parece un detalle y es la única que no sorprende, en los dos sentidos:
+
+- Quien pregunta hablando suele tener las manos ocupadas o la pantalla lejos —el
+  caso real es el móvil apoyado mientras se dibuja en la pizarra—. Obligarle a
+  buscar un botón para oír la respuesta anula el motivo de haber hablado.
+- Y al revés: un portátil que se pone a hablar en una sala porque alguien
+  **escribió** una pregunta es un fallo, no una función. Desde el código no hay
+  forma de saber si hay gente delante.
+
+Una casilla de «leer siempre» en los ajustes obliga a decidir antes de saber, y
+se queda mal puesta el resto de la sesión. El modo de entrada ya lleva esa
+información encima y no hay que preguntarla.
+
+Alrededor de eso:
+
+| Situación | Qué pasa |
+|---|---|
+| Empieza a sonar | Aparecen tres barras animadas y **«Leyendo en voz alta»**, y el botón pasa a **Detener** |
+| Se pregunta otra cosa mientras suena | Calla al instante; la respuesta vieja no se pisa con la nueva |
+| Se cierra el panel mientras suena | Calla. Sin esto la voz seguía sonando sobre el diagrama sin ningún botón que la parase |
+| La pregunta hablada no tiene respuesta en el manual | Lo dice **también en voz alta**, en una frase corta. El silencio no se distingue de un micrófono que no captó nada, y lo que hace uno entonces es repetir la frase más alto |
+| Dentro de la app Android | Se lee igual, pero **no aparece el indicador** de que está sonando: el puente nativo no avisa del final, y un «Detener» que no se apaga nunca es peor que no ponerlo |
+
+Lo que se lee no es exactamente lo que se ve: se le quita la sintaxis de Markdown
+antes. Un sintetizador dice «asterisco» y deletrea las comillas invertidas, y una
+respuesta con tres términos en negrita se vuelve incomprensible sin que quien
+escucha entienda por qué.
+
 Las secciones aparecen **antes** que la respuesta, siempre. La búsqueda es
 instantánea y no necesita red, así que no hay razón para mirar una pantalla vacía
 mientras se decide si hay modelo. Con un modelo local de 3B en un portátil, la
@@ -1308,6 +1655,63 @@ Si la validación deja avisos, salen arriba, con su número, **antes** de que ha
 nada que descargar. Los avisos no son errores: el proyecto se genera igualmente.
 Los errores sí bloquean, y eso ocurre en la validación (RF-GEN-11), no aquí.
 
+### Cuando el diagrama todavía no se puede generar
+
+Si el diagrama tiene errores **bloqueantes**, esta pantalla no enseña ficheros:
+enseña qué lo impide y ofrece arreglarlo.
+
+Antes existía un callejón sin salida. Se pulsaba «Generar», el servidor
+contestaba 400, y la pantalla pintaba una línea roja con los motivos
+concatenados por punto y coma —sin decir en qué clase estaba cada uno ni qué
+había que escribir en su lugar— y ahí se acababa. El diagrama de `payment`, con
+nueve errores, era exactamente ese caso.
+
+Ahora la validación se hace **en el navegador, antes de salir a la red**.
+`validateDiagram` vive en `shared`, así que el resultado ya se conoce y no hace
+falta gastar un viaje para que el servidor conteste lo que se acaba de calcular
+aquí. Con errores, en lugar del árbol de ficheros aparece el panel de arreglo.
+
+| Lo que se ve | Qué es |
+|---|---|
+| «9 errores impiden generar el backend. 14 cambios automáticos los arreglan todos.» | El resumen |
+| **Lo que se va a cambiar** | Cada cambio con su título, su porqué y el código de la regla |
+| **Aplicar los 14 cambios** | Los aplica todos de una vez |
+| **Y esto hay que decidirlo a mano** | Lo que el programa se niega a decidir por su cuenta |
+
+**Los cambios son más que los errores, y está bien.** El plan se calcula por
+rondas: quitarle la marca de clave primaria a `Order.date` —de tipo `Date`, que
+JPA no admite como identidad— *crea* un problema nuevo, «`Order` no tiene clave
+primaria», que a su vez se arregla añadiendo `orderId`. Un error puede costar
+dos cambios. Por eso la frase cuenta cambios y no errores: decir «14 se pueden
+arreglar» junto a «9 errores» se leía como «14 de los 9».
+
+#### Por qué la lista va delante y el botón detrás
+
+Porque el plan reescribe el diagrama de otra persona. La regla de `naming.ts`
+—un nombre escrito por alguien que sabe que es un identificador no se corrige a
+su espalda, se le dice— se cumple aquí enseñando **cada cambio antes de tocar
+nada**. Quien pulsa ya ha leído lo que va a pasar. Y el plan entero va en una
+sola llamada a `aplicar`, así que Yjs lo apila como **un único elemento
+deshacible**: si el resultado no convence, Ctrl+Z lo devuelve todo de golpe.
+
+#### Lo que el botón no arregla
+
+Una enumeración vacía, dos clases con el mismo nombre, una herencia múltiple.
+No tienen una solución única: elegir una cambiaría lo que el diagrama
+significa. Salen aparte, con su encabezado y **sin botón**, y se corrigen en el
+panel de propiedades. Fingir que el botón lo deja todo listo sería peor que no
+tenerlo, porque la siguiente pantalla volvería a fallar sin explicar por qué.
+
+#### Se resuelve sola
+
+Al aplicar los cambios cambia el diagrama, y con él la validación —que está en
+un `useMemo` sobre el diagrama—. Esta misma ventana pasa de la lista de
+problemas a la vista previa del proyecto **sin cerrar nada ni volver a pulsar**.
+
+Nada de esto sale a la red: `validateDiagram` y `planificarReparacion` son
+funciones puras de `shared`. Ni modelo de lenguaje ni servidor. El botón
+contesta en el acto y funciona con el portátil desconectado.
+
 ### Lo que esta pantalla no hace
 
 - **No genera dos veces.** Previsualizar y descargar son dos llamadas al mismo
@@ -1326,6 +1730,10 @@ Los errores sí bloquean, y eso ocurre en la validación (RF-GEN-11), no aquí.
 | `frontend/src/components/generacion.ts` | Capas, carpetas, prefijo común y tamaños |
 | `frontend/src/components/generacion.test.ts` | Sus pruebas, con rutas reales del generador |
 | `GET /api/proyectos/:id/generacion/previsualizacion` | Devuelve cada fichero con su contenido |
+| `frontend/src/components/ArreglarGeneracion.tsx` | El panel de arreglo y su botón |
+| `shared/src/reparacion/reparar.ts` | El plan: qué se cambia, por qué, y qué se niega a decidir |
+| `shared/src/reparacion/reparar.test.ts` | Sus pruebas (38), a través del aplicador Yjs real |
+| `shared/src/validation/validate.ts` | Los errores bloqueantes que el plan intenta resolver |
 
 ---
 
@@ -1464,7 +1872,7 @@ revirtieron.
 | `frontend/src/components/modulos.ts` | Reparto, propuesta de segmento, validación y ruta del fichero |
 | `frontend/src/components/modulos.test.ts` | Sus pruebas, sin navegador |
 | `shared/src/ops/operations.ts` | `addModule`, `updateModule`, `removeModule`, `assignClassToModule` y la lista blanca del segmento |
-| `generator/src/validation/validate.ts` | `INVALID_MODULE_SEGMENT` y `MODULE_SEGMENT_COLLISION` |
+| `shared/src/validation/validate.ts` | `INVALID_MODULE_SEGMENT` y `MODULE_SEGMENT_COLLISION` |
 | `generator/src/modulos.test.ts` | La comprobación estructural y las pruebas de invariancia |
 
 ---
@@ -1577,14 +1985,146 @@ acababan superpuestas.
 ### Ojo con no confundirlo con el XMI de comunicación
 
 `shared/src/xmi/ea-comunicacion.ts` también emite diagramas de comunicación,
-pero para otra cosa: los catorce casos de uso **de esta herramienta**, que van a
+pero para otra cosa: los diecinueve casos de uso **de esta herramienta**, que van a
 `docs/uml/` y se abren en Enterprise Architect ([documento
 8](08-casos-de-uso.md)). Aquello describe la aplicación con la que se está
 dibujando; esto describe la aplicación que se va a generar.
 
+Y hay un tercero, que es el que más se confunde con este: el de **§5.14**, el
+que viene de un `.xmi` ajeno. La diferencia es de origen y se nota en pantalla.
+Este se **deduce** del backend generado y por eso puede citar la línea de código
+donde está cada llamada; aquel se **lee** de un fichero y por eso lo que enseña
+al lado de cada mensaje es su `xmi:id`. Ninguno de los dos se puede dibujar a
+mano: este se recalcula con el diagrama y aquel llega hecho.
+
 ---
 
-## 5.11 Seguridad
+## 5.11 Revisar el diagrama: qué está mal modelado
+
+**Modelo ▸ Revisar el diagrama…**
+
+Esta pantalla contesta a una pregunta que la herramienta no sabía contestar:
+**«¿está bien hecho este diagrama?»**. No es la misma pregunta que resuelve
+«Generar», y confundirlas es lo que la dejó sin escribir tanto tiempo.
+
+| | «Generar» | «Revisar el diagrama…» |
+|---|---|---|
+| Pregunta | ¿Se puede emitir Java, JPA y SQL? | ¿Está bien modelado? |
+| Dónde vive | `shared/src/validation/validate.ts` | `shared/src/revision/revision.ts` |
+| Ejemplos | Tipo desconocido, entidad sin clave primaria, herencia múltiple, ciclo de composición | Clase llamada `SistemaDeGestion`, importe guardado como texto, subclase que repite los atributos del padre |
+| Cuándo aparece | Al pulsar «Generar» | Al abrir esta pantalla |
+
+Un diagrama puede pasar la validación **entera** y seguir siendo un mal diagrama
+de clases. Todo lo de la columna derecha compila. Y es justo lo que se corrige
+en una entrega.
+
+### Las nueve reglas
+
+| Código | Gravedad | Qué mira |
+|---|---|---|
+| `ATRIBUTO_HEREDADO_REPETIDO` | Error | Una subclase vuelve a declarar un atributo que ya hereda. O sobra el atributo, o sobra la herencia |
+| `CLASE_SIN_CONTENIDO` | Error / Aviso | Clase sin atributos ni métodos. Error si no hereda de nadie; aviso si hereda |
+| `COMPOSICION_COMPARTIDA` | Error | Una misma clase es la *parte* de dos composiciones: no puede morir con dos dueños |
+| `ATRIBUTO_QUE_ES_RELACION` | Aviso | Un atributo de texto cuyo nombre menciona otra clase del diagrama: `listOfBooks: String` es la asociación escrita dentro de la caja |
+| `TIPO_SOSPECHOSO` | Aviso | El nombre promete número, fecha o sí/no y el tipo es texto: `fineAmount: String` |
+| `CLASE_AISLADA` | Aviso | Clase sin ninguna relación, habiendo más clases en el diagrama |
+| `CLASE_NO_ES_DEL_DOMINIO` | Aviso | El nombre es una pieza del programa y no una cosa del negocio: `…System`, `…Database`, `…Service`, `Pantalla…` |
+| `RELACION_DUPLICADA` | Aviso | Dos relaciones del mismo tipo entre el mismo par **y sin rol** que las distinga |
+| `MUCHOS_A_MUCHOS_SIN_CLASE` | Sugerencia | Una asociación `*`–`*`: si el vínculo tiene datos propios, es una clase |
+
+### Por qué cada punto explica su motivo
+
+La tentación era una lista de etiquetas rojas. No sirve. Quien tiene que
+arreglar el diagrama necesita **decidir si el aviso aplica a su caso**, y para
+eso hace falta el razonamiento, no el veredicto: un «composición compartida» a
+secas se arregla borrando la línea que sea; con el motivo delante se arregla la
+que corresponde.
+
+Por lo mismo el pie de la pantalla dice que esto **señala candidatos, no
+sentencias**. Habría quedado más contundente escribir «este diagrama tiene 3
+errores», pero el criterio de quien corrige no está dentro del programa, y
+prometer lo contrario acabaría en una entrega con los avisos «arreglados» y los
+errores de verdad intactos.
+
+### El peligro real no es callarse
+
+Es hablar de más. Un aviso que no corresponde a un problema enseña a ignorar los
+avisos, y el día que uno importe también se ignorará. Por eso cada regla lleva
+un freno explícito, y cada uno tiene su prueba:
+
+- **`RELACION_DUPLICADA` exige que ninguna de las dos lleve rol.** Dos
+  asociaciones entre `Persona` y `Libro` son correctas si una es `autor` y la
+  otra `revisor`: son dos hechos, no una línea repetida.
+- **`ATRIBUTO_QUE_ES_RELACION` se calla ante un cuantificador.**
+  `noOfBooksIssued` menciona a `Book` y **no** es un enlace con `Book`: es un
+  contador, un valor derivado de la asociación. Lo que sí le pasa —estar
+  guardado como texto— lo dice la otra regla.
+- **`TIPO_SOSPECHOSO` solo mira los tipos de texto**, y la familia de los
+  enteros exige nombre compuesto, porque `no` suelto puede ser una negación.
+- **`CLASE_AISLADA` se calla si solo hay una clase.** Sería regañar a quien
+  acaba de empezar.
+- **`CLASE_SIN_CONTENIDO` ignora interfaces y enums.** Una interfaz sin
+  atributos es lo normal.
+
+### Funciona sin conexión y sin IA
+
+`revisarDiagrama` es una función pura de `shared`: diagrama entra, lista sale.
+No llama a ningún modelo ni a ningún servidor, así que responde en el acto y con
+el portátil desconectado. Se recalcula sola al arreglar algo, sin nada que
+volver a pulsar.
+
+Está en `shared` y no en `frontend` porque el asistente y el backend también
+saben preguntar por la calidad de un modelo, y una regla escrita dos veces se
+separa.
+
+### Cómo se usa
+
+1. **Modelo ▸ Revisar el diagrama…**
+2. La cabecera resume: «1 error, 7 avisos y 1 sugerencia».
+3. Cada punto lleva su título, su porqué y su código de regla. El código sirve
+   para ir a buscarla a `shared/src/revision/revision.ts` y discutirla.
+4. **«Ir a «Librarian»»** selecciona la clase y cierra la revisión: el panel de
+   propiedades queda con ella cargada y el arreglo se hace ahí mismo.
+
+### Un ejemplo completo
+
+Sobre el «Library Management System» de manual —el que aparece en medio
+internet: `LibraryManagementSystem` en el centro, `LibraryDatabase` colgando,
+`User` con `Librarian`, `Student` y `Staff` debajo— la revisión saca nueve
+puntos, reproducidos en `shared/src/revision/revision.test.ts`:
+
+```
+[error]      ATRIBUTO_HEREDADO_REPETIDO  «Librarian» vuelve a declarar «name», que ya hereda de «User»
+[aviso]      CLASE_SIN_CONTENIDO         «Student» está vacía: ni atributos ni métodos
+[aviso]      ATRIBUTO_QUE_ES_RELACION    «LibraryDatabase.listOfBooks» parece una relación con «Book»
+[aviso]      TIPO_SOSPECHOSO             «Librarian.salary» es String; debería ser Decimal
+[aviso]      TIPO_SOSPECHOSO             «Account.noOfBooksIssued» es String; debería ser Integer
+[aviso]      TIPO_SOSPECHOSO             «Account.fineAmount» es String; debería ser Decimal
+[aviso]      CLASE_NO_ES_DEL_DOMINIO     «LibraryManagementSystem» es una pieza del programa
+[aviso]      CLASE_NO_ES_DEL_DOMINIO     «LibraryDatabase» es una pieza del programa
+[sugerencia] MUCHOS_A_MUCHOS_SIN_CLASE   «User» y «Book» se relacionan de muchos a muchos
+```
+
+Los dos primeros son errores de modelado de libro. Los dos de
+`CLASE_NO_ES_DEL_DOMINIO` son el error conceptual clásico: el sistema y la base
+de datos **no son cosas de las que hable una biblioteca**, son el propio
+programa mirándose al espejo, y aquí además tienen coste porque el generador les
+crearía tabla, repositorio y API REST. La sugerencia del final es la que suele
+buscarse en un diagrama de biblioteca: entre `User` y `Book` falta `Prestamo`,
+con su fecha de préstamo y su fecha de devolución.
+
+### Dónde está esto en el código
+
+| Fichero | Qué hace |
+|---|---|
+| `shared/src/revision/revision.ts` | Las nueve reglas. Función pura, sin red |
+| `shared/src/revision/revision.test.ts` | 47 pruebas: cada regla y su caso vecino que no debe dispararla |
+| `frontend/src/components/RevisionDiagrama.tsx` | La pantalla |
+| `frontend/src/components/EditorDiagrama.tsx` | El comando `Modelo ▸ Revisar el diagrama…` |
+
+---
+
+## 5.12 Seguridad
 
 ### Permisos
 
@@ -1652,9 +2192,9 @@ gasta nada y **el texto de las preguntas no sale del equipo**.
 
 ## 5.12 Pruebas
 
-**1055 pruebas en 43 ficheros, todas en verde.** Se ejecutan con `npx vitest run`.
+**1760 pruebas en 66 ficheros, todas en verde.** Se ejecutan con `npx vitest run`.
 
-De ellas, **1051 corren sin instalar nada**. Las cuatro restantes se saltan solas
+De ellas, **1756 corren sin instalar nada**. Las cuatro restantes se saltan solas
 porque necesitan algo que no está en integración continua, y se activan poniendo
 una variable:
 
@@ -1667,19 +2207,31 @@ una variable:
 TEST_OLLAMA_URL=http://localhost:11434 npx vitest run
 ```
 
+Aparte de esas van las del móvil, **25 pruebas** que se ejecutan con `flutter
+test` dentro de `mobile/`. Las de voz son `mobile/test/idioma_dictado_test.dart`:
+en qué variante del castellano escucha el teléfono —la del sistema si la tiene
+instalada, la de su misma región si no, cualquiera antes que la de España, y
+`null` en vez de inventarse una que no está—, que `es-BO` y `es_BO` sean el mismo
+idioma, que la etiqueta se devuelva **tal como la escribió el teléfono**, que la
+pausa que da la frase por terminada sea más larga que pensar y más corta que el
+tope de la sesión, y que solo los fallos que se arreglan saliendo a internet
+hagan dejar el reconocimiento local.
+
 | Fichero | Cubre |
 |---|---|
 | `shared/src/ai/grammar.test.ts` | Gramática local: el repertorio de órdenes, los ordinales dictados sin tilde, y que «elimina el campo correo de Cliente» **no** se lleve por delante `Cliente` entera |
 | `shared/src/ops/import-table.test.ts` | Validación e interpretación de la tabla leída, incluida la prueba de que **la confianza declarada no cambia el resultado** |
 | `shared/src/xmi/ea-export.test.ts` | **El XML que sale**, no el que vuelve: que las clases estén dentro de un `uml:Package` y que el nombre del proyecto aparezca una sola vez en él —el fallo era verlo escrito en todas las clases al abrir el fichero en EA—, que el tipo de cada extremo de asociación vaya como hijo `<type xmi:idref>` y no como atributo, que ninguna referencia (`xmi:idref`, `general`, `association`, `client`, `supplier`) apunte a un id que no está en el fichero, y que los primitivos de UML se referencien a la biblioteca estándar en vez de declararse como elementos del modelo |
-| `shared/src/ops/import-diagram.test.ts` | El diagrama leído de la imagen: que `abstract` sobreviva como tipo de clase, que un extremo escrito «Class A» encuentre a la clase `ClassA`, que `0..*` se canonice a `*`, que una cardinalidad ilegible se marque como dudosa en vez de inventarse, y que las operaciones emitidas se apliquen de verdad sobre un `Y.Doc` |
+| `shared/src/ops/import-diagram.test.ts` | El diagrama leído de la imagen: que `abstract` sobreviva como tipo de clase, que un extremo escrito «Class A» encuentre a la clase `ClassA`, que `0..*` se canonice a `*`, que una cardinalidad ilegible se marque como dudosa en vez de inventarse, que dos herencias hacia el mismo padre **no** generen ni un aviso, que `sugerirCardinalidades` rellene los huecos sin tocar jamás lo leído ni tocar la herencia, y que las operaciones emitidas se apliquen de verdad sobre un `Y.Doc` |
 | `shared/src/crdt/crdt.test.ts` | Filas de datos: que se rechacen columnas inexistentes, que `removeSeedRow` sea 1-basado, y que las filas sobrevivan al borrado de *otra* columna |
 | `shared/src/ops/impact.test.ts` | Cálculo de lo que se pierde en un borrado |
 | `generator/src/generator.test.ts` | Las cuatro capas sobre el **texto generado** —porque Maven no está instalado y la compilación real no se ha podido verificar (ver [Arquitectura §2.7.6])—: que el controlador no nombre nunca la entidad, que `mappedBy` caiga en el lado inverso, que la cascada solo aparezca en composición, que cada repositorio importe lo que usa y nada más; la generación del `data.sql` con su escapado, su inyección, el `setval` solo cuando procede y el byte nulo; y las operaciones del diagrama, que van al **servicio** y no a la entidad, lanzan en vez de devolver un valor inventado, no se convierten en endpoints, y se descartan con aviso cuando son privadas, chocan con el CRUD o duplican un accesor |
-| `backend-tool/src/ai/assistant.test.ts` | El asistente contra un proveedor simulado: degradación a gramática ante `402`, timeout y `500`; una operación inválida descarta la propuesta entera |
+| `backend-tool/src/ai/assistant.test.ts` | El asistente contra un proveedor simulado: degradación a gramática ante `402`, timeout y `500`; una operación inválida descarta la propuesta entera. Y la frontera de la cadena de modelos de visión: `503` y `404` pasan al de reserva; `401`, `402` y una respuesta ilegible **no**, cada uno por su motivo |
 | `backend-tool/src/import.test.ts` | Las rutas de OCR de extremo a extremo, incluidos permisos, validación de imagen y el recorrido completo |
 | `shared/src/xmi/xmi.test.ts` | El lector XML (incluido el XXE y el orden de documento), la exportación, el ida y vuelta completo, las variantes de XMI que acepta el importador, y el diagrama de comunicación: que el método vaya en quien **recibe** el mensaje, que `p1:Pedido` cree `Pedido` y no `p1`, que el número de secuencia no acabe dentro del nombre, que un mensaje de respuesta no invente un método, que una clase que ya existía se amplíe en vez de omitirse, que ningún método se proponga dos veces —porque `applyOperations` es todo o nada y un duplicado tumbaría el lote entero— y que las clases se creen siempre antes que los métodos que van dentro |
 | `shared/src/xmi/ea.test.ts` | **Un fichero real de Enterprise Architect**, guardado entero como fixture: que un diagrama de comunicación cuyos participantes son `uml:Component` y cuyos objetos son `uml:InstanceSpecification` se importe en vez de dar «el fichero está vacío», que las clases lleven el nombre del componente y no el de la instancia (`ComponentA`, no `Con`), que los `ownedConnector` de fuera de la `Collaboration` se encuentren, que el mismo vínculo escrito como asociación y como conector se dibuje una sola vez, que `EAnone_void` se lea como «no devuelve nada», y que windows-1252 no destroce los acentos |
+| `shared/src/xmi/diagrama-comunicacion.test.ts` | La importación de un diagrama de comunicación **entero** (§5.14), contra los dos dialectos: que el canónico —con `MessageOccurrenceSpecification` y sin `sendEvent`— no se importe con cero mensajes, que el nombre salga de la operación que firma el mensaje cuando la etiqueta no lo trae, que un número escrito a mano (`1.2`) mande sobre el deducido y que se apunte de cuál de los dos salió, que un conector cuyos dos extremos no estén en el mismo diagrama no cruce dos interacciones del mismo fichero, los trece códigos de integridad —incluido que **no arreglen nada**—, y que el diagrama sobreviva al viaje por el documento compartido con su orden intacto |
+| `frontend/src/components/comunicacion-importada.test.ts` | La colocación de ese diagrama, sin navegador: que ninguna caja se pise con otra, que todo quepa en el lienzo, que dos trazados del mismo diagrama sean **idénticos** —una colocación por fuerzas se leería como «el diagrama ha cambiado» en cada repintado—, y los dos ficheros reales de extremo a extremo, incluido que el fichero de Enterprise Architect dé tres objetos, tres enlaces y ni un mensaje |
 | `shared/src/crdt/historial.test.ts` | El historial de cambios: que un acto del usuario produzca **una** entrada y arrastrar una caja ninguna, que quien confirma y lo que propone se guarden por separado, que dos participantes concurrentes no pierdan entradas al reconectar, que `Ctrl+Z` **no** borre el rastro de lo que deshizo, y que no se atribuya la creación de una clase a quien solo la modificó |
 | `frontend/src/components/geometria-lienzo.test.ts` | La geometría del dibujo, que no la comprueba el compilador: que una caja crezca con su contenido y se recorte al llegar al tope, que una flecha salga por el **borde** de la caja y no de su centro, y que dos relaciones entre el mismo par de clases no acaben una encima de otra —contando A→B y B→A como el mismo par— |
 | `backend-tool/src/storage/documents.test.ts` | El almacén de documentos colaborativos, la costura que permite sacar los diagramas del disco (ver [Despliegue §6.6](06-despliegue.md#66-estado)). La misma batería corre contra la versión de fichero y la de memoria: que un documento ausente dé `null` y no un error, que guardar dos veces sustituya en vez de acumular, y que un fichero corrupto se propague en lugar de fingir que el proyecto no existe. Más el orden del apagado: primero guardar, después cerrar |
@@ -1689,6 +2241,8 @@ TEST_OLLAMA_URL=http://localhost:11434 npx vitest run
 | `frontend/src/services/ollama.test.ts` | El cliente del modelo local **sin Ollama delante**, con un `fetch` falso: que una línea JSON partida entre dos lecturas del socket no se pierda —el fallo silencioso más fácil de escribir aquí—, que el último trozo sin salto de línea final se emita igual, que `onTrozo` respete el orden, que **no se llame al modelo** cuando el manual no tiene nada que citar, que un `404` se traduzca a un error que menciona el modelo, y que la detección de modelos se trague un `Failed to fetch` o una respuesta que no es JSON en vez de propagarlos: no tener Ollama es lo normal, no una avería |
 | `frontend/src/services/ollama.integracion.test.ts` | La guía contra **un Ollama de verdad**, saltada si no hay `TEST_OLLAMA_URL`. Existe porque el `fetch` falso de la fila anterior lo escribimos nosotros: prueba que el lector de NDJSON hace lo que *creemos* que Ollama manda, y si esa creencia es falsa las dos pruebas pasan en verde mientras el panel sale en blanco. No afirma **qué** contesta el modelo —eso cambia con la versión sin que nada se rompa— sino que llega texto, que llega a trozos y que las secciones citadas son las que eligió la búsqueda. Es la que cazó el fallo del prompt contado en §5.7 |
 | `backend-tool/src/ai/guia.test.ts` | La guía del servidor, esta sí contra el **`docs/` de verdad** —es lo único que comprueba que el manual de hoy se puede trocear y buscar—: que un `docs/` ausente haga fallar el arranque en lugar de servir un manual vacío que contestaría «eso no lo cubre» a todo, que una pregunta real sobre exportar encuentre la sección de XMI, y sobre todo que un `402` del proveedor **devuelva el manual con un aviso y no un `500`**, igual que una respuesta vacía del modelo |
+| `frontend/src/services/voz.test.ts` | La lectura en voz alta **sin navegador**, con un `window` de mentira: que se avise del final una sola vez, que se avise también cuando la voz no llega a arrancar, que el final de una lectura **cancelada** no apague el indicador de la que la sustituye —`cancel()` dispara el final de la anterior *después* de que arranque la nueva, y sin un contador la pantalla diría «no está sonando» mientras suena—, que `callar` no vuelva a contar un final que quien llamó ya sabe, y que el puente nativo **no prometa** un aviso que el lado Dart no da: es lo que impide que el móvil se quede con un «Detener» que no se apaga nunca. Y el dictado, con un reconocedor de mentira y relojes falsos: que **una pausa a mitad de la frase no la envíe** —el motor se cansa, se vuelve a arrancar y lo dicho se junta, que es el arreglo de «no me da tiempo»—, que la frase se entregue **una sola vez** al cerrar, que pulsar el micrófono envíe lo que se llevaba dicho, que `no-speech` no apague el micrófono, y que un micrófono olvidado se apague solo al llegar al tope |
+| `frontend/src/services/dictado.test.ts` | Las decisiones del dictado, sin navegador ni micrófono: que el idioma salga del **aparato** y no esté escrito a mano —`es-BO` se escucha en `es-BO`, `es_mx` se normaliza a `es-MX`— y que **nunca se caiga en el castellano de España por descarte**, que era la causa de fondo de «no se me entiende»: el modelo de una región devuelve otra palabra por cada palabra que dice quien habla otra. Más el desempate entre las hipótesis que da el motor —de «crea la plaza Pedido» y «crea la clase Pedido» gana la que usa el vocabulario del dominio, y un empate deja el orden del motor intacto— y que los errores que no son averías no terminen la sesión |
 | `backend-tool/src/frontend-estatico.test.ts` | El servicio sirviendo también el frontend, que es lo que permite desplegar en un solo contenedor. Vigila sobre todo el orden de los middlewares: que `/api/no-existe` siga devolviendo JSON y no el `index.html` con un 200, que `/salud` no quede tapada —si devolviera el index, la comprobación del balanceador pasaría siempre, incluso con el servicio roto—, y que no se pueda escapar del directorio del frontend |
 
 La prueba que mejor resume el diseño está al final de `import.test.ts`: sube una
@@ -1728,14 +2282,18 @@ modelo**.
 | «el modelo no ha encontrado ningún diagrama en la imagen» + mención de `LLM_VISION_MODEL` | El modelo configurado no sabe mirar imágenes (p. ej. uno de DeepSeek: **ninguno** de sus modelos tiene visión) | Apunta la visión a Gemini u otro proveedor con visión (§5.2) |
 | «no tiene la forma esperada: `columnas: Array must contain at least 1`» | Versión antigua del mismo caso anterior | Ya no ocurre; actualiza y relee el mensaje nuevo |
 | `LECTURA_FALLIDA: Insufficient Balance` | Saldo agotado en DeepSeek | Recarga la cuenta |
-| `404` … «This model … is no longer available» | El nombre de `LLM_VISION_MODEL` lo ha retirado el proveedor | El propio error dice el sustituto; ponlo en `.env` y reinicia. La clave está bien: te contestó |
+| `404` … «This model … is no longer available» | El nombre de `LLM_VISION_MODEL` lo ha retirado el proveedor | El propio error dice el sustituto; ponlo en `.env` y reinicia. La clave está bien: te contestó. Si hay reserva configurada, la lectura ni siquiera falla: contesta el siguiente |
+| «El modelo de visión está saturado… se puede añadir un modelo de reserva» (`503 UNAVAILABLE`, «high demand») | La capa gratuita del proveedor está congestionada. Los tres reintentos internos duran unos 2,5 s y la saturación dura minutos: no la alcanzan | Reintentar en un momento. Para que no vuelva a bloquear, añadir un segundo modelo separado por coma: `LLM_VISION_MODEL=gemini-3.6-flash,gemini-2.5-flash`, y reiniciar el backend |
+| «**Ninguno** de los modelos de visión configurados ha podido leer la imagen: se probó la cadena entera» | Lo mismo, pero ya con reserva: no contestó ninguno | Mirar el detalle `[se probaron N modelos → …]`: dice qué contestó cada uno. «Saturado» se espera; «el proveedor no lo conoce» se corrige en el `.env`. Si corre prisa, exportar el diagrama a XMI e importarlo (§5.5) no depende del proveedor |
+| «… gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.6-flash» | El nombre puesto como reserva ya no se da de alta a cuentas nuevas, y el sustituto que nombra **es el que ya estaba en primera posición**: la reserva no aporta nada | Quitar ese segundo nombre. Un reserva del mismo proveedor solo sirve si es un modelo con visión que la clave pueda usar de verdad; si no lo hay, dejar uno solo y contar con el XMI como plan B |
 | `404` con una **página HTML** (`<title>Error 404 (Not Found)!!1</title>`) | `LLM_VISION_BASE_URL` no apunta a la API. Es el 404 de un servidor web, no el de un proveedor de modelos: la petición nunca llegó a Gemini. Caso típico: `https://googleapis.com`, que es el dominio paraguas de Google y no la API | Ponla en `https://generativelanguage.googleapis.com/v1beta/openai` y reinicia. **El nombre del modelo no tiene nada que ver**: con el correcto habría fallado igual |
 | `404` al llamar a `/models` a mano para probar la clave | La capa compatible con OpenAI de Google sirve `/chat/completions`, no el listado | Prueba con `/chat/completions`, que es lo que usa el backend |
 | `IMAGEN_DEMASIADO_GRANDE` | Foto por encima de 4 MiB | Recórtala; se lee mejor además |
 | «Ya hay una clase X» | El diagrama ya tiene esa tabla | Cambia el nombre en la revisión, o borra la existente |
 | El botón de importar está apagado | Hay errores bloqueantes | Están enumerados en rojo bajo la tabla |
 | Se importó un dato mal leído | El modelo se equivocó y nadie lo vio al revisar | `Ctrl+Z` deshace la importación entera |
-| Aviso rojo «N extremos de relación sin cardinalidad legible» | El modelo no pudo leer un `1`, un `*` o un `0..1` del dibujo, y **no lo ha adivinado** | Míralos en la imagen y corrígelos en los desplegables antes de importar: de ahí sale la clave foránea o la tabla de unión |
+| Aviso rojo «N extremos de relación sin cardinalidad legible» | El modelo no pudo leer un `1`, un `*` o un `0..1` del dibujo, y **no lo ha adivinado** | Conviene mirarlos en la imagen y corregirlos en los desplegables antes de importar: de ahí sale la clave foránea o la tabla de unión. Si en la foto tampoco se distinguen, «Sugerir lo que falta» pone la convención `1 → *` y lo deja marcado en ámbar |
+| Una fila de herencia sale con desplegables de cardinalidad vacíos | Versión anterior a que la regla `llevaCardinalidad` se unificara en `shared/` | Ya no ocurre: la herencia y la realización muestran una raya, no un desplegable. Si reaparece, la copia de la regla ha vuelto a duplicarse |
 | Una relación que sí está en el dibujo no aparece en la revisión | El modelo escribió un extremo con un nombre que no corresponde a ninguna clase leída | Añádela a mano en el panel de relaciones tras importar; el emparejamiento ya prueba «Class A» ↔ `ClassA`, pero no nombres inventados |
 | Una herencia sale invertida | El modelo confundió hija con padre | Cámbiala en el panel: en el diagrama el origen es la **hija** y el destino el **padre** |
 | Salió agregación donde el dibujo tiene composición | Rombo hueco y rombo relleno se parecen en fotos con poca luz | Corrige el tipo en la revisión; cambia si el hijo se borra en cascada o no |
@@ -1748,3 +2306,269 @@ modelo**.
 | «El modelo remoto no contestó (402…)» bajo la respuesta | Saldo agotado en DeepSeek | Las secciones de abajo siguen siendo la respuesta. Recarga la cuenta |
 | El micrófono de la ayuda no transcribe sin internet | El dictado de Chrome manda el audio a Google | Escribe la pregunta. La lectura en voz alta sí funciona sin red |
 | La respuesta se corta a media palabra en las secciones | Es el resumen de la sección, no la sección entera | Abre el documento de `docs/` que cita el encabezado |
+| El XMI trae un diagrama de comunicación y «Comunicación importada» sale vacío | El fichero no llegó a guardarse: se cerró la revisión sin pulsar el botón | Vuelve a importarlo. El botón dice «Guardar el diagrama» cuando el fichero **solo** trae comunicación (§5.14) |
+| El diagrama importado sale con cajas pero **sin ninguna flecha** | El fichero es de Enterprise Architect: sus mensajes viven en el bloque de extensión y no se leen (§5.14) | Nada que arreglar en la herramienta. Para conservar los mensajes, exporta en XMI 2.5.1 canónico |
+| «Un mensaje va a un objeto que no está en el diagrama» | El XMI se exportó a medias: la interacción sin sus líneas de vida | Vuelve a exportar el diagrama **entero** desde la herramienta de origen (§5.14) |
+| El diagrama importado se dibuja distinto que en la otra herramienta | La colocación es nuestra: la geometría del fichero no se lee (§5.14) | Es el comportamiento esperado. Lo que se conserva es quién habla con quién y en qué orden |
+| Reimporté el fichero corregido y ahora hay uno solo, no dos | El mapa va indexado por el `xmi:id` de la interacción: reimportar reemplaza | Es lo buscado. Para conservar los dos, renombra la interacción en el origen antes de exportar |
+
+---
+
+## 5.14 Importar un diagrama de comunicación desde XMI
+
+**Archivo ▸ Importar XMI…** para traerlo, **Modelo ▸ Comunicación importada…**
+para verlo.
+
+Esto es lo que hace §5.5 *además* de traducir. Hasta que el proyecto tuvo dónde
+guardar un diagrama de comunicación, un `.xmi` que trajera uno se aprovechaba a
+medias: sus mensajes se convertían en métodos del diagrama de clases y el
+diagrama en sí —quién habla con quién, en qué orden, con qué guardas— se perdía,
+porque no había ningún sitio donde ponerlo. Ahora lo hay, y las dos cosas
+ocurren en la misma importación: los métodos se proponen como operaciones
+revisables y **el diagrama se guarda entero, sin traducir**.
+
+### El proceso, de principio a fin
+
+1. **Se elige el fichero.** El mismo botón y la misma pantalla de siempre: no
+   hay una entrada de menú distinta para «importar comunicación», porque quien
+   tiene un `.xmi` delante no siempre sabe qué trae dentro.
+2. **Se lee y se valida, sin tocar nada.** El fichero se decodifica según lo que
+   él mismo declara, se analiza, se buscan las interacciones y se comprueba su
+   integridad. Nada de esto llega al proyecto todavía.
+3. **Se revisa.** Si el fichero trae diagramas de comunicación, la pantalla de
+   revisión añade un bloque propio: cuántos diagramas, cómo se llaman, cuántos
+   objetos y cuántos mensajes lleva cada uno, y los problemas de integridad que
+   se hayan encontrado. Debajo sigue lo de siempre —las clases, los métodos que
+   se van a añadir, los avisos—, porque el mismo fichero alimenta las dos vías.
+4. **Se confirma.** El botón dice lo que va a pasar, y no siempre dice lo mismo:
+   «Importar 4 clases» cuando hay clases, «Aplicar N cambios» cuando solo hay
+   operaciones, y **«Guardar el diagrama»** cuando el fichero trae una
+   interacción y ninguna operación sobre el diagrama de clases. Ese último caso
+   no es raro: es exactamente lo que da el fichero real de Enterprise Architect.
+5. **Primero las operaciones, después el diagrama.** En ese orden y solo si las
+   primeras salieron bien. Al revés, un lote rechazado dejaría en el proyecto un
+   diagrama de comunicación cuyas clases no existen.
+6. **Se avisa de dónde ha quedado.** Un mensaje en la barra dice «Diagrama de
+   comunicación en el proyecto. Menú Modelo → Comunicación importada», porque un
+   documento que se guarda en un sitio que nadie ha visto nunca es, en la
+   práctica, un documento que no se ha guardado.
+
+Un detalle que se decidió a propósito: **si el fichero no genera ni una
+operación, no se escribe nada en el historial de cambios.** Aplicar un lote
+vacío dejaría una entrada diciendo que alguien importó algo, sin ningún cambio
+detrás.
+
+### Los dos dialectos admitidos, y qué exige cada uno
+
+Se admiten los dos que se pidieron. No se detecta cuál es para luego ramificar:
+se prueban las formas **por orden de fiabilidad** y se acepta la primera que
+resuelva. Un `if (esEnterpriseArchitect)` acabaría siendo una lista de
+excepciones por cada versión de cada programa, y las herramientas no se ajustan
+del todo a ninguna de las dos especificaciones.
+
+| | **Enterprise Architect, XMI 2.1** | **UML 2.5.1 / XMI 2.5.1 canónico** |
+|---|---|---|
+| Espacio de nombres | `xmlns:uml="http://schema.omg.org/spec/UML/2.1"` | `xmlns:uml="http://www.omg.org/spec/UML/20161101"` |
+| Codificación | **windows-1252**, declarada en la primera línea | UTF-8 |
+| El contenedor | `uml:Collaboration` con una `uml:Interaction` dentro | `uml:Collaboration` o `uml:Interaction` |
+| Los objetos | `lifeline` → `represents` → `Property` → `type` → `InstanceSpecification` → `classifier` → `uml:Component` | `lifeline` → `represents` → `Property` → `type` → `uml:Class` |
+| Los enlaces | `ownedConnector` **fuera** de la colaboración, con los extremos apuntando al id de la instancia | `ownedConnector` dentro, con los extremos apuntando a la propiedad |
+| Los mensajes | Solo dentro de `<xmi:Extension extender="Enterprise Architect">`: **no se leen** | `uml:Message` con `messageSort`, y sus extremos como `MessageOccurrenceSpecification` |
+| El nombre del mensaje | — | Atributo `name`, o `signature` apuntando a una `uml:Operation` |
+| Nombres de relleno | `EA_Model`, `EA_Interaction1`: se ignoran y se titula por el paquete | El nombre propio vale |
+
+Requisitos mínimos para que un fichero se importe como diagrama de comunicación,
+sea del dialecto que sea:
+
+- **Que haya una `uml:Interaction` o una `uml:Collaboration`**, colgando de
+  cualquiera de `packagedElement`, `ownedBehavior`, `ownedMember` u
+  `ownedElement`. Sin ninguna de las dos, el fichero se trata como un XMI de
+  clases y nada más.
+- **Que los objetos tengan `xmi:id`.** Es la única pieza que no se puede
+  suplir: un objeto sin identificador no se puede referenciar desde ningún
+  mensaje.
+- **Que se pueda llegar a la clase de cada objeto**, por cualquiera de estos
+  cuatro caminos y en este orden: el `classifier` de su instancia, el `type` de
+  la propiedad que representa, un `<type href="…#Pedido">` a una biblioteca
+  externa, y —lo último, porque es lo único que puede equivocarse— el convenio
+  `p1:Pedido` escrito en el nombre. Un objeto sin clase se importa igual, pero
+  sale marcado.
+- **Que los dos extremos de cada conector estén en el mismo diagrama.** Los
+  conectores se buscan por el documento entero, porque EA los saca de la
+  colaboración; lo que los ata a un diagrama concreto es que sus dos puntas
+  resuelvan a objetos suyos. Es también lo que impide que los conectores de una
+  interacción acaben dibujados en otra.
+- **Que los mensajes digan de dónde salen y a dónde llegan**, por
+  `sendEvent`/`receiveEvent`, por `sender`/`receiver`, o —el camino canónico,
+  que va al revés— por los `fragment` que llevan `message="…"` apuntando al
+  mensaje. En ese último caso el primer fragmento es el envío y el último la
+  recepción, que es lo que UML 2.5.1 dice sobre el orden de los fragmentos.
+
+Lo que **no** hace falta: que los mensajes lleven número. Si la etiqueta trae
+`1.2: pagar()` se respeta tal cual, jerarquía incluida, porque eso lo escribió
+una persona y ningún cálculo lo reconstruye; si no lo trae, se numera 1, 2, 3…
+por el orden del documento. Cada mensaje apunta de dónde salió su número, y la
+tabla del visor marca con un asterisco los deducidos. Confundir una numeración
+deducida con una escrita sería afirmar algo que el fichero no dice.
+
+#### El `messageSort`, que cada herramienta escribe distinto
+
+UML 2.5.1 dice `asynchSignal`; hay exportadores que escriben `asynchronous`,
+otros `signal` y otros `synchCall`. Se normaliza a minúsculas y se reconocen
+unas dieciocho grafías, que caen en cinco clases: **llamada**, **asíncrono**,
+**respuesta**, **creación** y **destrucción**. Lo que no se reconoce cae en
+«llamada», que es lo que es un mensaje del que solo se sabe que va de A a B.
+
+#### Topes
+
+| Qué | Tope | Al pasarse |
+|---|---|---|
+| Objetos por diagrama | 200 | Se importan los primeros, con aviso |
+| Mensajes por diagrama | 500 | Se importan los primeros, con aviso |
+| Diagramas por fichero | 50 | Se importan los primeros, con aviso |
+| Tamaño del fichero | 8 MiB | Bloquea |
+| Nodos XML / anidamiento | 200 000 / 200 niveles | Bloquea |
+
+Los tres primeros no son límites técnicos sino de legibilidad: un diagrama de
+comunicación con doscientos objetos no es un diagrama, es un volcado.
+
+### La validación de integridad
+
+El fichero puede ser XML perfectamente válido y traer un diagrama roto. Ese es
+el hueco por el que se cuela casi todo importador: se lee sin un solo error, el
+diagrama aparece en pantalla, y le faltan tres flechas porque apuntaban a una
+línea de vida que el fichero no traía. Nadie se entera hasta que alguien cuenta
+las flechas del original.
+
+Por eso hay una comprobación aparte, que corre **dos veces**: al leer el XMI,
+para poder enseñar los problemas antes de que nadie acepte nada, y al leer el
+diagrama del documento compartido, porque entre medias ha pasado por un CRDT,
+por el disco, quizá por PostgreSQL y sobre todo por las manos de otra persona
+que pudo borrar el objeto al que apuntaban cuatro mensajes.
+
+| Código | Severidad | Qué significa |
+|---|---|---|
+| `sin-participantes` | error | El diagrama no tiene ni un objeto |
+| `emisor-colgante` | error | Un mensaje sale de un objeto que no está |
+| `destinatario-colgante` | error | Un mensaje llega a un objeto que no está |
+| `enlace-colgante` | error | Un enlace tiene una punta que no está |
+| `alias-repetido` | error | Dos objetos distintos con la misma etiqueta |
+| `objeto-sin-clase` | aviso | El objeto no declara de qué clase es |
+| `objeto-aislado` | aviso | No manda ni recibe nada |
+| `numero-repetido` | aviso | Dos mensajes con el mismo número |
+| `secuencia-sin-padre` | aviso | Hay un `1.2` y no hay ningún `1` |
+| `secuencia-con-hueco` | aviso | Hay un `1` y un `3`, y no hay `2` |
+| `mensaje-sin-nombre` | aviso | La flecha saldría en blanco |
+| `respuesta-sin-llamada` | aviso | Una respuesta que no contesta a nada |
+| `mensaje-sin-enlace` | aviso | El mensaje viaja por donde no hay conector declarado |
+
+**No arregla nada.** Devuelve la lista y se acaba su trabajo. Tirar el mensaje
+huérfano o renumerar lo repetido en silencio es lo que hace que una importación
+*parezca* perfecta sin serlo. La distinción entre error y aviso tampoco es
+cosmética: un error bloquea y un aviso no, y confundirlos convierte la pantalla
+de revisión en una que se acepta sin leerla.
+
+### Dónde queda guardado
+
+En el documento del proyecto, al lado del diagrama de clases: se abre con el
+proyecto, se ve desde otro ordenador y sigue ahí mañana. No en el
+`localStorage`, que es de una máquina y de un perfil, y no en memoria.
+
+No hizo falta tocar el almacenamiento para esto. El `DocumentStore` guarda el
+documento Yjs entero como un blob opaco y no interpreta nada de lo que hay
+dentro —la convergencia la garantiza el CRDT, no el servidor—, así que un tipo
+raíz nuevo llega hasta el disco y hasta PostgreSQL **sin migración de esquema,
+sin ruta nueva en la API y sin una línea de cambio en el almacén**.
+
+El mapa va indexado por el `xmi:id` de la interacción, que es el identificador
+que traía el fichero: **reimportar el mismo XMI reemplaza el diagrama en vez de
+duplicarlo**, que es lo que uno espera cuando corrige el original y lo vuelve a
+exportar.
+
+### Verlo: Modelo ▸ Comunicación importada
+
+Es una entrada de menú aparte de la de §5.10, y no una pestaña dentro de
+aquella, porque son dos cosas distintas que se llaman igual: **aquella dibuja lo
+que la herramienta deduce del backend que va a generar; esta dibuja lo que vino
+de fuera.** Mezclarlas en una pantalla haría imposible saber cuál se está
+mirando.
+
+Qué se ve: el desplegable de diagramas si hay más de uno, de dónde salió y
+cuándo, el dibujo, la lista de lo que no se ha podido pintar, la tabla de
+mensajes —número, de, a, mensaje, clase y el `xmi:id` original— y los problemas
+de integridad, desplegados de entrada si hay alguno. Y un botón para **quitarlo
+del proyecto**, que es la única forma de deshacerlo: un diagrama importado no
+entra por el gestor de deshacer porque no es una operación, y ofrecer un
+`Ctrl+Z` que no lo quitaría sería mentir.
+
+Tres cosas del dibujo que conviene saber leer:
+
+- **La colocación es nuestra, no del fichero.** Las cajas se reparten en anillo
+  —o en estrella, si hay un objeto que habla con casi todos— a partir de quién
+  habla con quién. Es deliberado que el reparto sea **determinista**: una
+  colocación por fuerzas se redibujaría distinta en cada repintado y en cada
+  máquina, y en un editor colaborativo eso se lee como «el diagrama ha
+  cambiado».
+- **Los enlaces de trazo discontinuo no venían en el fichero.** Un enlace
+  declarado es un hecho del original; uno deducido de que dos objetos se hablan
+  es una conclusión de este programa. Se dibujan los dos, distintos.
+- **Lo que no se puede pintar se enumera, no se esconde.** Un mensaje cuyo
+  emisor no está en el diagrama sale en la lista de omitidos con su motivo.
+  Dibujar solo lo que encaja y callar el resto daría un diagrama bonito y falso.
+
+### Lo que no se lee, a propósito
+
+- **La geometría.** Dónde puso cada caja quien dibujó el diagrama vive en el
+  bloque de extensión de cada herramienta, en un formato distinto en cada una y
+  que además falta en muchos ficheros. Lo que se conserva es la semántica —los
+  objetos, los mensajes, su numeración y sus enlaces—; la posición se calcula.
+- **Las extensiones ajenas.** El bloque `<xmi:Extension>` solo se lee si su
+  `extender` es `uml-colaborativo`. De ahí que de un fichero de EA salgan los
+  objetos y los enlaces pero ningún mensaje: los suyos están ahí dentro. No
+  sabemos qué significa cada campo de una extensión ajena y no vamos a
+  adivinarlo.
+- **La exportación no genera interacciones.** Sigue saliendo solo el diagrama de
+  clases. Inventarse los mensajes a partir de él sería exactamente eso,
+  inventárselos.
+
+### Seguridad
+
+Las mismas reglas de §5.5, que no cambian por venir el contenido de una
+interacción: los nombres son entrada no confiable y **se rechazan, no se
+limpian**; la comprobación de los nombres de mensaje se hace sobre el texto de
+la etiqueta **antes** de normalizarlo, porque normalizar primero convertiría
+`borrar(); DROP TABLE pedidos--` en un identificador Java perfectamente válido;
+y el lector XML se salta el `DOCTYPE` entero, de modo que XXE y «billion laughs»
+no aplican por construcción.
+
+Lo propio de esta vía es que el diagrama guardado **no pasa por
+`applyOperations`**, porque no es una operación sobre el diagrama de clases. A
+cambio, todo lo que se escribe en el documento se ha leído del fichero con los
+mismos validadores, y lo que se enseña en pantalla vuelve a validarse al leerlo
+del CRDT.
+
+### Cómo está comprobado
+
+| Fichero | Qué prueba |
+|---|---|
+| `shared/src/xmi/fixtures/ea-comunicacion.xmi` | Exportación **real** de Sparx EA 6.5, guardada entera con su windows-1252 y sus 57 KB de extensión |
+| `shared/src/xmi/fixtures/uml-251-comunicacion.xmi` | El dialecto canónico: `MessageOccurrenceSpecification`, `signature`, automensaje, guarda e iteración |
+| `shared/src/xmi/diagrama-comunicacion.test.ts` | Todo lo de `shared/`, en once bloques: el despiece de la etiqueta, cada dialecto por separado, lo que comparten, los diecinueve ficheros que emite este proyecto, los ficheros que **no** son lo que se busca, los trece códigos de integridad, el orden de la numeración, los enlaces efectivos, la conservación a través del documento compartido —incluido que reimportar reemplace— y que `leerXmi` devuelva las dos mitades |
+| `frontend/src/components/comunicacion-importada.test.ts` | La colocación: que ninguna caja se pise, que todo quepa, que sea determinista, y los dos fixtures reales de extremo a extremo |
+
+Los fixtures se guardan **sin recortar** a propósito. Un fichero podado a mano
+deja de probar lo que la herramienta hace y pasa a probar lo que uno cree que
+hace, que es justo el error que tuvo este lector devolviendo «el fichero está
+vacío» durante semanas.
+
+### Dónde está esto en el código
+
+| Fichero | Qué hace |
+|---|---|
+| `shared/src/model/comunicacion-uml.ts` | El modelo neutro: objetos, mensajes, enlaces, numeración |
+| `shared/src/xmi/diagrama-comunicacion.ts` | El lector de los dos dialectos |
+| `shared/src/xmi/etiqueta-mensaje.ts` | El despiece de `*[i:=1..n] 2.3: total := calcular(iva)` |
+| `shared/src/model/comunicacion-integridad.ts` | La validación |
+| `shared/src/crdt/comunicaciones.ts` | El tipo raíz Yjs donde se guarda |
+| `frontend/src/components/comunicacion-importada.ts` | La colocación, sin DOM |
+| `frontend/src/components/VisorComunicacionImportada.tsx` | La pantalla |

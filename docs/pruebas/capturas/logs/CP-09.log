@@ -1,0 +1,111 @@
+$ npx vitest run --reporter=verbose shared/src/revision/revision.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/revision/revision.test.ts > atributos que la subclase vuelve a declarar > señala el atributo que ya está en el padre 3ms
+ ✓ shared/src/revision/revision.test.ts > atributos que la subclase vuelve a declarar > lo encuentra también dos niveles más arriba 1ms
+ ✓ shared/src/revision/revision.test.ts > atributos que la subclase vuelve a declarar > no dice nada si las clases no están emparentadas 0ms
+ ✓ shared/src/revision/revision.test.ts > atributos que la subclase vuelve a declarar > no se queda dando vueltas en un ciclo de herencia 1ms
+ ✓ shared/src/revision/revision.test.ts > clases vacías > una clase suelta y sin nada dentro es un error 0ms
+ ✓ shared/src/revision/revision.test.ts > clases vacías > si hereda, baja a aviso 0ms
+ ✓ shared/src/revision/revision.test.ts > clases vacías > una clase con solo métodos no está vacía 0ms
+ ✓ shared/src/revision/revision.test.ts > clases vacías > las interfaces y los enums no cuentan 0ms
+ ✓ shared/src/revision/revision.test.ts > composición compartida > una parte con dos dueños es un error 1ms
+ ✓ shared/src/revision/revision.test.ts > composición compartida > un dueño con varias partes distintas está bien 0ms
+ ✓ shared/src/revision/revision.test.ts > composición compartida > una agregación además de la composición no cuenta como segundo dueño 0ms
+ ✓ shared/src/revision/revision.test.ts > atributos que en realidad son relaciones > un texto que menciona otra clase del diagrama 0ms
+ ✓ shared/src/revision/revision.test.ts > atributos que en realidad son relaciones > un solo aviso aunque el nombre mencione la clase dos veces 0ms
+ ✓ shared/src/revision/revision.test.ts > atributos que en realidad son relaciones > no dice nada si el tipo ya es la clase 0ms
+ ✓ shared/src/revision/revision.test.ts > atributos que en realidad son relaciones > una cuenta de algo no es una relación con ese algo 0ms
+ ✓ shared/src/revision/revision.test.ts > atributos que en realidad son relaciones > un atributo que menciona su propia clase no es una relación consigo mismo 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > un importe guardado como texto 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > una fecha guardada como texto 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > un contador guardado como texto 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > un «no» suelto no se toma por un contador 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > el tipo correcto no se denuncia 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > un contador en Long tampoco se denuncia 0ms
+ ✓ shared/src/revision/revision.test.ts > tipos que el nombre desmiente > un nombre corriente no dispara nada 0ms
+ ✓ shared/src/revision/revision.test.ts > clases aisladas > una clase sin ninguna relación 0ms
+ ✓ shared/src/revision/revision.test.ts > clases aisladas > con una sola clase no hay nada que decir 0ms
+ ✓ shared/src/revision/revision.test.ts > clases que son el programa y no el negocio > LibraryManagementSystem se señala por «system» 0ms
+ ✓ shared/src/revision/revision.test.ts > clases que son el programa y no el negocio > LibraryDatabase se señala por «database» 0ms
+ ✓ shared/src/revision/revision.test.ts > clases que son el programa y no el negocio > PedidoService se señala por «service» 0ms
+ ✓ shared/src/revision/revision.test.ts > clases que son el programa y no el negocio > PantallaPrincipal se señala por «pantalla» 0ms
+ ✓ shared/src/revision/revision.test.ts > clases que son el programa y no el negocio > una entidad corriente no se señala 0ms
+ ✓ shared/src/revision/revision.test.ts > relaciones repetidas > dos asociaciones iguales y sin rol 0ms
+ ✓ shared/src/revision/revision.test.ts > relaciones repetidas > da igual en qué sentido se dibujaran 0ms
+ ✓ shared/src/revision/revision.test.ts > relaciones repetidas > con rol son dos hechos distintos y se respetan 0ms
+ ✓ shared/src/revision/revision.test.ts > relaciones repetidas > una asociación y una herencia entre el mismo par no son la misma línea 0ms
+ ✓ shared/src/revision/revision.test.ts > muchos a muchos > se sugiere la clase intermedia, sin exigirla 0ms
+ ✓ shared/src/revision/revision.test.ts > muchos a muchos > un uno a muchos no se toca 0ms
+ ✓ shared/src/revision/revision.test.ts > la lista > pone los errores delante y las sugerencias al final 0ms
+ ✓ shared/src/revision/revision.test.ts > la lista > el mismo diagrama da la misma lista en el mismo orden 1ms
+ ✓ shared/src/revision/revision.test.ts > la lista > un diagrama vacío no encuentra nada 0ms
+ ✓ shared/src/revision/revision.test.ts > la lista > el resumen cuenta por gravedad 1ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > ve que Librarian repite el «name» que ya hereda de User 0ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > ve que Student no aporta nada 0ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > ve que el sistema y la base de datos no son clases del dominio 0ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > ve que «listOfBooks» es la asociación con Book escrita dentro de la caja 0ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > ve el importe y el contador guardados como texto 0ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > sugiere la clase de préstamo tras el muchos a muchos entre User y Book 0ms
+ ✓ shared/src/revision/revision.test.ts > el diagrama de biblioteca de la captura > no se inventa clases sueltas ni líneas repetidas 0ms
+
+ Test Files  1 passed (1)
+      Tests  47 passed (47)
+   Start at  01:44:48
+   Duration  665ms (transform 124ms, setup 0ms, collect 175ms, tests 18ms, environment 0ms, prepare 157ms)
+
+
+
+$ npx vitest run --reporter=verbose shared/src/reparacion/reparar.test.ts -t "avisos"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ↓ shared/src/reparacion/reparar.test.ts > la promesa del botón > deja generable un diagrama que no lo era
+ ↓ shared/src/reparacion/reparar.test.ts > la promesa del botón > cuenta los errores que había, para poder decirlo en la pantalla
+ ↓ shared/src/reparacion/reparar.test.ts > la promesa del botón > no toca el diagrama que recibe
+ ↓ shared/src/reparacion/reparar.test.ts > la promesa del botón > cada arreglo lleva las operaciones que lo ejecutan, y el total es su suma
+ ↓ shared/src/reparacion/reparar.test.ts > la promesa del botón > nunca aumenta el número de errores, en ninguno de los casos de esta prueba
+ ↓ shared/src/reparacion/reparar.test.ts > arreglos que se encadenan > desmarcar una clave inválida provoca que se añada la que falta
+ ↓ shared/src/reparacion/reparar.test.ts > arreglos que se encadenan > la clave que se añade no choca con un atributo que ya se llamaba así
+ ↓ shared/src/reparacion/reparar.test.ts > arreglos que se encadenan > el plan termina aunque el diagrama sea un desastre
+ ↓ shared/src/reparacion/reparar.test.ts > nombres de atributo que Java no admite > translitera la tilde y junta las palabras
+ ↓ shared/src/reparacion/reparar.test.ts > nombres de atributo que Java no admite > el texto que se enseña nombra el atributo viejo y el nuevo
+ ↓ shared/src/reparacion/reparar.test.ts > columnas que chocan con una palabra reservada > antepone el nombre de la clase
+ ↓ shared/src/reparacion/reparar.test.ts > columnas que chocan con una palabra reservada > el detalle explica que la columna es reservada en PostgreSQL
+ ↓ shared/src/reparacion/reparar.test.ts > dos atributos con el mismo nombre > renombra el segundo y conserva el primero
+ ↓ shared/src/reparacion/reparar.test.ts > dos atributos con el mismo nombre > avisa de que probablemente uno de los dos sobre
+ ↓ shared/src/reparacion/reparar.test.ts > tipos que no están en el catálogo > los cambia por String
+ ↓ shared/src/reparacion/reparar.test.ts > tipos que no están en el catálogo > el detalle advierte de que String no es el tipo correcto, solo uno que compila
+ ↓ shared/src/reparacion/reparar.test.ts > tipos que no están en el catálogo > no confunde una clase del diagrama con un tipo desconocido
+ ↓ shared/src/reparacion/reparar.test.ts > subclase que vuelve a declarar la identidad > la desmarca y conserva el atributo como dato
+ ↓ shared/src/reparacion/reparar.test.ts > subclase que vuelve a declarar la identidad > el detalle explica que si no, el campo desaparece del Java generado
+ ↓ shared/src/reparacion/reparar.test.ts > claves primarias de tipo imposible > desmarca la fecha y el importe
+ ↓ shared/src/reparacion/reparar.test.ts > claves primarias de tipo imposible > no toca una clave de tipo válido
+ ↓ shared/src/reparacion/reparar.test.ts > varias claves primarias > conserva la de mejor tipo y desmarca las demás
+ ↓ shared/src/reparacion/reparar.test.ts > varias claves primarias > a igualdad de tipo se queda con la primera declarada
+ ↓ shared/src/reparacion/reparar.test.ts > entidades sin clave primaria > añade una Long con el nombre de la clase por delante
+ ↓ shared/src/reparacion/reparar.test.ts > entidades sin clave primaria > no se la añade a una clase abstracta
+ ↓ shared/src/reparacion/reparar.test.ts > entidades sin clave primaria > no se la añade a una clase marcada como no persistente
+ ↓ shared/src/reparacion/reparar.test.ts > relaciones que apuntan a una clase borrada > las quita
+ ↓ shared/src/reparacion/reparar.test.ts > relaciones que apuntan a una clase borrada > dice que no se pierde nada
+ ↓ shared/src/reparacion/reparar.test.ts > composición con varios en el lado del todo > baja la multiplicidad a 1
+ ↓ shared/src/reparacion/reparar.test.ts > composición con varios en el lado del todo > respeta la cota inferior que ya había
+ ↓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > la herencia múltiple sale como irreparable, con su mensaje
+ ↓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > una enumeración vacía sale como irreparable
+ ↓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > dos clases con el mismo nombre salen como irreparables
+ ↓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > sigue proponiendo lo mecánico aunque haya algo que no sabe arreglar
+ ↓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > un diagrama válido no produce ningún arreglo
+ ↓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > un diagrama vacío no revienta
+ ✓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > no toca nada que solo produzca avisos 7ms
+ ↓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > simular sin operaciones devuelve el mismo diagrama
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 37 skipped (38)
+   Start at  01:44:50
+   Duration  860ms (transform 224ms, setup 0ms, collect 353ms, tests 9ms, environment 0ms, prepare 169ms)
+

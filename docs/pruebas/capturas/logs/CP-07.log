@@ -1,0 +1,36 @@
+$ npx tsx backend-tool/scripts/generar-demo.mts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+Diagrama de entrada: "Tienda" — 6 clases, 4 relaciones
+Validacion previa: ok, 0 avisos
+Ficheros emitidos: 56  (98.8 KiB en total)
+
+  Entidades JPA (domain)               6 ficheros    563 lineas
+  Repositorios                         5 ficheros     90 lineas
+  Servicios e implementaciones        10 ficheros    507 lineas
+  Controladores REST                   6 ficheros    413 lineas
+  DTO y mapeadores                    15 ficheros    481 lineas
+  Manejo de errores                    3 ficheros     77 lineas
+  Idempotencia (reenvio offline)       2 ficheros    432 lineas
+  Migraciones y datos semilla          2 ficheros    122 lineas
+  Manifiesto del asistente             1 ficheros    279 lineas
+  Proyecto y despliegue                6 ficheros    321 lineas
+
+Ficheros vacios o a medias: 0
+Entidades con clave primaria: 5 de 5
+Tablas de union en la migracion inicial: 6 sentencias create table
+
+
+$ npx vitest run --reporter=dot generator/src
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+················································································································
+
+ Test Files  4 passed (4)
+      Tests  112 passed (112)
+   Start at  01:42:01
+   Duration  1.69s (transform 576ms, setup 0ms, collect 3.64s, tests 430ms, environment 1ms, prepare 649ms)
+

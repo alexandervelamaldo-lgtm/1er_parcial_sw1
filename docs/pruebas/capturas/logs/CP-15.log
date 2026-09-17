@@ -1,0 +1,25 @@
+$ npx vitest run --reporter=verbose backend-tool/src/api/proteccion.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/api/proteccion.test.ts > límite de tasa > deja pasar hasta el máximo y rechaza el siguiente con 429 2ms
+ ✓ backend-tool/src/api/proteccion.test.ts > límite de tasa > dice cuántos segundos hay que esperar 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > límite de tasa > la cuota se recupera poco a poco, no de golpe 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > límite de tasa > cuenta por usuario cuando hay sesión, no por dirección 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > límite de tasa > sin sesión cuenta por dirección 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > cabeceras de seguridad > la política de contenido no permite scripts en línea 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > cabeceras de seguridad > permite estilos en línea, que es lo que el lienzo necesita 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > cabeceras de seguridad > deja hablar con Ollama, que corre en la máquina del usuario 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > cabeceras de seguridad > no envía HSTS en claro y sí detrás de un balanceador con TLS 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > cabeceras de seguridad > concede micrófono y cámara a este origen y niega la geolocalización 0ms
+ ✓ backend-tool/src/api/proteccion.test.ts > montado en el servicio > toda respuesta lleva las cabeceras, incluida la de salud 88ms
+ ✓ backend-tool/src/api/proteccion.test.ts > montado en el servicio > la generación se corta al undécimo intento del mismo minuto 311ms
+ ✓ backend-tool/src/api/proteccion.test.ts > montado en el servicio > leer el diagrama no gasta la cuota de generar 272ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  01:43:24
+   Duration  2.49s (transform 507ms, setup 0ms, collect 1.30s, tests 676ms, environment 0ms, prepare 150ms)
+

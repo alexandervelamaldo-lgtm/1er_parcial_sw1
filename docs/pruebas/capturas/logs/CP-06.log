@@ -1,0 +1,106 @@
+$ npx vitest run --reporter=verbose shared/src/xmi/xmi.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > lee elementos, atributos y anidamiento 3ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > separa el prefijo del espacio de nombres del nombre local 1ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > traduce las entidades estándar y las numéricas 0ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > no resuelve entidades externas: el DOCTYPE se ignora entero (XXE) 0ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > acepta comentarios, declaración y CDATA 0ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > rechaza etiquetas mal emparejadas en vez de adivinar 0ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > devuelve los descendientes en orden de documento 0ms
+ ✓ shared/src/xmi/xmi.test.ts > lector XML > escapa lo que hay que escapar 0ms
+ ✓ shared/src/xmi/xmi.test.ts > exportación a XMI > produce un documento bien formado con la raíz xmi:XMI 6ms
+ ✓ shared/src/xmi/xmi.test.ts > exportación a XMI > usa el tipo UML que corresponde a cada clase 2ms
+ ✓ shared/src/xmi/xmi.test.ts > exportación a XMI > ningún xmi:id empieza por dígito 2ms
+ ✓ shared/src/xmi/xmi.test.ts > exportación a XMI > escribe la multiplicidad como lowerValue y upperValue 2ms
+ ✓ shared/src/xmi/xmi.test.ts > exportación a XMI > escapa los nombres hostiles en lugar de romper el documento 1ms
+ ✓ shared/src/xmi/xmi.test.ts > exportación a XMI > guarda en xmi:Extension lo que UML no sabe guardar 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > rechaza un fichero que no es XML 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > lo dice claramente cuando el XMI no trae clases 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > no escribe nada: solo devuelve operaciones 4ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > da la vuelta completa: exportar e importar conserva el diagrama 3ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > conserva la clave primaria, que el UML estándar no sabe expresar 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > conserva las filas de datos de ejemplo 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > conserva los literales de la enumeración 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > conserva el método con su parámetro y su tipo de retorno 3ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > no confunde el xmi:type del atributo con el tipo del atributo 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > lee una asociación cuyos extremos son ownedAttribute apuntados por memberEnd 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > canoniza «0..*» como «*», que es lo que ofrece el panel 3ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > sin cota inferior aplica el uno del estándar, no el cero 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > no convierte el extremo de una asociación en una columna fantasma 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > acepta la marca de composición en cualquiera de los dos extremos 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > entiende el estilo antiguo de XMI 1.x 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > rechaza los nombres que no sirven como identificador, sin limpiarlos 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > omite una clase que ya existe en lugar de duplicarla 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > descarta la asociación que apunta a una clase que no se importó 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > nunca propone borrar nada 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > resume lo que va a hacer para poder enseñarlo antes de aplicar 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de XMI > un diagrama de clases no activa nada del lector de comunicación 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > el mensaje se convierte en método de quien lo RECIBE, no de quien lo envía 2ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > quien llama depende de a quién llama 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > el enlace no repite la dependencia que ya dio el mensaje 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > deduce las clases cuando el fichero solo trae objetos 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > un objeto que no dice de qué clase es se descarta y se explica 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > el número de secuencia y la guarda no acaban dentro del nombre del método 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > un mensaje de respuesta no inventa un método 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > un automensaje da método pero no una relación consigo mismo 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > amplía una clase que ya está en el diagrama en vez de omitirla 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > no duplica un método que la clase ya declara en el mismo fichero 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > no duplica un método que la clase ya tiene en el diagrama 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > no añade una dependencia donde ya hay una relación dibujada 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > dice que la secuencia no se conserva en vez de perderla en silencio 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > avisa una sola vez de que los tipos de los argumentos son supuestos 1ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > respeta el tipo del argumento cuando el mensaje sí lo declara 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > un nombre de mensaje hostil se rechaza, no se limpia (RNF-SEG-06) 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > lee un fichero con los dos diagramas sin duplicar las clases 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > las clases se crean antes que los métodos que van dentro 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > nunca propone borrar nada, tampoco por esta vía 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > cuenta las clases que va a crear para que el botón no mienta 0ms
+ ✓ shared/src/xmi/xmi.test.ts > importación de un diagrama de comunicación > sigue diciéndolo claro cuando el fichero no trae nada aprovechable 0ms
+
+ Test Files  1 passed (1)
+      Tests  56 passed (56)
+   Start at  01:41:54
+   Duration  866ms (transform 228ms, setup 0ms, collect 310ms, tests 65ms, environment 0ms, prepare 159ms)
+
+
+
+$ npx vitest run --reporter=verbose shared/src/xmi/ea.test.ts shared/src/xmi/ea-export.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > mete las clases en un paquete y le pone a ese paquete el nombre del proyecto 9ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > no le pone a ninguna clase el nombre del proyecto 2ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > el tipo del extremo de una asociación es un hijo, no un atributo 2ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > cada memberEnd apunta a un extremo que existe en el fichero 1ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > ninguna referencia del fichero apunta a un id que no está 1ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > no declara como elementos del modelo los tipos que UML ya trae 2ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > sí declara los tipos que UML no tiene, porque si no serían un nombre suelto 1ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > el parámetro de retorno se llama «return», como en los ficheros de EA 1ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > la enumeración conserva sus literales dentro del paquete 2ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > la herencia sigue estando y apunta a la clase padre 2ms
+ ✓ shared/src/xmi/ea-export.test.ts > el XMI que exportamos, visto como lo ve Enterprise Architect > y después de todo esto el fichero se sigue reimportando aquí entero 8ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > se importa, en vez de decir que el fichero está vacío 14ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > trae los tres participantes con el nombre del componente, no el del objeto 7ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > trae las operaciones que cada componente declara 6ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > lee el parámetro entero y no lo convierte en String 6ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > entiende que `EAnone_void` significa que el método no devuelve nada 6ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > dibuja tres relaciones y no seis, porque los enlaces repiten las asociaciones 5ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > los enlaces sí cuentan cuando el fichero no trae la asociación equivalente 1ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > lo declara como diagrama de comunicación 2ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > no avisa de asociaciones descartadas que en realidad sí se importaron 2ms
+ ✓ shared/src/xmi/ea.test.ts > XMI de un diagrama de comunicación de Enterprise Architect > sobre un diagrama que ya tiene una de las clases, la amplía en vez de duplicarla 3ms
+ ✓ shared/src/xmi/ea.test.ts > la codificación que el fichero declara > lee windows-1252 sin romper los acentos 0ms
+ ✓ shared/src/xmi/ea.test.ts > la codificación que el fichero declara > sin declaración supone UTF-8, que es lo que dice el estándar 0ms
+ ✓ shared/src/xmi/ea.test.ts > la codificación que el fichero declara > una codificación que el entorno no conoce no impide leer el fichero 0ms
+
+ Test Files  2 passed (2)
+      Tests  24 passed (24)
+   Start at  01:41:56
+   Duration  816ms (transform 247ms, setup 0ms, collect 468ms, tests 88ms, environment 1ms, prepare 384ms)
+

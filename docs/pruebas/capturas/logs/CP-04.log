@@ -1,0 +1,81 @@
+$ npx vitest run --reporter=verbose backend-tool/src/collab/collab.test.ts -t "permisos en el canal"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > lo que escribe uno aparece en la pantalla del otro
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > dos ediciones a la vez no se pisan
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > el tercero que llega tarde recibe todo lo anterior
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > un cambio hecho por HTTP llega a quien está conectado
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > cada uno ve dónde está el otro
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > el cursor de quien se va desaparece de la pantalla de los demás
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > el cursor no entra en el documento, ni en el historial, ni en el disco
+ ✓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > quien solo puede leer recibe los cambios pero no puede hacerlos (RNF-SEG-04) 785ms
+ ✓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > el permiso se comprueba en cada mensaje, no solo al conectar 708ms
+ ✓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión de quien no es miembro 432ms
+ ✓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión sin token válido 245ms
+ ✓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza un identificador de sala con forma de ruta 265ms
+ ↓ backend-tool/src/collab/collab.test.ts > persistencia de la sala > lo editado por el socket sobrevive a que se vayan todos
+
+ Test Files  1 passed (1)
+      Tests  5 passed | 8 skipped (13)
+   Start at  01:41:24
+   Duration  4.32s (transform 545ms, setup 0ms, collect 1.38s, tests 2.44s, environment 0ms, prepare 143ms)
+
+stderr | backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > quien solo puede leer recibe los cambios pero no puede hacerlos (RNF-SEG-04)
+Mensaje rechazado en la sala 48332261-a874-449f-bc2a-c6c14a3a8851 del usuario 63e700a9-a960-45ae-a4c2-3a92dbed8888: permiso de solo lectura
+
+
+
+$ npx vitest run --reporter=verbose backend-tool/src/api.test.ts -t "proyectos"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ↓ backend-tool/src/api.test.ts > autenticación > registra y devuelve un token utilizable
+ ↓ backend-tool/src/api.test.ts > autenticación > rechaza una contraseña demasiado corta
+ ↓ backend-tool/src/api.test.ts > autenticación > no distingue correo inexistente de contraseña incorrecta
+ ↓ backend-tool/src/api.test.ts > autenticación > rechaza sin token
+ ↓ backend-tool/src/api.test.ts > autenticación > rechaza un token manipulado
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > el registro entrega un código y el código cambia la contraseña
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > la contraseña anterior deja de servir
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > el código no vale dos veces
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > acepta el código con o sin guiones y en minúsculas
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > el código de otra cuenta no sirve
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > no distingue un correo desconocido de un código equivocado
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > la contraseña nueva pasa por la misma regla que el registro
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > cambiar la contraseña invalida las sesiones anteriores
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > emitir un código nuevo anula el anterior
+ ↓ backend-tool/src/api.test.ts > recuperación de contraseña > pedir un código nuevo exige sesión
+ ✓ backend-tool/src/api.test.ts > proyectos > crea el proyecto con su documento ya inicializado 302ms
+ ✓ backend-tool/src/api.test.ts > proyectos > solo lista los proyectos del usuario 422ms
+ ✓ backend-tool/src/api.test.ts > proyectos > responde 404 y no 403 a un extraño, para no revelar que existe 427ms
+ ✓ backend-tool/src/api.test.ts > proyectos > invita a un colaborador por correo 400ms
+ ✓ backend-tool/src/api.test.ts > proyectos > no deja expulsar al propietario 233ms
+ ✓ backend-tool/src/api.test.ts > proyectos > al borrar el proyecto borra también su documento 239ms
+ ↓ backend-tool/src/api.test.ts > diagrama > aplica operaciones y las refleja en el diagrama
+ ↓ backend-tool/src/api.test.ts > diagrama > devuelve 422 y no aplica nada si una operación del lote falla
+ ↓ backend-tool/src/api.test.ts > diagrama > rechaza una operación mal formada antes de tocar el documento
+ ↓ backend-tool/src/api.test.ts > diagrama > un usuario de solo lectura puede leer pero no escribir
+ ↓ backend-tool/src/api.test.ts > diagrama > fusiona el trabajo hecho offline con el del servidor
+ ↓ backend-tool/src/api.test.ts > generación > avisa de que un diagrama vacío todavía no puede generarse
+ ↓ backend-tool/src/api.test.ts > generación > genera las cuatro capas a partir del diagrama del documento
+ ↓ backend-tool/src/api.test.ts > generación > devuelve un ZIP descargable
+ ↓ backend-tool/src/api.test.ts > generación > rechaza un paquete base que no es un paquete Java
+ ↓ backend-tool/src/api.test.ts > asistente > propone operaciones sin aplicarlas
+ ↓ backend-tool/src/api.test.ts > asistente > pide una aclaración en lugar de inventar
+ ↓ backend-tool/src/api.test.ts > panel > exige sesión
+ ✓ backend-tool/src/api.test.ts > panel > resume solo los proyectos de quien pregunta 413ms
+ ↓ backend-tool/src/api.test.ts > panel > trae las cifras que la pantalla necesita, contadas del documento
+ ↓ backend-tool/src/api.test.ts > panel > reparte los cambios por vía de entrada y no cuenta deshacer como modelo
+ ↓ backend-tool/src/api.test.ts > panel > un lector ve por el panel lo mismo que ya podía pedir suelto
+ ↓ backend-tool/src/api.test.ts > panel > no deja los documentos abiertos detrás de sí
+ ↓ backend-tool/src/api.test.ts > salud > responde sin autenticación
+
+ Test Files  1 passed (1)
+      Tests  7 passed | 32 skipped (39)
+   Start at  01:41:30
+   Duration  4.34s (transform 563ms, setup 0ms, collect 1.41s, tests 2.44s, environment 0ms, prepare 158ms)
+

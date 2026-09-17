@@ -1,0 +1,58 @@
+$ npx vitest run --reporter=verbose shared/src/crdt/historial.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > un cambio de estructura produce una entrada 4ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > arrastrar una caja no produce ninguna 0ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > en un lote mixto, los movimientos no se listan pero el resto sí 1ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > un lote de doce clases es un solo acto del usuario, no doce entradas 1ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > separa quién confirma de qué lo propuso 0ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > sin sesión no se atribuye el cambio a nadie en concreto 0ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > deshacer se registra aunque no lleve operaciones detrás 0ms
+ ✓ shared/src/crdt/historial.test.ts > componerEntrada: qué merece quedar registrado > un nombre desmesurado se recorta antes de entrar en el documento 0ms
+ ✓ shared/src/crdt/historial.test.ts > registrarCambio sobre el documento > la entrada queda en el documento y se lee de vuelta 3ms
+ ✓ shared/src/crdt/historial.test.ts > registrarCambio sobre el documento > un lote que solo mueve cajas no deja rastro 0ms
+ ✓ shared/src/crdt/historial.test.ts > registrarCambio sobre el documento > se poda por el extremo antiguo y se conserva lo reciente 18ms
+ ✓ shared/src/crdt/historial.test.ts > registrarCambio sobre el documento > el orden del CRDT manda sobre la hora, y un reloj torcido se marca 1ms
+ ✓ shared/src/crdt/historial.test.ts > convivencia con el resto del documento > dos personas que registran a la vez conservan ambas entradas 3ms
+ ✓ shared/src/crdt/historial.test.ts > convivencia con el resto del documento > deshacer no borra el historial: el UndoManager no lo vigila 2ms
+ ✓ shared/src/crdt/historial.test.ts > convivencia con el resto del documento > una entrada corrupta se ignora en vez de tumbar la lectura 1ms
+ ✓ shared/src/crdt/historial.test.ts > la pregunta que motivó todo: quién creó esta clase > distingue quien la creó de quien la tocó después 1ms
+ ✓ shared/src/crdt/historial.test.ts > la pregunta que motivó todo: quién creó esta clase > no inventa un creador cuando solo constan modificaciones 0ms
+ ✓ shared/src/crdt/historial.test.ts > la pregunta que motivó todo: quién creó esta clase > el historial de una clase no arrastra el de las demás 0ms
+ ✓ shared/src/crdt/historial.test.ts > la pregunta que motivó todo: quién creó esta clase > la clase se lista de lo más reciente a lo más antiguo 0ms
+
+ Test Files  1 passed (1)
+      Tests  19 passed (19)
+   Start at  01:43:15
+   Duration  1.15s (transform 371ms, setup 0ms, collect 632ms, tests 39ms, environment 0ms, prepare 140ms)
+
+
+
+$ npx vitest run --reporter=verbose backend-tool/src/collab/collab.test.ts -t "presencia"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > lo que escribe uno aparece en la pantalla del otro
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > dos ediciones a la vez no se pisan
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > el tercero que llega tarde recibe todo lo anterior
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > un cambio hecho por HTTP llega a quien está conectado
+ ✓ backend-tool/src/collab/collab.test.ts > presencia > cada uno ve dónde está el otro 523ms
+ ✓ backend-tool/src/collab/collab.test.ts > presencia > el cursor de quien se va desaparece de la pantalla de los demás 461ms
+ ✓ backend-tool/src/collab/collab.test.ts > presencia > el cursor no entra en el documento, ni en el historial, ni en el disco 761ms
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > quien solo puede leer recibe los cambios pero no puede hacerlos (RNF-SEG-04)
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > el permiso se comprueba en cada mensaje, no solo al conectar
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión de quien no es miembro
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión sin token válido
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza un identificador de sala con forma de ruta
+ ↓ backend-tool/src/collab/collab.test.ts > persistencia de la sala > lo editado por el socket sobrevive a que se vayan todos
+
+ Test Files  1 passed (1)
+      Tests  3 passed | 10 skipped (13)
+   Start at  01:43:18
+   Duration  3.54s (transform 532ms, setup 0ms, collect 1.33s, tests 1.75s, environment 0ms, prepare 160ms)
+

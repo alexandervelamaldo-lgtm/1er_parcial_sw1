@@ -1,0 +1,65 @@
+$ npx vitest run --reporter=verbose shared/src/guia/guia.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/guia/guia.test.ts > trocear el manual por sus encabezados > hace un fragmento por sección y le pone el camino que la contiene 2ms
+ ✓ shared/src/guia/guia.test.ts > trocear el manual por sus encabezados > no confunde un comentario de shell con un encabezado 1ms
+ ✓ shared/src/guia/guia.test.ts > trocear el manual por sus encabezados > descarta la sección que solo contiene otros encabezados 0ms
+ ✓ shared/src/guia/guia.test.ts > trocear el manual por sus encabezados > el ancla es la que genera un renderizador de Markdown 0ms
+ ✓ shared/src/guia/guia.test.ts > trocear el manual por sus encabezados > junta los documentos sin mezclarlos 1ms
+ ✓ shared/src/guia/guia.test.ts > normalizar lo que se escribe o se dicta > pliega las tildes, porque nadie dicta con tildes 0ms
+ ✓ shared/src/guia/guia.test.ts > normalizar lo que se escribe o se dicta > deja «importar» e «importaciones» en la misma raíz 0ms
+ ✓ shared/src/guia/guia.test.ts > normalizar lo que se escribe o se dicta > no recorta las palabras cortas hasta dejarlas en un muñón 0ms
+ ✓ shared/src/guia/guia.test.ts > normalizar lo que se escribe o se dicta > conserva los identificadores del manual enteros 1ms
+ ✓ shared/src/guia/guia.test.ts > normalizar lo que se escribe o se dicta > tira las palabras que aparecen en cualquier frase 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > lleva una pregunta dictada a la sección cuyo título habla de eso 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > prefiere el encabezado al párrafo que menciona la palabra de pasada 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > responde sobre la base de datos desde el documento que le toca 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > encuentra un código de requisito buscado literal 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > devuelve qué palabras hicieron que saliera 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > ordena de más a menos y respeta el límite 1ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > no inventa resultados cuando la pregunta no toca el manual 0ms
+ ✓ shared/src/guia/guia.test.ts > encontrar la sección que responde a la pregunta > aguanta un corpus vacío sin romperse 0ms
+ ✓ shared/src/guia/guia.test.ts > el contexto que se le pasa al modelo cuando hay uno > antepone el camino de encabezados para que pueda citar de dónde sale 0ms
+ ✓ shared/src/guia/guia.test.ts > el contexto que se le pasa al modelo cuando hay uno > corta antes de pasarse del tamaño, sin partir un fragmento por la mitad 0ms
+ ✓ shared/src/guia/guia.test.ts > el contexto que se le pasa al modelo cuando hay uno > no devuelve nada cuando no hay nada que devolver 0ms
+ ✓ shared/src/guia/guia.test.ts > el prompt de la guía > exige la explicación antes que la cita, y lo dice con todas las letras 0ms
+ ✓ shared/src/guia/guia.test.ts > el prompt de la guía > le prohíbe salirse del manual 0ms
+ ✓ shared/src/guia/guia.test.ts > el prompt de la guía > la negativa es la misma cadena que devuelven los dos motores por su cuenta 0ms
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  01:43:09
+   Duration  565ms (transform 76ms, setup 0ms, collect 85ms, tests 11ms, environment 0ms, prepare 161ms)
+
+
+
+$ npx vitest run --reporter=verbose backend-tool/src/ai/guia.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/ai/guia.test.ts > leer el manual del disco > encuentra los documentos y les pone el título que llevan dentro 21ms
+ ✓ backend-tool/src/ai/guia.test.ts > leer el manual del disco > falla al abrir si el directorio no está, en vez de servir un manual vacío 4ms
+ ✓ backend-tool/src/ai/guia.test.ts > leer el manual del disco > trocea el manual de hoy en algo que se puede buscar 57ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder sin modelo > devuelve las secciones del manual y dice que vienen de la búsqueda 51ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder sin modelo > con clave pero sin modelo no inventa un proveedor: no llama a nadie 50ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder sin modelo > con clave y modelo pero sin URL tampoco supone a quién preguntar 49ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder sin modelo > encuentra en el manual con qué base de datos trabaja el proyecto 64ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder sin modelo > no inventa una respuesta cuando la pregunta no va del manual 47ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder con modelo > le manda el manual y la pregunta, y devuelve lo que redacta 69ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder con modelo > no gasta una llamada si el manual no tiene nada que citar 43ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder con modelo > si el modelo falla, contesta con el manual en vez de con un error 45ms
+ ✓ backend-tool/src/ai/guia.test.ts > responder con modelo > trata una respuesta vacía del modelo como un fallo, no como una respuesta 48ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  01:43:11
+   Duration  1.68s (transform 383ms, setup 0ms, collect 658ms, tests 550ms, environment 0ms, prepare 147ms)
+
+stderr | backend-tool/src/ai/guia.test.ts > responder con modelo > si el modelo falla, contesta con el manual en vez de con un error
+La guía no pudo usar modelo-falso: 402 {"error":"Insufficient Balance"}
+

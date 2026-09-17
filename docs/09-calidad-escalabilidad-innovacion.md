@@ -35,7 +35,7 @@ Esto es lo que separa 630 pruebas de 630 líneas de decorado.
 
 - **Control negativo.** `shared/src/xmi/casos-de-uso.test.ts` no se limita a comprobar que el catálogo válido pasa la revisión: rompe un caso a propósito en tres familias distintas —un paquete inexistente, un paso sin forma de llamada, una actividad sin nodo de inicio— y exige las tres quejas concretas. Sin eso, un validador que devolviera siempre «todo bien» aprobaría el examen, y su síntoma sería el éxito.
 - **El servicio entero, no un doble.** `backend-tool/src/api.test.ts` levanta la aplicación real sobre un directorio temporal. Lo que hay que comprobar es que las comprobaciones de permiso están *conectadas*, y eso es justo lo que un doble de prueba oculta.
-- **Ida y vuelta.** Los catorce ficheros `.xmi` generados se vuelven a leer con nuestro propio importador y se comprueba que llega cada clase, cada operación y cada mensaje numerado (`shared/src/xmi/casos-de-uso.test.ts`).
+- **Ida y vuelta.** Los diecinueve ficheros `.xmi` generados se vuelven a leer con nuestro propio importador y se comprueba que llega cada clase, cada operación y cada mensaje numerado (`shared/src/xmi/casos-de-uso.test.ts`).
 - **Contenido, no instantánea.** El documento de casos de uso se comprueba mirando que contenga cada paso y cada precondición, no comparándolo con una copia guardada. Una instantánea de mil líneas se actualiza a ciegas con `-u` y deja de comprobar nada.
 
 ### 9.2.3 Seguridad
@@ -135,7 +135,7 @@ El botón «? Ayuda» busca dentro de `docs/*.md` y contesta citando su fuente, 
 
 ### 9.4.5 Los diagramas UML se generan, no se dibujan
 
-Esto es lo más difícil de replicar y lo que menos se ve. Los catorce casos de uso están descritos **una sola vez** en `shared/src/xmi/casos-de-uso.ts`, y de esa descripción salen el diagrama de comunicación, el documento 8 y —cuando estén los ficheros de muestra— los de secuencia, actividad y análisis de clases. Cambiar un paso y ejecutar una orden los deja todos al día:
+Esto es lo más difícil de replicar y lo que menos se ve. Los diecinueve casos de uso están descritos **una sola vez** en `shared/src/xmi/casos-de-uso.ts`, y de esa descripción salen el diagrama de comunicación, el documento 8 y —cuando estén los ficheros de muestra— los de secuencia, actividad y análisis de clases. Cambiar un paso y ejecutar una orden los deja todos al día:
 
 ```
 npm run diagramas --workspace @app/backend-tool

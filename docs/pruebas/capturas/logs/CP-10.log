@@ -1,0 +1,62 @@
+$ npx vitest run --reporter=verbose shared/src/ai/grammar.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > reconoce la creación de una clase 4ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > distingue interfaz, enumeración y clase abstracta 2ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > crea la clase y sus atributos en una sola orden 1ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > admite varios atributos enumerados en la misma orden 1ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > no se inventa un nombre de clase cuando no entiende la cola 2ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > normaliza el nombre a PascalCase 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > conserva las tildes del nombre pese a comparar sin ellas 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > funciona igual si se dicta sin tildes 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > traduce el tipo dicho en castellano al del catálogo 1ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > entiende la herencia 1ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > lee la cardinalidad de «tiene muchos» 1ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > lee la cardinalidad de «tiene un» 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > convierte el literal a mayúsculas 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > encadena varias órdenes separadas por punto 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > pide una aclaración en lugar de inventar cuando no entiende 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > baja la confianza si solo entendió parte de la orden 1ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > elimina una clase cuando se le nombra como tal 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > dicta un uno a muchos 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > dicta un muchos a muchos, que genera tabla de unión y no clave ajena 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > sin cuantificador plural en el sujeto sigue siendo uno a uno 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > borra un atributo sin llevarse por delante la clase 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > borra un método aunque se dicte con los paréntesis 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > borra una fila de datos por número 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > borra una fila de datos por ordinal, que es como se dicta 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > entiende el ordinal dictado sin tilde 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > encadena una creación y un borrado unidos por «y» 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > la aclaración menciona también lo que sabe borrar 0ms
+ ✓ shared/src/ai/grammar.test.ts > interpretCommand > nunca borra nada que no se le haya pedido borrar 0ms
+
+ Test Files  1 passed (1)
+      Tests  28 passed (28)
+   Start at  01:42:14
+   Duration  577ms (transform 86ms, setup 0ms, collect 102ms, tests 18ms, environment 0ms, prepare 151ms)
+
+
+
+$ npx vitest run --reporter=verbose frontend/src/services/voz.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ frontend/src/services/voz.test.ts > hablar > dice el texto en castellano 2ms
+ ✓ frontend/src/services/voz.test.ts > hablar > avisa del final una sola vez y devuelve que va a avisar 1ms
+ ✓ frontend/src/services/voz.test.ts > hablar > avisa también cuando la voz no llega a arrancar 0ms
+ ✓ frontend/src/services/voz.test.ts > hablar > el final de una lectura cancelada no apaga la que la sustituye 1ms
+ ✓ frontend/src/services/voz.test.ts > hablar > callar no vuelve a avisar del final: quien calló ya lo sabe 0ms
+ ✓ frontend/src/services/voz.test.ts > hablar > sin síntesis no se promete un aviso que nadie va a dar 0ms
+ ✓ frontend/src/services/voz.test.ts > hablar > por el puente nativo se habla pero no se promete el final 0ms
+ ✓ frontend/src/services/voz.test.ts > hablar > callar por el puente manda callar y no toca la síntesis 0ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  01:42:17
+   Duration  516ms (transform 57ms, setup 0ms, collect 58ms, tests 8ms, environment 0ms, prepare 146ms)
+

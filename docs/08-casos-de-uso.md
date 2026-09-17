@@ -19,6 +19,7 @@ copias que se desincronizan, y el sitio donde se nota es la defensa.
 | Editor | Usuario | Dibuja, importa y dicta. Puede todo sobre el diagrama menos repartir permisos. |
 | Lector | Usuario | Ve el diagrama y su historial, sin poder cambiarlo. |
 | Operador del servidor | — | Tiene acceso a la máquina donde corre la aplicación. No tiene cuenta: actúa por consola. |
+| Usuario del asistente | — | Usa la aplicación móvil generada, no la que la generó. No tiene cuenta en el editor: dicta órdenes contra el backend que salió de un diagrama. |
 
 ## Paquetes
 
@@ -27,8 +28,9 @@ copias que se desincronizan, y el sitio donde se nota es la defensa.
 | Acceso y cuentas | Alta, entrada y recuperación de la contraseña. | CU1, CU2, CU3, CU4 |
 | Proyectos y colaboración | Crear y abrir proyectos, y repartir los papeles sobre ellos. | CU5, CU6, CU7 |
 | Edición del diagrama | Todo lo que cambia el diagrama: el lienzo compartido, la voz, el XMI y el historial. | CU8, CU10, CU11, CU14 |
-| Asistencia inteligente | Lo que hacen los modelos: leer una foto y responder desde el manual. | CU9, CU12 |
-| Generación de código | Convertir el diagrama en un proyecto Spring Boot que compila. | CU13 |
+| Asistencia inteligente | Lo que hacen los modelos: leer una foto y responder desde el manual. | CU9, CU12, CU17 |
+| Generación de código | Convertir el diagrama en un proyecto Spring Boot que compila. | CU13, CU18, CU19 |
+| Asistente móvil | La aplicación que acompaña al backend generado: dictar órdenes y seguir trabajando sin conexión. | CU15, CU16 |
 
 ## Resumen
 
@@ -48,6 +50,11 @@ copias que se desincronizan, y el sitio donde se nota es la defensa.
 | CU12 | Consultar la guía del proyecto | Usuario | Asistencia inteligente |
 | CU13 | Generar el backend Spring Boot | Propietario | Generación de código |
 | CU14 | Consultar el historial de cambios | Usuario | Edición del diagrama |
+| CU15 | Dictar una orden al asistente móvil | Usuario del asistente | Asistente móvil |
+| CU16 | Registrar datos sin conexión y sincronizarlos al volver | Usuario del asistente | Asistente móvil |
+| CU17 | Revisar el modelado del diagrama | Editor | Asistencia inteligente |
+| CU18 | Arreglar lo que impide generar | Editor | Generación de código |
+| CU19 | Ver el diagrama de comunicación del backend generado | Usuario | Generación de código |
 
 ## CU1 — Iniciar sesión
 
@@ -924,3 +931,344 @@ Calles: **Usuario** · **Sistema**.
 - Cerrar el panel sin tocar el diagrama → (fin)
 
 Enlaces del diagrama de comunicación: 5 entre 5 objetos.
+
+## CU15 — Dictar una orden al asistente móvil
+
+Quien usa la aplicación generada dicta una orden en voz alta —«apunta una cita para el martes a las cuatro»—, el teléfono la interpreta contra el manifiesto del backend, la repite para que se confirme y la envía.
+
+| Ficha |  |
+| --- | --- |
+| **Paquete** | Asistente móvil |
+| **Actores** | Usuario del asistente |
+| **Precondición** | La aplicación conoce la dirección del backend generado y ya descargó su manifiesto. |
+| **Postcondición** | La orden queda enviada al backend, o encolada si no había red, y el resultado se dice en voz alta. |
+
+### Participantes
+
+| Objeto | Clase de análisis | Estereotipo | De dónde sale |
+| --- | --- | --- | --- |
+| `usuario` | UsuarioDelAsistente | actor | — |
+| `pantalla` | PantallaAsistente | «boundary» | `mobile/lib/asistente/pantalla_asistente.dart` |
+| `voz` | MotorDeVoz | «boundary» | `mobile/lib/asistente/voz.dart` |
+| `interprete` | InterpreteDeOrdenes | «control» | `mobile/lib/asistente/gramatica.dart` |
+| `manifiesto` | ManifiestoDelBackend | «entity» | `mobile/lib/asistente/manifiesto.dart` |
+| `cliente` | ClienteRest | «control» | `mobile/lib/asistente/cliente_rest.dart` |
+
+### Flujo principal
+
+| # | De | A | Mensaje |
+| --- | --- | --- | --- |
+| 1 | `usuario` | `pantalla` | `pulsarMicrofono()` |
+| 2 | `pantalla` | `voz` | `escuchar(idioma)` |
+| 2.1 | `voz` | `pantalla` | *entregarDictado(texto)* (retorno) |
+| 3 | `pantalla` | `interprete` | `interpretar(texto)` |
+| 4 | `interprete` | `manifiesto` | `consultarEntidad(nombre)` |
+| 4.1 | `manifiesto` | `interprete` | *devolverCampos(campos)* (retorno) |
+| 5 | `interprete` | `pantalla` | *proponerOrden(orden)* (retorno) |
+| 6 | `pantalla` | `voz` | `decir(resumenDeLaOrden)` |
+| 7 | `usuario` | `pantalla` | `confirmarEnVozAlta(respuesta)` |
+| 8 | `pantalla` | `cliente` | `enviar(orden)` |
+| 8.1 | `cliente` | `pantalla` | *devolverResultado(resultado)* (retorno) |
+| 9 | `pantalla` | `voz` | `decir(resultado)` |
+
+### Flujos alternativos
+
+- **La orden no se entiende.** El intérprete no encuentra ni verbo ni entidad en el manifiesto. El asistente lo dice en voz alta y pide que se repita, sin enviar nada.
+- **Falta un dato obligatorio.** El manifiesto marca un campo como requerido y el dictado no lo trae. El asistente pregunta solo por ese campo en vez de rechazar la orden entera.
+- **Quien dicta cancela al oír el resumen.** La orden se descarta sin llegar al backend. Es la razón de repetirla antes de enviarla: una transcripción equivocada se caza aquí y no en la base de datos.
+
+### Operaciones que salen del análisis
+
+- **PantallaAsistente**: `pulsarMicrofono()`, `confirmarEnVozAlta(respuesta)`
+- **MotorDeVoz**: `escuchar(idioma)`, `decir(resumenDeLaOrden)`
+- **InterpreteDeOrdenes**: `interpretar(texto)`
+- **ManifiestoDelBackend**: `consultarEntidad(nombre)`
+- **ClienteRest**: `enviar(orden)`
+
+### Actividad
+
+Calles: **Usuario** · **Sistema**.
+
+- (inicio) → Pulsar el micrófono y dictar
+- Pulsar el micrófono y dictar → Transcribir el dictado en el aparato
+- Transcribir el dictado en el aparato → Interpretar la orden contra el manifiesto
+- Interpretar la orden contra el manifiesto → ¿La orden se entiende?
+- ¿La orden se entiende? → **[Sí]** Repetir la orden en voz alta y pedir confirmación
+- ¿La orden se entiende? → **[No]** Pedir que se repita la orden
+- Pedir que se repita la orden → Pulsar el micrófono y dictar
+- Repetir la orden en voz alta y pedir confirmación → Responder sí o no
+- Responder sí o no → ¿Confirma?
+- ¿Confirma? → **[Sí]** Enviar la orden al backend generado
+- ¿Confirma? → **[No]** Descartar la orden sin enviarla
+- Enviar la orden al backend generado → (fin)
+- Descartar la orden sin enviarla → (fin)
+
+Enlaces del diagrama de comunicación: 5 entre 6 objetos.
+
+## CU16 — Registrar datos sin conexión y sincronizarlos al volver
+
+Sin cobertura, la orden dictada se guarda en el teléfono con su clave de idempotencia y queda marcada como pendiente. Cuando vuelve la red se reenvía sola, y el backend descarta los duplicados por la clave.
+
+| Ficha |  |
+| --- | --- |
+| **Paquete** | Asistente móvil |
+| **Actores** | Usuario del asistente |
+| **Precondición** | La aplicación tiene el manifiesto descargado de una sesión anterior. |
+| **Postcondición** | La orden está guardada en el aparato, y sincronizada en cuanto hubo red, una sola vez aunque se reintentara varias. |
+
+### Participantes
+
+| Objeto | Clase de análisis | Estereotipo | De dónde sale |
+| --- | --- | --- | --- |
+| `usuario` | UsuarioDelAsistente | actor | — |
+| `pantalla` | PantallaAsistente | «boundary» | `mobile/lib/asistente/pantalla_asistente.dart` |
+| `bandeja` | BandejaDeSalida | «control» | `mobile/lib/asistente/bandeja.dart` |
+| `almacen` | AlmacenDeOrdenes | «entity» | `mobile/lib/asistente/bandeja.dart` |
+| `cliente` | ClienteRest | «control» | `mobile/lib/asistente/cliente_rest.dart` |
+| `filtro` | FiltroDeIdempotencia | «control» | `generator/templates/FiltroIdempotencia.java.hbs` |
+
+### Flujo principal
+
+| # | De | A | Mensaje |
+| --- | --- | --- | --- |
+| 1 | `usuario` | `pantalla` | `dictarOrden(texto)` |
+| 2 | `pantalla` | `bandeja` | `encolar(orden, clave)` |
+| 3 | `bandeja` | `almacen` | `escribir(ordenes)` |
+| 3.1 | `almacen` | `bandeja` | *confirmarGuardado(ok)* (retorno) |
+| 4 | `bandeja` | `pantalla` | *avisarPendientes(cuantas)* (retorno) |
+| 5 | `bandeja` | `cliente` | `reintentar(orden)` |
+| 6 | `cliente` | `filtro` | `enviarConClave(orden, clave)` |
+| 6.1 | `filtro` | `cliente` | *devolverRespuesta(resultado)* (retorno) |
+| 7 | `cliente` | `bandeja` | *confirmarEnvio(resultado)* (retorno) |
+| 8 | `bandeja` | `almacen` | `marcarSincronizada(orden)` |
+| 9 | `bandeja` | `pantalla` | *avisarSincronizadas(cuantas)* (retorno) |
+
+### Flujos alternativos
+
+- **La red se corta a mitad del envío.** La orden sigue pendiente y se cuenta un intento. Al reintentar viaja con la misma clave, así que si el servidor llegó a procesarla no se duplica.
+- **El servidor rechaza la orden por datos inválidos.** Se marca como rechazada y deja de reintentarse. Reintentar un 400 para siempre es una bandeja que no se vacía nunca.
+- **El aparato se apaga con órdenes pendientes.** La bandeja está en disco, no en memoria, y se escribe por fichero temporal antes de reemplazar: al arrancar se leen las pendientes y se reanuda el reenvío.
+
+### Operaciones que salen del análisis
+
+- **PantallaAsistente**: `dictarOrden(texto)`
+- **BandejaDeSalida**: `encolar(orden, clave)`
+- **AlmacenDeOrdenes**: `escribir(ordenes)`, `marcarSincronizada(orden)`
+- **ClienteRest**: `reintentar(orden)`
+- **FiltroDeIdempotencia**: `enviarConClave(orden, clave)`
+
+### Actividad
+
+Calles: **Usuario** · **Sistema**.
+
+- (inicio) → Dictar la orden sin cobertura
+- Dictar la orden sin cobertura → Guardar la orden en disco con su clave y estado pendiente
+- Guardar la orden en disco con su clave y estado pendiente → Avisar de que queda por enviar
+- Avisar de que queda por enviar → ¿Hay conexión?
+- ¿Hay conexión? → **[Sí]** Reenviar las pendientes con su clave
+- ¿Hay conexión? → **[No]** Esperar a que vuelva la red
+- Esperar a que vuelva la red → ¿Hay conexión?
+- Reenviar las pendientes con su clave → ¿El servidor la acepta?
+- ¿El servidor la acepta? → **[Sí]** Marcarla como sincronizada
+- ¿El servidor la acepta? → **[No]** Dejarla pendiente y contar el intento
+- Dejarla pendiente y contar el intento → ¿Hay conexión?
+- Marcarla como sincronizada → (fin)
+
+Enlaces del diagrama de comunicación: 5 entre 6 objetos.
+
+## CU17 — Revisar el modelado del diagrama
+
+El editor pide una revisión del diagrama y recibe los problemas de modelado agrupados por gravedad, cada uno con el elemento al que señala y el código de la regla que lo pide.
+
+| Ficha |  |
+| --- | --- |
+| **Paquete** | Asistencia inteligente |
+| **Actores** | Editor |
+| **Precondición** | Hay un proyecto abierto con al menos una clase. |
+| **Postcondición** | El editor tiene la lista de hallazgos. El diagrama no ha cambiado. |
+
+### Participantes
+
+| Objeto | Clase de análisis | Estereotipo | De dónde sale |
+| --- | --- | --- | --- |
+| `editor` | Editor | actor | — |
+| `panel` | PanelDeRevision | «boundary» | `frontend/src/components/RevisionDiagrama.tsx` |
+| `revisor` | RevisorDeModelado | «control» | `shared/src/revision/revision.ts` |
+| `diagrama` | DiagramaDeClases | «entity» | `shared/src/model/uml.ts` |
+| `hallazgo` | Hallazgo | «entity» | `shared/src/revision/revision.ts` |
+
+### Flujo principal
+
+| # | De | A | Mensaje |
+| --- | --- | --- | --- |
+| 1 | `editor` | `panel` | `pedirRevision()` |
+| 2 | `panel` | `revisor` | `revisarDiagrama(diagrama)` |
+| 3 | `revisor` | `diagrama` | `recorrerClasesYRelaciones()` |
+| 3.1 | `diagrama` | `revisor` | *devolverElementos(elementos)* (retorno) |
+| 4 | `revisor` | `hallazgo` | `anotar(codigo, gravedad, mensaje)` |
+| 4.1 | `hallazgo` | `revisor` | *devolverHallazgo(hallazgo)* (retorno) |
+| 5 | `revisor` | `panel` | *entregarHallazgos(lista)* (retorno) |
+| 6 | `panel` | `editor` | *mostrarPorGravedad(errores, avisos, sugerencias)* (retorno) |
+
+### Flujos alternativos
+
+- **El modelado está limpio.** Se dice que no hay hallazgos en vez de enseñar una lista vacía, que es lo que hacía dudar de si la revisión llegó a ejecutarse.
+- **El diagrama es válido pero está mal modelado.** Es el caso normal y por eso existen las dos pantallas: un diagrama que genera código perfectamente puede tener importes en coma flotante y relaciones sin rol.
+
+### Operaciones que salen del análisis
+
+- **PanelDeRevision**: `pedirRevision()`
+- **RevisorDeModelado**: `revisarDiagrama(diagrama)`
+- **DiagramaDeClases**: `recorrerClasesYRelaciones()`
+- **Hallazgo**: `anotar(codigo, gravedad, mensaje)`
+
+### Actividad
+
+Calles: **Editor** · **Sistema**.
+
+- (inicio) → Pedir la revisión del diagrama
+- Pedir la revisión del diagrama → Recorrer clases, atributos y relaciones
+- Recorrer clases, atributos y relaciones → Anotar cada hallazgo con su código y su gravedad
+- Anotar cada hallazgo con su código y su gravedad → ¿Hay hallazgos?
+- ¿Hay hallazgos? → **[Sí]** Mostrarlos agrupados por gravedad
+- ¿Hay hallazgos? → **[No]** Decir que el modelado está limpio
+- Mostrarlos agrupados por gravedad → ¿Quiere corregir alguno?
+- ¿Quiere corregir alguno? → **[Sí]** Ir al elemento y corregirlo
+- ¿Quiere corregir alguno? → **[No]** (fin)
+- Ir al elemento y corregirlo → Recorrer clases, atributos y relaciones
+- Decir que el modelado está limpio → (fin)
+
+Enlaces del diagrama de comunicación: 4 entre 5 objetos.
+
+## CU18 — Arreglar lo que impide generar
+
+Cuando el diagrama todavía no se puede convertir en código, el sistema planifica los cambios que lo arreglan, los enseña con su motivo antes de tocar nada, y los aplica todos juntos como un solo paso deshacible.
+
+| Ficha |  |
+| --- | --- |
+| **Paquete** | Generación de código |
+| **Actores** | Editor |
+| **Precondición** | La validación del diagrama devuelve al menos un error. |
+| **Postcondición** | El diagrama ha recibido los cambios aceptados en una sola entrada del historial, y lo que no tiene arreglo único queda listado aparte. |
+
+### Participantes
+
+| Objeto | Clase de análisis | Estereotipo | De dónde sale |
+| --- | --- | --- | --- |
+| `editor` | Editor | actor | — |
+| `pantalla` | PantallaDeArreglo | «boundary» | `frontend/src/components/ArreglarGeneracion.tsx` |
+| `validador` | ValidadorDeDiagrama | «control» | `shared/src/validation/validate.ts` |
+| `planificador` | PlanificadorDeReparacion | «control» | `shared/src/reparacion/reparar.ts` |
+| `documento` | DocumentoCompartido | «entity» | `shared/src/crdt/historial.ts` |
+
+### Flujo principal
+
+| # | De | A | Mensaje |
+| --- | --- | --- | --- |
+| 1 | `editor` | `pantalla` | `pedirGeneracion()` |
+| 2 | `pantalla` | `validador` | `validarDiagrama(diagrama)` |
+| 2.1 | `validador` | `pantalla` | *devolverErrores(errores)* (retorno) |
+| 3 | `pantalla` | `planificador` | `planificarReparacion(diagrama)` |
+| 4 | `planificador` | `validador` | `validarRonda(diagrama)` |
+| 4.1 | `validador` | `planificador` | *devolverErrores(errores)* (retorno) |
+| 5 | `planificador` | `pantalla` | *entregarPlan(arreglos, irreparables)* (retorno) |
+| 6 | `pantalla` | `editor` | *mostrarCambiosConSuMotivo(plan)* (retorno) |
+| 7 | `editor` | `pantalla` | `aplicarLosCambios()` |
+| 8 | `pantalla` | `documento` | `aplicar(operaciones)` |
+| 8.1 | `documento` | `pantalla` | *confirmarAplicado(ok)* (retorno) |
+| 9 | `pantalla` | `editor` | *ofrecerGenerarDeNuevo()* (retorno) |
+
+### Flujos alternativos
+
+- **Quedan errores que no tienen arreglo único.** Una enumeración vacía, dos clases con el mismo nombre, una herencia múltiple. Se listan aparte y sin botón: elegir por su cuenta cambiaría lo que el diagrama significa.
+- **El permiso es de solo lectura.** La lista se ve igual, pero el botón queda desactivado. Los cambios los tiene que aplicar quien pueda editar el proyecto.
+- **El resultado no convence.** Todo el plan entró en una sola llamada, así que una única pulsación de deshacer lo devuelve entero.
+
+### Operaciones que salen del análisis
+
+- **PantallaDeArreglo**: `pedirGeneracion()`, `aplicarLosCambios()`
+- **ValidadorDeDiagrama**: `validarDiagrama(diagrama)`, `validarRonda(diagrama)`
+- **PlanificadorDeReparacion**: `planificarReparacion(diagrama)`
+- **DocumentoCompartido**: `aplicar(operaciones)`
+
+### Actividad
+
+Calles: **Editor** · **Sistema**.
+
+- (inicio) → Pedir la generación del backend
+- Pedir la generación del backend → Validar el diagrama en el navegador, sin red
+- Validar el diagrama en el navegador, sin red → ¿El diagrama es válido?
+- ¿El diagrama es válido? → **[Sí]** Generar el proyecto Spring Boot
+- ¿El diagrama es válido? → **[No]** Planificar los arreglos por rondas
+- Planificar los arreglos por rondas → Enseñar cada cambio con su motivo y su regla
+- Enseñar cada cambio con su motivo y su regla → ¿Acepta los cambios?
+- ¿Acepta los cambios? → **[Sí]** Aplicarlos como un solo paso deshacible
+- ¿Acepta los cambios? → **[No]** Corregirlos a mano en el panel de propiedades
+- Aplicarlos como un solo paso deshacible → Validar el diagrama en el navegador, sin red
+- Corregirlos a mano en el panel de propiedades → Validar el diagrama en el navegador, sin red
+- Generar el proyecto Spring Boot → (fin)
+
+Enlaces del diagrama de comunicación: 5 entre 5 objetos.
+
+## CU19 — Ver el diagrama de comunicación del backend generado
+
+El usuario abre el diagrama de comunicación que se deriva del backend ya generado —controlador, servicio, repositorio y entidad, con los mensajes numerados— y puede llevárselo a Enterprise Architect en XMI.
+
+| Ficha |  |
+| --- | --- |
+| **Paquete** | Generación de código |
+| **Actores** | Usuario |
+| **Precondición** | El proyecto tiene un backend generado. |
+| **Postcondición** | El diagrama se ve en pantalla, y si se pidió, queda descargado un XMI que Enterprise Architect abre. |
+
+### Participantes
+
+| Objeto | Clase de análisis | Estereotipo | De dónde sale |
+| --- | --- | --- | --- |
+| `usuario` | Usuario | actor | — |
+| `visor` | VisorDeComunicacion | «boundary» | `frontend/src/components/VisorComunicacion.tsx` |
+| `derivador` | DerivadorDeComunicacion | «control» | `frontend/src/components/comunicacion.ts` |
+| `proyecto` | ProyectoGenerado | «entity» | `shared/src/model/capas.ts` |
+| `escritor` | EscritorXmiDeComunicacion | «control» | `shared/src/xmi/ea-comunicacion.ts` |
+
+### Flujo principal
+
+| # | De | A | Mensaje |
+| --- | --- | --- | --- |
+| 1 | `usuario` | `visor` | `abrirDiagramaDeComunicacion()` |
+| 2 | `visor` | `derivador` | `derivarDeLaGeneracion(proyecto)` |
+| 3 | `derivador` | `proyecto` | `leerCapasYLlamadas()` |
+| 3.1 | `proyecto` | `derivador` | *devolverRutas(rutas)* (retorno) |
+| 4 | `derivador` | `visor` | *entregarMensajesNumerados(mensajes)* (retorno) |
+| 5 | `visor` | `usuario` | *dibujarObjetosYMensajes()* (retorno) |
+| 6 | `usuario` | `visor` | `exportarParaEnterpriseArchitect()` |
+| 7 | `visor` | `escritor` | `escribirXmi(mensajes)` |
+| 7.1 | `escritor` | `visor` | *devolverFichero(xmi)* (retorno) |
+| 8 | `visor` | `usuario` | *descargarFichero(nombre)* (retorno) |
+
+### Flujos alternativos
+
+- **El proyecto todavía no se ha generado.** No hay de dónde derivar los mensajes. El visor lo dice y remite a la generación en vez de dibujar un diagrama vacío.
+- **Solo se quiere mirar.** La exportación es opcional: el diagrama se ve sin descargar nada.
+
+### Operaciones que salen del análisis
+
+- **VisorDeComunicacion**: `abrirDiagramaDeComunicacion()`, `exportarParaEnterpriseArchitect()`
+- **DerivadorDeComunicacion**: `derivarDeLaGeneracion(proyecto)`
+- **ProyectoGenerado**: `leerCapasYLlamadas()`
+- **EscritorXmiDeComunicacion**: `escribirXmi(mensajes)`
+
+### Actividad
+
+Calles: **Usuario** · **Sistema**.
+
+- (inicio) → Abrir el visor de comunicación
+- Abrir el visor de comunicación → Derivar los mensajes de las capas generadas
+- Derivar los mensajes de las capas generadas → Dibujar los objetos y numerar los mensajes
+- Dibujar los objetos y numerar los mensajes → ¿Quiere llevarlo a Enterprise Architect?
+- ¿Quiere llevarlo a Enterprise Architect? → **[Sí]** Escribir y descargar el XMI
+- ¿Quiere llevarlo a Enterprise Architect? → **[No]** Mirarlo solo en pantalla
+- Escribir y descargar el XMI → (fin)
+- Mirarlo solo en pantalla → (fin)
+
+Enlaces del diagrama de comunicación: 4 entre 5 objetos.

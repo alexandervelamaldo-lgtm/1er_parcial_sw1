@@ -1,0 +1,73 @@
+$ npx vitest run --reporter=verbose backend-tool/src/collab/collab.test.ts -t "edición simultánea"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/collab/collab.test.ts > edición simultánea > lo que escribe uno aparece en la pantalla del otro 571ms
+ ✓ backend-tool/src/collab/collab.test.ts > edición simultánea > dos ediciones a la vez no se pisan 507ms
+ ✓ backend-tool/src/collab/collab.test.ts > edición simultánea > el tercero que llega tarde recibe todo lo anterior 478ms
+ ✓ backend-tool/src/collab/collab.test.ts > edición simultánea > un cambio hecho por HTTP llega a quien está conectado 249ms
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > cada uno ve dónde está el otro
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > el cursor de quien se va desaparece de la pantalla de los demás
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > el cursor no entra en el documento, ni en el historial, ni en el disco
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > quien solo puede leer recibe los cambios pero no puede hacerlos (RNF-SEG-04)
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > el permiso se comprueba en cada mensaje, no solo al conectar
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión de quien no es miembro
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión sin token válido
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza un identificador de sala con forma de ruta
+ ↓ backend-tool/src/collab/collab.test.ts > persistencia de la sala > lo editado por el socket sobrevive a que se vayan todos
+
+ Test Files  1 passed (1)
+      Tests  4 passed | 9 skipped (13)
+   Start at  01:40:56
+   Duration  3.73s (transform 563ms, setup 0ms, collect 1.43s, tests 1.81s, environment 0ms, prepare 162ms)
+
+
+
+$ npx vitest run --reporter=verbose shared/src/crdt/crdt.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > crea una clase con posición libre y la deja legible 11ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > no apila las clases nuevas en el mismo punto 2ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > resuelve la clase por nombre sin distinguir mayúsculas 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > se niega a elegir cuando el nombre es ambiguo 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > un identificador nunca queda anulable, aunque se pida 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > rechaza un atributo repetido en la misma clase 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > al borrar una clase arrastra las relaciones que la tocaban 2ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > impide que la herencia forme un ciclo 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > guarda las filas de datos de ejemplo y las devuelve al leer 2ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > setSeedRows sustituye, no acumula 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > rechaza una fila cuya columna no es atributo de la clase 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > no admite datos en una enumeración, que no se materializa como tabla 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > borra la fila indicada contando desde uno, como se dice al dictarla 2ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > se queja en vez de borrar otra cosa si la fila pedida no existe 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > las filas se mantienen sin desplazarse al borrar un atributo 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > solo admite literales en una enumeración 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperation > informa sin romper nada cuando la clase no existe 1ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperations > deja el diagrama intacto si una operación del lote falla 2ms
+ ✓ shared/src/crdt/crdt.test.ts > applyOperations > aplica el lote entero cuando todas las operaciones son válidas 1ms
+ ✓ shared/src/crdt/crdt.test.ts > convergencia > dos réplicas que editan a ciegas acaban iguales 6ms
+ ✓ shared/src/crdt/crdt.test.ts > convergencia > leer un documento vacío no destruye el diagrama al sincronizar 2ms
+ ✓ shared/src/crdt/crdt.test.ts > convergencia > mover y renombrar a la vez no hace que un cambio pise al otro 2ms
+ ✓ shared/src/crdt/crdt.test.ts > convergencia > dos clases creadas a la vez sin conexión no se colocan una encima de otra 2ms
+ ✓ shared/src/crdt/crdt.test.ts > readDiagram > omite las relaciones cuyo extremo ya no existe en vez de fallar 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > cambia la multiplicidad de un extremo sin tocar el otro 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > convierte un uno a uno en un uno a muchos, que es lo que cambia el JPA generado 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > conserva el nombre y los roles al cambiar solo la cardinalidad 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > vaciar un rol lo quita en vez de guardar una cadena vacía 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > al pasar a herencia normaliza las multiplicidades, que ahí no significan nada 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > no deja crear un ciclo convirtiendo una asociación en herencia 1ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > rechaza una relación que no existe 0ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > describe el cambio en castellano, sin colar el nombre inglés del enum 0ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > la descripción de una relación nueva dice la cardinalidad en palabras 0ms
+ ✓ shared/src/crdt/crdt.test.ts > edición manual de relaciones > no habla de cardinalidad en una herencia, que no la tiene 0ms
+
+ Test Files  1 passed (1)
+      Tests  34 passed (34)
+   Start at  01:41:01
+   Duration  839ms (transform 147ms, setup 0ms, collect 270ms, tests 53ms, environment 0ms, prepare 154ms)
+

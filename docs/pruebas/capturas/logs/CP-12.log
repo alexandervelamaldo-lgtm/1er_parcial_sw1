@@ -1,0 +1,42 @@
+$ flutter test test/asistente/bandeja_test.dart test/asistente/cliente_rest_test.dart --reporter expanded
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial\mobile)
+
+00:00 +0: loading C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart
+00:00 +0: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: lo que se apuntó sobrevive a cerrar la app la clave de idempotencia llega al servidor tal y como se guardó
+00:00 +1: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: lo que se apuntó sobrevive a cerrar la app una entrada ilegible se descarta sin llevarse las demás
+00:00 +2: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: lo que se apuntó sobrevive a cerrar la app el vaciado se guarda: reabrir no reenvía lo ya enviado
+00:00 +3: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: lo que se apuntó sobrevive a cerrar la app encolar avisa a quien esté mirando el contador
+00:00 +4: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda primero el alta y después el cambio, nunca al revés
+00:00 +5: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +6: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +7: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +8: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +9: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +10: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +11: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +12: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +13: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +14: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +15: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +16: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +17: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +18: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +19: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +20: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:00 +21: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/bandeja_test.dart: el orden en que se dictó es el orden en que se manda si no hay red no se manda nada y no se pierde nada
+00:02 +22: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +23: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +24: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +25: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +26: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +27: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +28: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +29: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +30: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +31: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +32: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +33: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +34: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +35: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +36: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/cliente_rest_test.dart: errores un servidor que no está da un error de red, no de HTTP
+00:02 +37: All tests passed!

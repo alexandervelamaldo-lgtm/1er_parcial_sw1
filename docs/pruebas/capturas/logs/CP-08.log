@@ -1,0 +1,50 @@
+$ npx vitest run --reporter=verbose shared/src/reparacion/reparar.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ shared/src/reparacion/reparar.test.ts > la promesa del botón > deja generable un diagrama que no lo era 25ms
+ ✓ shared/src/reparacion/reparar.test.ts > la promesa del botón > cuenta los errores que había, para poder decirlo en la pantalla 4ms
+ ✓ shared/src/reparacion/reparar.test.ts > la promesa del botón > no toca el diagrama que recibe 6ms
+ ✓ shared/src/reparacion/reparar.test.ts > la promesa del botón > cada arreglo lleva las operaciones que lo ejecutan, y el total es su suma 8ms
+ ✓ shared/src/reparacion/reparar.test.ts > la promesa del botón > nunca aumenta el número de errores, en ninguno de los casos de esta prueba 19ms
+ ✓ shared/src/reparacion/reparar.test.ts > arreglos que se encadenan > desmarcar una clave inválida provoca que se añada la que falta 6ms
+ ✓ shared/src/reparacion/reparar.test.ts > arreglos que se encadenan > la clave que se añade no choca con un atributo que ya se llamaba así 2ms
+ ✓ shared/src/reparacion/reparar.test.ts > arreglos que se encadenan > el plan termina aunque el diagrama sea un desastre 3ms
+ ✓ shared/src/reparacion/reparar.test.ts > nombres de atributo que Java no admite > translitera la tilde y junta las palabras 2ms
+ ✓ shared/src/reparacion/reparar.test.ts > nombres de atributo que Java no admite > el texto que se enseña nombra el atributo viejo y el nuevo 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > columnas que chocan con una palabra reservada > antepone el nombre de la clase 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > columnas que chocan con una palabra reservada > el detalle explica que la columna es reservada en PostgreSQL 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > dos atributos con el mismo nombre > renombra el segundo y conserva el primero 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > dos atributos con el mismo nombre > avisa de que probablemente uno de los dos sobre 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > tipos que no están en el catálogo > los cambia por String 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > tipos que no están en el catálogo > el detalle advierte de que String no es el tipo correcto, solo uno que compila 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > tipos que no están en el catálogo > no confunde una clase del diagrama con un tipo desconocido 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > subclase que vuelve a declarar la identidad > la desmarca y conserva el atributo como dato 2ms
+ ✓ shared/src/reparacion/reparar.test.ts > subclase que vuelve a declarar la identidad > el detalle explica que si no, el campo desaparece del Java generado 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > claves primarias de tipo imposible > desmarca la fecha y el importe 2ms
+ ✓ shared/src/reparacion/reparar.test.ts > claves primarias de tipo imposible > no toca una clave de tipo válido 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > varias claves primarias > conserva la de mejor tipo y desmarca las demás 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > varias claves primarias > a igualdad de tipo se queda con la primera declarada 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > entidades sin clave primaria > añade una Long con el nombre de la clase por delante 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > entidades sin clave primaria > no se la añade a una clase abstracta 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > entidades sin clave primaria > no se la añade a una clase marcada como no persistente 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > relaciones que apuntan a una clase borrada > las quita 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > relaciones que apuntan a una clase borrada > dice que no se pierde nada 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > composición con varios en el lado del todo > baja la multiplicidad a 1 3ms
+ ✓ shared/src/reparacion/reparar.test.ts > composición con varios en el lado del todo > respeta la cota inferior que ya había 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > la herencia múltiple sale como irreparable, con su mensaje 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > una enumeración vacía sale como irreparable 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > dos clases con el mismo nombre salen como irreparables 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > lo que no arregla porque no le corresponde > sigue proponiendo lo mecánico aunque haya algo que no sabe arreglar 1ms
+ ✓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > un diagrama válido no produce ningún arreglo 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > un diagrama vacío no revienta 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > no toca nada que solo produzca avisos 0ms
+ ✓ shared/src/reparacion/reparar.test.ts > diagramas que no hay que tocar > simular sin operaciones devuelve el mismo diagrama 0ms
+
+ Test Files  1 passed (1)
+      Tests  38 passed (38)
+   Start at  01:42:05
+   Duration  894ms (transform 186ms, setup 0ms, collect 308ms, tests 104ms, environment 0ms, prepare 155ms)
+

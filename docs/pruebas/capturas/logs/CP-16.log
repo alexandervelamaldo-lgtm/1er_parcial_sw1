@@ -1,0 +1,105 @@
+$ npx vitest run --reporter=verbose backend-tool/src/collab/collab.test.ts -t "persistencia de la sala"
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > lo que escribe uno aparece en la pantalla del otro
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > dos ediciones a la vez no se pisan
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > el tercero que llega tarde recibe todo lo anterior
+ ↓ backend-tool/src/collab/collab.test.ts > edición simultánea > un cambio hecho por HTTP llega a quien está conectado
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > cada uno ve dónde está el otro
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > el cursor de quien se va desaparece de la pantalla de los demás
+ ↓ backend-tool/src/collab/collab.test.ts > presencia > el cursor no entra en el documento, ni en el historial, ni en el disco
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > quien solo puede leer recibe los cambios pero no puede hacerlos (RNF-SEG-04)
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > el permiso se comprueba en cada mensaje, no solo al conectar
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión de quien no es miembro
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza la conexión sin token válido
+ ↓ backend-tool/src/collab/collab.test.ts > permisos en el canal colaborativo > rechaza un identificador de sala con forma de ruta
+ ✓ backend-tool/src/collab/collab.test.ts > persistencia de la sala > lo editado por el socket sobrevive a que se vayan todos 396ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 12 skipped (13)
+   Start at  01:45:43
+   Duration  2.21s (transform 525ms, setup 0ms, collect 1.32s, tests 397ms, environment 0ms, prepare 146ms)
+
+
+
+$ npx vitest run --reporter=verbose backend-tool/src/storage/documents.test.ts backend-tool/src/storage/migracion.test.ts backend-tool/src/storage/postgres.test.ts
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial)
+
+
+ RUN  v3.2.7 C:/Users/ALEXANDER/Desktop/sw1/1er parcial
+
+ ✓ backend-tool/src/storage/migracion.test.ts > lectura de lo que hay en el disco > lee usuarios, proyectos, permisos y diagramas 16ms
+ ✓ backend-tool/src/storage/migracion.test.ts > lectura de lo que hay en el disco > un directorio vacío no es un error, es que no hay nada 3ms
+ ✓ backend-tool/src/storage/migracion.test.ts > lectura de lo que hay en el disco > ignora lo que no sea un .bin dentro de documentos 12ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > conserva el identificador y el hash del usuario, sin volver a derivarlos 10ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > conserva las fechas del proyecto en vez de ponerlas todas hoy 15ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > va todo en una sola transacción 11ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > si algo falla no deja nada escrito 10ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > ejecutarla dos veces no duplica ni pisa lo que ya hay 9ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > cuenta como omitido lo que la base ya tenía 8ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > no migra un diagrama cuyo proyecto ya no existe, y lo dice 12ms
+ ✓ backend-tool/src/storage/migracion.test.ts > escritura en PostgreSQL > descarta un permiso cuyo proyecto no se migró, en vez de tumbar la transacción 2ms
+ ✓ backend-tool/src/storage/migracion.test.ts > el resumen que se imprime > nombra los diagramas huérfanos y aclara que no se ha borrado nada 2ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en fichero > devuelve null cuando el documento aún no existe 6ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en fichero > devuelve lo que guardó 17ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en fichero > sobrescribe el estado anterior en lugar de acumularlo 10ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en fichero > tras borrar, vuelve a comportarse como si nunca hubiera existido 8ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en fichero > borrar algo que no existe no es un error 3ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en fichero > mantiene separados los documentos de proyectos distintos 13ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en memoria > devuelve null cuando el documento aún no existe 1ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en memoria > devuelve lo que guardó 2ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en memoria > sobrescribe el estado anterior en lugar de acumularlo 3ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en memoria > tras borrar, vuelve a comportarse como si nunca hubiera existido 3ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en memoria > borrar algo que no existe no es un error 2ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén de documentos en memoria > mantiene separados los documentos de proyectos distintos 4ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén en fichero > no deja el fichero temporal del guardado atómico 9ms
+ ✓ backend-tool/src/storage/documents.test.ts > almacén en fichero > propaga un fichero ilegible en vez de fingir que no existe 10ms
+ ✓ backend-tool/src/storage/documents.test.ts > las salas usan el almacén > el documento sobrevive a reabrir la sala con un gestor nuevo 4ms
+ ✓ backend-tool/src/storage/documents.test.ts > las salas usan el almacén > cargar un documento no lo marca como sucio 2ms
+ ✓ backend-tool/src/storage/documents.test.ts > las salas usan el almacén > borrar el proyecto borra su documento del almacén 2ms
+ ✓ backend-tool/src/storage/documents.test.ts > las salas usan el almacén > el apagado cierra el almacén después de guardar, no antes 3ms
+ ✓ backend-tool/src/storage/postgres.test.ts > opciones de TLS según la cadena de conexión > no cifra contra una base de datos local 2ms
+ ✓ backend-tool/src/storage/postgres.test.ts > opciones de TLS según la cadena de conexión > cifra contra un host remoto aunque no se diga nada 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > opciones de TLS según la cadena de conexión > respeta sslmode=disable 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > opciones de TLS según la cadena de conexión > verifica el certificado con sslmode=verify-full 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > opciones de TLS según la cadena de conexión > ante una cadena que no sabe leer, cifra 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > transacciones > confirma y devuelve la conexión en el camino feliz 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > transacciones > deshace y propaga el error, sin quedarse la conexión 3ms
+ ✓ backend-tool/src/storage/postgres.test.ts > utilidades > convierte las fechas de PostgreSQL a ISO 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > utilidades > reconoce la violación de unicidad y no confunde otros errores 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de proyectos > crea el proyecto y la pertenencia del dueño en una sola transacción 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de proyectos > no concatena en el SQL nada que haya escrito el usuario (RNF-SEG-06) 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de proyectos > devuelve null cuando el proyecto no existe, en vez de fabricar uno vacío 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de proyectos > borrar un proyecto que no está devuelve false y no miente 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de proyectos > la lista de proyectos trae el papel de cada uno y sale ordenada por la base de datos 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de proyectos > invitar a quien ya está cambia su permiso en lugar de fallar 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > guarda el hash y la sal, nunca la contraseña 74ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > rechaza una contraseña corta sin llegar a tocar la base de datos 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > traduce el choque de unicidad a un error de correo duplicado 79ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > deja pasar los errores que no son de unicidad en vez de disfrazarlos 69ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > el token que emite al autenticar es el que acepta al verificar 121ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > no acepta un token con la firma cambiada 122ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > con la contraseña equivocada no emite sesión 111ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > un usuario que no existe no autentica y tampoco revienta 54ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > un identificador que no es un UUID se descarta sin consultar 1ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > recuperación > el código no llega nunca en claro a la base de datos 109ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > recuperación > el código cambia la contraseña y solo funciona una vez 396ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > recuperación > restablecer invalida los tokens anteriores 281ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > recuperación > sin código pendiente no hay nada que restablecer 118ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > recuperación > un identificador que no es un UUID no llega a la base de datos 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > identidad > recuperación > la contraseña nueva se rechaza antes de tocar la base de datos 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de documentos > un documento que no existe da null, que no es un error 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de documentos > guarda sustituyendo, no acumulando versiones 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de documentos > copia los bytes al guardar, porque el documento se sigue editando 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de documentos > devuelve los mismos bytes que le dio la base de datos 0ms
+ ✓ backend-tool/src/storage/postgres.test.ts > almacén de documentos > cierra el pool al apagarse, pero solo si es suyo 0ms
+ ↓ backend-tool/src/storage/postgres.test.ts > contra PostgreSQL de verdad > el recorrido completo: usuario, proyecto, permiso y documento
+
+ Test Files  3 passed (3)
+      Tests  65 passed | 1 skipped (66)
+   Start at  01:45:47
+   Duration  2.20s (transform 249ms, setup 0ms, collect 459ms, tests 1.77s, environment 1ms, prepare 512ms)
+

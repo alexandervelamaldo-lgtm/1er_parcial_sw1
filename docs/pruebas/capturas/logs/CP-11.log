@@ -1,0 +1,92 @@
+$ flutter test test/asistente/pantalla_asistente_test.dart --reporter expanded
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial\mobile)
+
+00:00 +0: loading C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/pantalla_asistente_test.dart
+00:00 +0: lo primero que ve alguien que nunca lo ha usado los ejemplos salen del manifiesto, no del código
+00:01 +1: lo primero que ve alguien que nunca lo ha usado preguntar qué puede hacer no propone ninguna acción
+00:01 +2: lo primero que ve alguien que nunca lo ha usado una frase que no dice nada se contesta con el repertorio
+00:01 +3: lo reversible se hace; lo irreversible se avisa pedir una lista la abre sin más preguntas
+00:02 +4: lo reversible se hace; lo irreversible se avisa antes de borrar se dice qué se lleva por delante
+00:03 +5: lo reversible se hace; lo irreversible se avisa cancelar el diálogo no borra nada
+00:04 +6: lo reversible se hace; lo irreversible se avisa confirmar borra, y el DELETE viaja con su clave
+00:06 +7: lo reversible se hace; lo irreversible se avisa un número que no existe se dice con las palabras del dominio
+00:07 +8: lo reversible se hace; lo irreversible se avisa con dos que encajan se pregunta cuál, no se elige el primero
+00:08 +9: un alta a medias abre la ficha en vez de rechazarla lo dictado llega puesto y el foco queda en lo que falta
+00:09 +10: un alta a medias abre la ficha en vez de rechazarla una orden completa se manda sola y se confirma con su nombre
+00:09 +11: un alta a medias abre la ficha en vez de rechazarla la clave del dictado es la que acaba viajando en el POST
+00:12 +12: sin tocar la pantalla lo que se lleva oído se ve mientras se habla
+00:12 +13: sin tocar la pantalla lo dictado se lee en voz alta y se pregunta si hacerlo
+00:13 +14: sin tocar la pantalla tras preguntar se vuelve a abrir el micrófono solo
+00:13 +15: sin tocar la pantalla escribir no hace hablar al teléfono
+00:13 +16: sin tocar la pantalla un «sí» dictado ejecuta la propuesta
+00:15 +17: sin tocar la pantalla un «no» dictado la descarta
+00:16 +18: sin tocar la pantalla rectificar hablando sustituye la propuesta, no la ejecuta
+00:17 +19: sin tocar la pantalla un borrado entero sin tocar la pantalla
+00:19 +20: sin tocar la pantalla cancelar hablando en el segundo aviso no borra nada
+00:21 +21: sin tocar la pantalla lo que no es ni sí ni no se vuelve a preguntar
+00:23 +22: sin tocar la pantalla la orden del barbero, dictada y confirmada de viva voz
+00:24 +23: sin tocar la pantalla un fallo del micrófono se cuenta con lo que hay que hacer
+00:24 +24: cambiar un dato un cambio dictado abre la ficha con el valor nuevo dentro
+00:25 +25: sin cobertura un alta dictada queda apuntada y sale sola al volver la red
+00:25 +26: sin cobertura la bandeja se ve desde la barra y se puede vaciar a mano
+00:28 +27: sin cobertura un borrado por número se apunta, pero avisando antes
+00:30 +28: sin cobertura cancelar el aviso no deja nada apuntado
+00:30 +29: sin cobertura lo que no se puede apuntar se dice, en vez de fingirlo
+00:31 +30: sin cobertura un borrado por nombre no se apunta a ciegas
+00:32 +31: All tests passed!
+
+
+$ flutter test test/asistente/gramatica_test.dart test/asistente/manifiesto_test.dart --reporter expanded
+(cwd: C:\Users\ALEXANDER\Desktop\sw1\1er parcial\mobile)
+
+00:00 +0: loading C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart
+00:00 +0: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: de qué se está hablando el plural dicho abre la lista
+00:00 +1: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: de qué se está hablando decir solo el nombre también, pero con menos confianza
+00:00 +2: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: de qué se está hablando los acentos que nadie pronuncia no cambian nada
+00:00 +3: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: de qué se está hablando gana la entidad que se nombra primero, no la de nombre más largo
+00:00 +4: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: de qué se está hablando una etiqueta compuesta gana a la que lleva dentro
+00:00 +5: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: de qué se está hablando si no se nombra ninguna, se dice lo que hay
+00:00 +6: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: altas los campos nombrados se recogen con su valor
+00:00 +7: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: altas sin nombrar el campo, el manifiesto dice cuál representa al registro
+00:00 +8: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: altas lo que falta se dice en vez de mandarlo a medias
+00:00 +9: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: altas un dictado entero acaba en el cuerpo que espera el DTO
+00:00 +10: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: altas un enumerado se corrige contra la lista cerrada del diagrama
+00:00 +11: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +12: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +13: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +14: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +15: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +16: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +17: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +18: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe se lee entero el que emite el generador para «tienda»
+00:00 +19: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: sobre un registro concreto decir el nombre y un número abre la ficha, no la lista
+00:00 +20: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe el plural viene de la ruta, no de pluralizar otra vez
+00:00 +21: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: sobre un registro concreto «ver clientes» es la lista: no hay un cuál
+00:00 +22: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe el enumerado llega con su lista cerrada de valores
+00:00 +23: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: lo que el backend no ofrece no se inventa una acción que la entidad no admite
+00:00 +24: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que el manifiesto describe el borrado en cascada solo lo sabe el diagrama
+00:00 +25: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: fechas y horas dictadas la frase del barbero, de principio a fin
+00:00 +26: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: fechas y horas dictadas la frase del barbero, de principio a fin
+00:00 +27: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: fechas y horas dictadas la frase del barbero, de principio a fin
+00:00 +28: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: fechas y horas dictadas el nombre suelto va al campo que representa al registro
+00:00 +29: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se dicta encuentra la entidad por singular, por plural y por nombre de clase
+00:00 +30: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: fechas y horas dictadas media fecha se pregunta en vez de inventarse la hora
+00:00 +31: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se dicta ignora acentos, mayúsculas y espacios de más
+00:00 +32: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: fechas y horas dictadas con dos campos temporales no se adivina en cuál va
+00:00 +33: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se dicta plegar deja el texto comparable
+00:00 +34: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: la clave de idempotencia se fija al dictar y no al enviar
+00:00 +35: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza una versión distinta para en seco y dice las dos
+00:00 +36: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: la clave de idempotencia dos dictados distintos no comparten clave
+00:00 +37: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza una ruta que se sale del sitio
+00:00 +38: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: ayuda el repertorio se dice con las palabras de este proyecto
+00:00 +39: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza un nombre que no es identificador
+00:00 +40: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/gramatica_test.dart: ayuda el campo vacío no produce una orden
+00:00 +41: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza un tipo desconocido, en vez de tragarlo como texto
+00:00 +42: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza un enumerado sin valores
+00:00 +43: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza una referencia a una entidad que no está en el documento
+00:00 +44: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza un campoEtiqueta que no está entre los campos
+00:00 +45: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza una acción crítica que la entidad no ofrece
+00:00 +46: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza dos entidades con el mismo nombre
+00:00 +47: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: lo que se rechaza un documento que no tiene la forma esperada
+00:00 +48: C:/Users/ALEXANDER/Desktop/sw1/1er parcial/mobile/test/asistente/manifiesto_test.dart: guarda contra la divergencia con el generador el manifiesto realmente generado también se lee
+00:00 +49: All tests passed!
