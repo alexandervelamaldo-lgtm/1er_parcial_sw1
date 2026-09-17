@@ -1,0 +1,12 @@
+{
+  "commands": [
+    "echo '--- variables configuradas (solo los nombres) ---'",
+    "grep -oE '^[A-Z_]+=' /etc/uml.env | tr -d '='",
+    "echo '--- lo que dijo el arranque ---'",
+    "grep -E 'configurado:|AUSENTE:' /var/log/arranque-uml.log",
+    "echo '--- contenedor ---'",
+    "docker ps --format '{{.Names}} {{.Status}}'",
+    "echo '--- ultimas lineas del servicio ---'",
+    "docker logs uml 2>&1 | tail -25 | sed -E 's#(postgres://[^:]+:)[^@]+@#\\1CONTRASENA-OCULTA@#g'"
+  ]
+}

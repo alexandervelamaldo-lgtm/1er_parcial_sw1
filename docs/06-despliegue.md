@@ -156,24 +156,86 @@ usa el servidor, que es lo que hace ya cualquier móvil.
 
 ## 6.4 AWS
 
-### Opción recomendada: App Runner + RDS
+### El HTTPS no es opcional en este proyecto
 
-Es la que menos piezas tiene y la que menos se puede configurar mal.
-
-**Y hay una razón que pesa más que la comodidad: el HTTPS no es opcional en este
-proyecto.** `SpeechRecognition` solo funciona en un *contexto seguro*, así que
-sobre `http://` el dictado —una de las dos funciones que pide el enunciado— no
-arranca, y no con un error claro sino con un botón de micrófono deshabilitado.
-App Runner termina TLS por su cuenta y da un dominio `https://….awsapprunner.com`
-sin configurar nada. Una EC2 con IP pelada sale más barata, pero para tener
-certificado hace falta un dominio y un Caddy o un nginx delante, y eso es más
-trabajo del que ahorra.
+Es la restricción que manda sobre todas las demás, y conviene enunciarla antes
+que ninguna arquitectura. `SpeechRecognition` y `getUserMedia` solo funcionan en
+un *contexto seguro*, así que sobre `http://` el dictado —una de las dos
+funciones que pide el enunciado— no arranca, y no con un error claro sino con un
+botón de micrófono deshabilitado. **Una herramienta de edición por voz servida
+por HTTP es una herramienta sin voz.**
 
 Conviene ser preciso sobre qué se rompe y qué no, porque el error de bulto es
 meter la foto en el mismo saco: la importación desde imagen usa un
 `<input type="file" capture="environment">`, que es un **selector de ficheros** y
 no `getUserMedia`, y los selectores funcionan igual sin origen seguro. Sobre
 `http://` se pierde la voz, no la cámara.
+
+De ahí salen dos requisitos que descartan destinos enteros: hace falta TLS **sin
+tener un dominio propio**, y hace falta que lo que termine ese TLS sepa
+transportar WebSockets.
+
+### Lo que esta cuenta no deja hacer
+
+El plan original de este documento era App Runner. No se pudo, y no por un error
+de configuración:
+
+| Servicio | Qué contesta |
+|---|---|
+| **App Runner** | `SubscriptionRequiredException` en `list-services` y en `list-connections`, en todas las regiones probadas |
+| **Lightsail Containers** | `InvalidInputException: …maximum limit of Lightsail Container Services` **con cero servicios creados** — la cuota es 0 |
+| EC2, Lightsail (instancias), CloudFront, SSM, ECS, Lambda, RDS, ECR, Secrets Manager | funcionan con normalidad |
+
+Se descartó que fuera un problema de permisos —el usuario IAM tiene
+`AdministratorAccess`— y que fuera una SCP de organización. El patrón es el de
+una cuenta nueva: **las máquinas virtuales están abiertas y los servicios de
+contenedores gestionados, cerrados**. No hay nada que arreglar desde este lado;
+hay que elegir otro destino.
+
+Merece la pena anotarlo porque es el tipo de obstáculo que aparece la víspera de
+una entrega y se confunde con un fallo propio. La comprobación que lo resuelve en
+un minuto, antes de diseñar nada encima:
+
+```bash
+aws apprunner list-services --region us-east-1
+aws lightsail get-container-services --region us-east-1
+```
+
+### Lo que se hizo: EC2 + CloudFront + RDS
+
+```
+navegador ──HTTPS/WSS──▶ CloudFront ──HTTP/WS──▶ EC2 (Docker, :80→:3001)
+                       (certificado)                      │
+                                                     VPC  ▼
+                                                    RDS PostgreSQL 16
+```
+
+CloudFront hace aquí de terminador de TLS, que es el papel que iba a hacer App
+Runner: da un dominio `https://….cloudfront.net` con certificado válido, sin
+dominio propio y sin ACM. La máquina detrás sigue hablando HTTP en claro, y no
+guarda ningún certificado que renovar.
+
+El desvío salió mejor que el plan original, y conviene decir por qué y no fingir
+que estaba pensado así:
+
+- **La base de datos se pudo cerrar.** La EC2 vive **dentro de la misma VPC** que
+  RDS, así que el 5432 se estrechó de `0.0.0.0/0` al grupo de seguridad de la
+  aplicación más la IP de quien desarrolla. Con Lightsail Containers, que vive
+  fuera de la VPC, el `0.0.0.0/0` habría sido permanente.
+- **Los secretos son secretos de verdad.** La máquina los pide a Secrets Manager
+  al arrancar con su rol de instancia. Lightsail habría guardado las variables de
+  entorno en claro dentro de su configuración de despliegue.
+- **Es más barato**: una `t3.micro` cuesta del orden de $0,25 al día, y se puede
+  *apagar*. Un servicio de Lightsail sigue facturando aunque esté deshabilitado;
+  ahí solo el borrado ahorra.
+- **CloudFront documenta el soporte de WebSocket**, que era la incógnita que
+  hacía de Lightsail una apuesta.
+
+Y una contrapartida honesta: para un WebSocket **persistente**, el salto por el
+borde añade latencia en vez de quitarla —la CDN ayuda a quien descarga ficheros,
+no a quien mantiene un socket abierto—. Por eso se eligió `PriceClass_All`, el
+único que incluye bordes en Sudamérica, y por eso el coste del salto se **mide**
+(`despliegue/prueba-websocket.mjs`) en lugar de suponerse.
 
 ### La región no es un detalle: `us-east-1`
 
@@ -188,19 +250,49 @@ cada gesto**. Desde Bolivia hasta Irlanda son del orden de 200 ms, así que
 arrastrar una clase se vería a un quinto de segundo de retraso en la otra
 pantalla: exactamente lo que un tribunal interpreta como «va lento».
 
-La región natural sería São Paulo (`sa-east-1`), a unos 40 ms, pero **App Runner
-no existe en Sudamérica**. De las regiones donde sí está, la más cercana es
-`us-east-1` (Virginia), en torno a 100 ms. Es la que hay que usar: la mitad de
-retraso que Irlanda, y además es la más barata y donde antes aparece todo.
+La región natural sería São Paulo (`sa-east-1`), a unos 40 ms. Se eligió
+`us-east-1` (Virginia), en torno a 100 ms: la mitad de retraso que Irlanda, la
+más barata y donde antes aparece todo. La razón entonces era que **App Runner no
+existe en Sudamérica**, y de las regiones donde sí está, Virginia era la más
+cercana.
+
+Esa razón murió con App Runner —EC2 sí está en São Paulo—, y sin embargo la
+región no se movió. Conviene decir por qué, porque la decisión honesta no es la
+óptima sobre el papel: para cuando se supo que App Runner estaba cerrado, la
+instancia RDS, el repositorio ECR y los secretos ya vivían en `us-east-1`.
+Mudarlos son horas, a diecisiete días de la defensa, a cambio de unos 60 ms.
+**Si se rehiciera desde cero hoy, iría a `sa-east-1`.**
 
 Da igual la región mientras la defensa sea en `localhost`; importa el día que se
 enseñe la versión de la nube, que es justo el día en que no se puede cambiar.
-RDS, ECR y App Runner tienen que estar **los tres en la misma región**: si no, ni
-se ven entre ellos y encima se paga la transferencia entre regiones.
+RDS, ECR y la máquina tienen que estar **los tres en la misma región**: si no, ni
+se ven entre ellos y encima se paga la transferencia entre regiones. La instancia
+se colocó además en la **misma zona de disponibilidad** que RDS (`us-east-1c`):
+mínima latencia y cero transferencia entre zonas.
 
-1. **RDS PostgreSQL.** Instancia mínima (`db.t4g.micro`), en la misma región.
-   No hacerla pública: se conecta por VPC. No hay que crear tablas a mano: el
-   servicio aplica su esquema al arrancar (§6.5).
+### La receta, en el orden en que se ejecutó
+
+Los ficheros de esta sección están en `despliegue/` y se versionan con el
+proyecto: son la definición del despliegue, no notas de una sesión.
+
+1. **RDS PostgreSQL.** Instancia mínima (`db.t4g.micro`), en la misma región. No
+   hay que crear tablas a mano: el servicio aplica su esquema al arrancar (§6.5).
+
+   Se dejó **accesible desde internet** a propósito, para poder inspeccionarla
+   con `psql` durante el desarrollo, y por eso hay tres cosas que no son
+   opcionales: `rds.force_ssl=1` en el grupo de parámetros, una contraseña de 32
+   caracteres aleatorios guardada en Secrets Manager, y un grupo de seguridad que
+   solo admita la IP de quien desarrolla **y el grupo de seguridad de la
+   aplicación** —referenciar un grupo desde otro, no un rango—. El `0.0.0.0/0`
+   con el que nació se eliminó.
+
+   > La contraseña original tenía diez caracteres, en una base de datos con el
+   > 5432 abierto al mundo. Eso no es una base de datos con contraseña: es una
+   > base de datos con un rato de espera. Se rotó con
+   > `modify-db-instance --apply-immediately` **después** de guardar la nueva en
+   > Secrets Manager, nunca antes: al revés, un fallo a mitad deja la instancia
+   > con una contraseña que nadie conoce.
+
 2. **ECR.** Crear el repositorio y subir la imagen:
    ```bash
    aws ecr create-repository --repository-name uml-tool --region us-east-1
@@ -252,6 +344,149 @@ no en lugar de él.
 
 **Lambda.** El canal colaborativo mantiene conexiones abiertas y estado en
 memoria. No encaja en un modelo de función efímera.
+
+### Subir una versión nueva a lo que ya está corriendo
+
+Todo lo anterior es el primer despliegue: se hace una vez. Lo que se hace una y
+otra vez es el **relevo**, y está en `despliegue/subir-version.sh`:
+
+```bash
+./despliegue/subir-version.sh v3
+```
+
+No crea nada. La máquina, la distribución, la base de datos y los secretos ya
+existen y el guion no los toca: solo cambia la imagen que corre dentro del
+contenedor. La etiqueta se pide a mano y no se calcula sola, porque reusar la
+misma etiqueta para dos imágenes distintas es la forma más rápida de no saber
+nunca qué hay corriendo: un `docker pull` de una etiqueta que ya está en la caché
+local no baja nada, y el contenedor sigue con la de antes mientras el registro
+dice otra cosa.
+
+Seis pasos, y cada uno está en ese orden por un fallo concreto:
+
+1. **Las pruebas, antes de construir.** Construir la imagen son varios minutos y
+   subir 1,5 GB otros tantos: descubrir el fallo al final significa haberlos
+   gastado.
+2. **`docker build --platform linux/amd64`.** No es opcional aunque el portátil
+   sea Intel (§6.3).
+3. **Subir a ECR**, con el testigo por la tubería directo a `docker login`.
+4. **Apuntar `arranque-ec2.sh` a la etiqueta nueva.** El paso que se olvida
+   siempre. Ese fichero es el «user data» de la máquina y ahí dentro está escrita
+   la etiqueta; si no se actualiza, el despliegue funciona —el contenedor se
+   releva en el paso 5— pero la máquina queda armada para volver a la versión
+   vieja el día que alguien la reinicie. Y ese día nadie relaciona una regresión
+   con un reinicio de hace tres semanas.
+
+   Se cambia el fichero del repositorio. Subirlo a la instancia va aparte, porque
+   cambiar el user data de una máquina encendida exige pararla; mientras no se
+   haga, el fichero es al menos la verdad escrita.
+5. **Relevar el contenedor**, por SSM y no por SSH: la máquina se creó sin par de
+   claves a propósito, para que no exista ninguna llave que guardar, rotar o
+   perder. Dos detalles del orden de las órdenes:
+
+   - **`pull` primero y `rm -f` después.** Al revés, el servicio se queda caído
+     durante toda la descarga de 1,5 GB, y si la descarga falla se queda caído
+     del todo.
+   - **`docker image prune -af` al final, no antes del `run`.** En una máquina
+     con 8 GB de disco, tres versiones de una imagen de 1,5 GB lo llenan, y el
+     síntoma es un `docker pull` que falla por falta de espacio justo cuando hay
+     prisa.
+
+   El `--env-file /etc/uml.env` que ya está en la máquina se reusa tal cual: los
+   secretos no se vuelven a pedir ni pasan por el guion, siguen donde los dejó el
+   arranque, escritos con `umask 077`.
+6. **Invalidar la caché de CloudFront** (`--paths "/*"`). Los ficheros con hash
+   en el nombre no lo necesitan —cambian de nombre en cada build— pero el
+   `index.html` sí: sin esto el navegador sigue pidiendo el bundle viejo por su
+   nombre viejo, que ya no está en la máquina, y la web se queda en blanco con un
+   404 en la consola. Es el fallo que parece «el despliegue rompió algo».
+
+Para comprobar que lo que se sirve es de verdad lo nuevo no basta con que
+`/salud` responda: eso lo hacía igual la versión anterior. Se descarga el bundle
+y se cuenta algo que solo exista en la versión nueva —un nombre de clase CSS, el
+nombre de un canal del puente nativo—, que es lo que se hizo aquí.
+
+### Poner o rotar un secreto en una máquina que ya está corriendo
+
+Añadir una clave —`LLM_API_KEY`, por ejemplo— **no es solo crear el secreto**. Hay
+dos trampas encadenadas, y las dos fallan en silencio: el servicio sigue
+respondiendo `/salud` en verde con la función apagada.
+
+**Primera: el guion de arranque no se vuelve a ejecutar.** `arranque-ec2.sh` es
+«user data», y cloud-init lo corre una sola vez, en el primer arranque. Crear el
+secreto en Secrets Manager no hace nada por sí solo, y reiniciar la máquina
+tampoco: nadie va a leerlo. Hay que llevar el valor al fichero a mano.
+
+**Segunda, y es la que sorprende: `docker restart` no vuelve a leer el
+`--env-file`.** Ese fichero se lee una única vez, al crear el contenedor con
+`docker run`, y sus valores quedan grabados en la configuración del contenedor.
+Reiniciarlo arranca *el mismo* contenedor con las variables de antes. Hay que
+**borrarlo y crearlo de nuevo**.
+
+> Se descubrió sufriéndolo: con la clave ya escrita en `/etc/uml.env` y el
+> contenedor reiniciado, el arranque seguía diciendo `Asistente: gramatica-local`.
+> El fichero estaba bien; lo que estaba mal era creer que un reinicio lo releía.
+
+La receta completa, idempotente —sirve igual para poner la clave la primera vez y
+para rotarla—, por SSM:
+
+```bash
+umask 077
+v=$(aws secretsmanager get-secret-value --region us-east-1 \
+      --secret-id uml/LLM_API_KEY --query SecretString --output text)
+sed -i '/^LLM_API_KEY=/d' /etc/uml.env   # borrar antes de añadir: sin esto,
+echo "LLM_API_KEY=$v" >> /etc/uml.env    # la variable acaba dos veces
+
+docker rm -f uml
+docker run -d --name uml --restart always -p 80:3001 \
+  --env-file /etc/uml.env 381549360414.dkr.ecr.us-east-1.amazonaws.com/uml-tool:v3
+```
+
+El nombre del secreto **tiene que empezar por `uml/`**: el rol de la instancia
+permite `secretsmanager:GetSecretValue` sobre `arn:...:secret:uml/*` y nada más.
+Con otro nombre el secreto se crea sin error y la máquina no lo puede leer, que es
+el mismo síntoma que no haberlo creado.
+
+**Cómo se comprueba.** El valor nunca se imprime. Dos medidas que no lo revelan:
+
+1. **Que el valor llegó entero**, comparando huellas. Es la comprobación que más
+   falta hace y la que casi se omite:
+   ```bash
+   printf %s "$v" | sha256sum | cut -c1-16                      # en Secrets Manager
+   docker exec uml printenv LLM_API_KEY | tr -d '\n' | sha256sum | cut -c1-16
+   ```
+   Si no coinciden, el valor se estropeó por el camino y la longitud lo confirma.
+   Pasó: escribir la línea con `printf 'LLM_API_KEY=%s\n' "$v"` a través de `ssm
+   send-command` perdió una capa de escape y dejó una **`n` literal pegada al
+   final de la clave**. 53 caracteres en Secrets Manager, 54 en `/etc/uml.env`.
+   Google contestaba `400 Invalid Auth key` y la clave era perfecta. De ahí el
+   `echo` de arriba en lugar de `printf`: pone el salto de línea él solo y no hay
+   ningún escape que perder.
+2. **Que el proveedor la acepta**, con una petición **real**:
+   ```bash
+   echo '{"model":"gemini-3.6-flash","messages":[{"role":"user","content":"hola"}]}' > /tmp/p.json
+   curl -s -o /dev/null -w '%{http_code}' -X POST \
+     https://generativelanguage.googleapis.com/v1beta/openai/chat/completions \
+     -H "Authorization: Bearer $v" -H 'Content-Type: application/json' -d @/tmp/p.json
+   ```
+   **No vale listar `/v1beta/openai/models`**: ese endpoint devuelve `200` con una
+   clave inválida, y eso dio por buena una clave rota durante media hora. Una
+   `chat/completions` sí la valida.
+
+   Esto es mejor que mirar la *forma* de la clave. Se dio por sentado que las de
+   Gemini miden 39 y empiezan por `AIza`; una clave nueva de 53 caracteres con
+   otro prefijo disparó una alarma falsa mientras era correcta. El formato lo
+   cambia el proveedor cuando quiere.
+3. **Que el servicio la está usando**, en el registro de arranque:
+   ```
+   Asistente: modelo-remoto (gemini-3.6-flash)
+   Lectura de diagramas fotografiados: gemini-3.6-flash
+   ```
+   Si dice `gramatica-local` o `desactivada`, la variable no ha llegado al proceso.
+
+Con un solo proveedor basta `LLM_API_KEY`: la visión hereda clave y URL del texto
+cuando apunta al mismo sitio (§`docs/05`), y por eso la segunda línea se enciende
+sin haber definido `LLM_VISION_API_KEY`.
 
 ---
 
@@ -463,9 +698,12 @@ loopback—, así que no hay nada que cambiar ahí.
 
 | Ruta | Qué se pide desde el móvil | Cuándo |
 |---|---|---|
-| **Cable USB** (`adb reverse tcp:3001 tcp:3001`) | `http://localhost:3001` | La defensa |
-| **Misma Wi-Fi** | `http://192.168.x.x:3001` | Desarrollar en casa |
-| **Emulador de Android** | `http://10.0.2.2:3001` | Sin teléfono delante |
+| **Cable USB** (`adb reverse tcp:3001 tcp:3001`) | `http://localhost:3001/movil` | La defensa |
+| **Misma Wi-Fi** | `http://192.168.x.x:3001/movil` | Desarrollar en casa |
+| **Emulador de Android** | `http://10.0.2.2:3001/movil` | Sin teléfono delante |
+
+El `/movil` del final es la interfaz táctil; sin él se entra por el layout de
+escritorio. Se explica en §6.9.
 
 **El cable es el que hay que llevar al examen**, y la razón no es la comodidad:
 muchas redes institucionales tienen aislamiento de clientes, que deja pasar
@@ -533,6 +771,17 @@ cuándo entra cada una están en [Guía §5.7](05-guia-voz-y-ocr.md).
 
 Llegar y caber son dos problemas distintos. Resuelto el primero en §6.7, el
 editor seguía sin poderse usar en un teléfono, y no por poco.
+
+> **Qué sigue vigente de esta sección.** Lo que se cuenta aquí es cómo el editor
+> de escritorio se estrecha cuando la ventana se estrecha, y eso sigue en pie: es
+> lo que ve quien reduce el navegador en el portátil. Lo que **ya no** es el
+> camino del teléfono. La app nativa entra por `/movil`, que es otra pantalla
+> —lienzo entero, hojas que suben desde abajo, cajón lateral— y no este layout
+> encogido. La diferencia no es de grado: un `@media` esconde columnas pero sigue
+> montándolas y suscribiéndolas al documento. Se documenta en la guía del móvil.
+> La cuenta de `vh` contra `%` de más abajo es la que merece leerse igual, porque
+> el error que describe se repite en cualquier panel que se mida contra la
+> ventana en vez de contra su hueco.
 
 ### Lo que estaba roto
 
@@ -607,7 +856,7 @@ estado.
 | | |
 |---|---|
 | `typecheck` en los cuatro paquetes | ✅ |
-| 539 pruebas en verde, `build` correcto | ✅ |
+| 1240 pruebas en verde, `build` correcto | ✅ |
 | El escritorio no cambia | ✅ *por construcción*: todo va dentro de `@media (max-width: 820px)` |
 | El reparto de alturas | ✏️ calculado, no visto |
 | **En un teléfono de verdad** | ❌ **no** |
@@ -633,7 +882,7 @@ incompleto y sin mantenimiento. Y el modo de fallo de un port de CRDT no es una
 excepción que salte: es un documento que deja de sincronizar **en silencio**,
 que es la peor clase de error posible en una defensa. Dentro del WebView, en
 cambio, el editor, el CRDT y el offline son exactamente el código que ya tiene
-las 539 pruebas detrás.
+las 1240 pruebas detrás.
 
 Lo nativo aporta lo que la página no puede hacer sola dentro de un WebView: el
 selector de ficheros de la cámara (`setOnShowFileSelector`) y la concesión de
@@ -658,13 +907,28 @@ cd mobile
 más abajo), hace el `adb reverse` y llama a `flutter`. Para otra cosa se le pasan
 los argumentos tal cual: `.\compilar.ps1 build apk --debug`.
 
-Que la URL por defecto sea `http://localhost:3001` no es casual. Con
-`adb reverse tcp:3001 tcp:3001` el teléfono se pide a sí mismo y el túnel USB lo
-lleva al portátil; y como **`localhost` es origen seguro para el navegador**,
-dentro del WebView siguen permitidos la cámara y el micrófono. Sobre
-`http://192.168.x.x` estarían bloqueados por no ser HTTPS. Para apuntar a otro
-sitio —AWS, el día que toque— se compila con
-`--dart-define=APP_URL=https://…`, que es la pieza descrita en §6.7.
+Que la URL por defecto sea `http://localhost:3001/movil` no es casual, y tiene
+dos mitades.
+
+El **`localhost:3001`**: con `adb reverse tcp:3001 tcp:3001` el teléfono se pide
+a sí mismo y el túnel USB lo lleva al portátil; y como **`localhost` es origen
+seguro para el navegador**, dentro del WebView siguen permitidos la cámara y el
+micrófono. Sobre `http://192.168.x.x` estarían bloqueados por no ser HTTPS.
+
+El **`/movil`**: es la interfaz táctil —lienzo a pantalla completa, hojas que
+suben desde abajo, cajón lateral—. Sin esa ruta la app entra por el layout de
+escritorio, que en un teléfono son tres columnas de las que dos no caben. Se
+elige en la URL y no con una comprobación de ancho dentro de la web por un
+motivo que solo se nota en la app nativa: el WebView pinta lo primero que
+recibe, así que decidirlo del lado del navegador dejaría un parpadeo en el que se
+monta el editor de escritorio entero —árbol, paleta y tres paneles suscritos al
+documento— para sustituirlo acto seguido, y ese parpadeo es lo primero que se ve
+al abrir la aplicación.
+
+Para apuntar a otro sitio —AWS, el día que toque— se compila con
+`--dart-define=APP_URL=https://…/movil`, que es la pieza descrita en §6.7. La
+ruta viaja con el dominio: es una sola cadena, no dos ajustes que se puedan
+desincronizar.
 
 ### El fallo que costó toda la tarde y no era del proyecto
 

@@ -1,0 +1,14 @@
+{
+  "Name": "uml-sin-cache-con-compresion",
+  "Comment": "TTL 0 (todo llega al origen) pero comprimiendo en el borde",
+  "DefaultTTL": 0,
+  "MinTTL": 0,
+  "MaxTTL": 0,
+  "ParametersInCacheKeyAndForwardedToOrigin": {
+    "EnableAcceptEncodingGzip": true,
+    "EnableAcceptEncodingBrotli": true,
+    "HeadersConfig": { "HeaderBehavior": "none" },
+    "CookiesConfig": { "CookieBehavior": "none" },
+    "QueryStringsConfig": { "QueryStringBehavior": "none" }
+  }
+}
