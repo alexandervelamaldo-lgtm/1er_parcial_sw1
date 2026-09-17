@@ -4,6 +4,12 @@ build/
 coverage/
 *.tsbuildinfo
 
+# Caché de los guiones de Python que arman los entregables (`backend-tool/scripts/`).
+# Son binarios recompilados en cada ejecución y cambian de nombre con la versión
+# del intérprete: versionarlos solo produce conflictos que nadie sabe resolver.
+__pycache__/
+*.pyc
+
 .env
 .env.local
 .env.*.local
